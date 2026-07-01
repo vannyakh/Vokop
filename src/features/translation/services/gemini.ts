@@ -116,16 +116,6 @@ ${text}`,
 export async function generateMultiSpeakerSpeech(text: string, speakerVoices: Record<string, string>) {
   return withRetry(async () => {
     const speakerEntries = Object.entries(speakerVoices);
-    
-    // Check if any speaker is using a Kiri voice. 
-    // For now, multi-speaker mode is strictly Gemini. If they use Kiri, it falls back to single speaker logic per-segment or just uses the first voice.
-    // However, to keep it simple and fulfill the user's request for "improving Khmer voice", 
-    // we'll check if the primary target voice is Kiri and handle it.
-    
-    const firstVoice = speakerEntries.length > 0 ? speakerEntries[0][1] : 'Kore';
-    if (firstVoice.startsWith('kiri_')) {
-      return generateKiriSpeech(text, firstVoice.replace('kiri_', ''));
-    }
 
     // Gemini 2.5 Flash TTS currently requires exactly 2 speakers for multi-speaker mode
     if (speakerEntries.length === 2) {
@@ -169,58 +159,7 @@ export async function generateMultiSpeakerSpeech(text: string, speakerVoices: Re
   });
 }
 
-export async function generateKiriSpeech(text: string, voice: string = 'Kiri') {
-  return withRetry(async () => {
-    // API Key Handling: Priority to env, fallback to provided key
-    const apiKeyFromPrompt = "sk-Sm-IcVk-sUj_HxeoOGyj3OrKI2A4B1r5T2bTcS-yG-Y";
-    const actualKey = process.env.KIRI_TTS_API_KEY || apiKeyFromPrompt;
-    
-    // Kiri TTS Endpoint Fix:
-    // Documentation suggests /v1/audio/speech for OpenAI-compatible behavior.
-    // Payloads: model, input, voice, speed.
-    const url = 'https://api.kiritts.com/v1/audio/speech';
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${actualKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'kiritts-1',
-        input: text.replace(/\[\d{2}:\d{2}\]\s+/g, '').trim(),
-        voice: voice,
-        speed: 1.0,
-        response_format: 'mp3'
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      let errorMessage = `Kiri TTS Status ${response.status}`;
-      try {
-        const errJson = JSON.parse(errText);
-        errorMessage = errJson.detail || errJson.message || errorMessage;
-      } catch (e) {
-        errorMessage = errText || errorMessage;
-      }
-      throw new Error(`Kiri TTS API Error: ${errorMessage}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let binary = '';
-    for (let i = 0; i < uint8Array.byteLength; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
-    }
-    return btoa(binary);
-  });
-}
-
 export async function generateSpeech(text: string, voice: string = 'Kore') {
-  if (voice.startsWith('kiri_')) {
-    return generateKiriSpeech(text, voice.replace('kiri_', ''));
-  }
   return withRetry(async () => {
 // ...
     const response = await ai.models.generateContent({
