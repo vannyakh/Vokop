@@ -8,6 +8,9 @@ import {
   Crosshair,
   Plus,
   ImageIcon,
+  Copy,
+  ClipboardPaste,
+  Clipboard,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
@@ -26,6 +29,10 @@ interface TimelineContextMenuProps {
   onSeek: (time: number) => void;
   onSplit: () => void;
   onDelete: () => void;
+  onCopy: () => void;
+  onCut: () => void;
+  onPaste: (atTime: number) => void;
+  onDuplicate: () => void;
   onAddClip: (trackId: TimelineTrackId) => void;
   onSelectFootage: () => void;
   onOpenMedia: () => void;
@@ -33,11 +40,13 @@ interface TimelineContextMenuProps {
   canSplit: boolean;
   canDelete: boolean;
   canEditCanvas: boolean;
+  hasClipboard: boolean;
 }
 
 interface MenuItem {
   id: string;
   label: string;
+  shortcut?: string;
   icon: typeof Scissors;
   onClick: () => void;
   disabled?: boolean;
@@ -50,6 +59,10 @@ export function TimelineContextMenu({
   onSeek,
   onSplit,
   onDelete,
+  onCopy,
+  onCut,
+  onPaste,
+  onDuplicate,
   onAddClip,
   onSelectFootage,
   onOpenMedia,
@@ -57,6 +70,7 @@ export function TimelineContextMenu({
   canSplit,
   canDelete,
   canEditCanvas,
+  hasClipboard,
 }: TimelineContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -101,6 +115,40 @@ export function TimelineContextMenu({
     icon: Crosshair,
     onClick: () => run(() => onSeek(time)),
   });
+
+  if (isClip && canEditCanvas) {
+    items.push({
+      id: 'copy',
+      label: 'Copy',
+      icon: Copy,
+      shortcut: '⌘C',
+      onClick: () => run(onCopy),
+    });
+    items.push({
+      id: 'cut',
+      label: 'Cut',
+      icon: Scissors,
+      shortcut: '⌘X',
+      onClick: () => run(onCut),
+    });
+    items.push({
+      id: 'duplicate',
+      label: 'Duplicate',
+      icon: Clipboard,
+      shortcut: '⌘D',
+      onClick: () => run(onDuplicate),
+    });
+  }
+
+  if (hasClipboard) {
+    items.push({
+      id: 'paste',
+      label: 'Paste here',
+      icon: ClipboardPaste,
+      shortcut: '⌘V',
+      onClick: () => run(() => onPaste(time)),
+    });
+  }
 
   if (isClip && isVideo) {
     items.push({
@@ -215,6 +263,9 @@ export function TimelineContextMenu({
           >
             <Icon size={14} strokeWidth={2} />
             <span>{item.label}</span>
+            {item.shortcut && (
+              <span className="studio-timeline-context-menu-shortcut">{item.shortcut}</span>
+            )}
           </button>
         );
       })}

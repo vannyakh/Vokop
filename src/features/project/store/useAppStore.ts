@@ -7,6 +7,49 @@ import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
 import type { CanvasElement, CanvasTool } from '@/types/canvas';
 import { defaultProjectName, detectAspectRatioId } from '@/features/studio/constants/aspectRatios';
 import { cloneCanvasElements, pushCanvasUndoStack } from '@/features/studio/lib/canvasHistory';
+import type { TextTemplateInput, AddTextTemplateOptions } from '@/features/studio/constants/textTemplates';
+import { computeTemplatePlacement, estimateCanvasSize } from '@/features/studio/lib/textTemplatePlacement';
+
+export type AddCanvasImageOptions = {
+  keepStudioTool?: boolean;
+  width?: number;
+  height?: number;
+  label?: string;
+  startTime?: number;
+  endTime?: number;
+};
+
+function buildCanvasImageElement(
+  state: {
+    canvasElements: CanvasElement[];
+    duration: number;
+    currentTime: number;
+    videoWidth: number;
+    videoHeight: number;
+  },
+  src: string,
+  label: string,
+  options?: AddCanvasImageOptions,
+): CanvasElement {
+  const duration = state.duration || 3600;
+  const startTime = options?.startTime ?? state.currentTime;
+  const endTime = options?.endTime ?? Math.min(duration, startTime + 4);
+  return {
+    id: `image-${Date.now()}`,
+    type: 'image',
+    text: label,
+    src,
+    x: Math.max(24, state.videoWidth ? 48 : 24),
+    y: Math.max(24, state.videoHeight ? 48 : 24),
+    width: options?.width ?? 160,
+    height: options?.height ?? 160,
+    fontSize: 0,
+    rotation: 0,
+    opacity: 1,
+    startTime,
+    endTime,
+  };
+}
 
 function pushCanvasUndo(state: { canvasElements: CanvasElement[]; canvasUndoStack: CanvasElement[][] }) {
   return {
@@ -55,11 +98,17 @@ interface AppState {
   timelineZoom: number;
   timelineTrackMuted: Record<TimelineTrackId, boolean>;
   selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
+  selectedTimelineClips: { trackId: TimelineTrackId; clipId: string }[];
+  timelineClipboard: CanvasElement[] | null;
   canvasElements: CanvasElement[];
   selectedCanvasElementId: string | null;
   canvasTool: CanvasTool;
   canvasUndoStack: CanvasElement[][];
   canvasRedoStack: CanvasElement[][];
+  previewFullscreenOpen: boolean;
+  canvasPreviewAxis: boolean;
+  canvasAttachSnap: boolean;
+  canvasZoom: number;
 
   setVideo: (file: File, url: string) => void;
   resetProject: () => void;
@@ -98,9 +147,22 @@ interface AppState {
   setToolsDrawerOpen: (open: boolean) => void;
   setActiveStudioTool: (tool: StudioToolId) => void;
   toggleToolsDrawer: (tool?: StudioToolId) => void;
+  setPreviewFullscreenOpen: (open: boolean) => void;
+  togglePreviewFullscreen: () => void;
+  toggleCanvasPreviewAxis: () => void;
+  toggleCanvasAttachSnap: () => void;
+  setCanvasZoom: (zoom: number) => void;
   setTimelineZoom: (zoom: number) => void;
   toggleTimelineTrackMuted: (trackId: TimelineTrackId) => void;
   setSelectedTimelineClip: (clip: { trackId: TimelineTrackId; clipId: string } | null) => void;
+  setSelectedTimelineClips: (clips: { trackId: TimelineTrackId; clipId: string }[]) => void;
+  addToTimelineSelection: (clip: { trackId: TimelineTrackId; clipId: string }) => void;
+  removeFromTimelineSelection: (clip: { trackId: TimelineTrackId; clipId: string }) => void;
+  copyTimelineSelection: () => void;
+  cutTimelineSelection: () => void;
+  pasteTimelineClipboard: (atTime?: number) => void;
+  duplicateTimelineSelection: () => void;
+  deleteTimelineSelection: () => void;
   updateSegment: (index: number, newText: string, type: 'transcript' | 'translation') => void;
   updateSegmentTime: (index: number, newTime: number, type: 'transcript' | 'translation') => void;
   updateSegmentDuration: (index: number, duration: number, type: 'transcript' | 'translation') => void;
@@ -111,8 +173,12 @@ interface AppState {
   setSelectedCanvasElementId: (id: string | null) => void;
   selectCanvasElement: (id: string | null) => void;
   updateCanvasElement: (id: string, patch: Partial<CanvasElement>) => void;
+  duplicateCanvasElement: (id: string) => void;
+  replaceCanvasElementImage: (id: string, file: File) => void;
   addCanvasLogo: (file: File) => void;
-  addCanvasImageOverlay: (file: File) => void;
+  addCanvasImageOverlay: (file: File, options?: AddCanvasImageOptions) => void;
+  addCanvasImageFromUrl: (src: string, options?: AddCanvasImageOptions) => void;
+  addTextTemplate: (template: TextTemplateInput, options?: AddTextTemplateOptions) => void;
   removeCanvasElement: (id: string) => void;
   undoCanvas: () => void;
   redoCanvas: () => void;
@@ -165,11 +231,17 @@ const initialState = {
     audio: false,
   } as Record<TimelineTrackId, boolean>,
   selectedTimelineClip: null as { trackId: TimelineTrackId; clipId: string } | null,
+  selectedTimelineClips: [] as { trackId: TimelineTrackId; clipId: string }[],
+  timelineClipboard: null as CanvasElement[] | null,
   canvasElements: [] as CanvasElement[],
   selectedCanvasElementId: null as string | null,
   canvasTool: 'select' as CanvasTool,
   canvasUndoStack: [] as CanvasElement[][],
   canvasRedoStack: [] as CanvasElement[][],
+  previewFullscreenOpen: false,
+  canvasPreviewAxis: true,
+  canvasAttachSnap: true,
+  canvasZoom: 100,
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -290,12 +362,116 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { toolsDrawerOpen: true, activeStudioTool: tool ?? s.activeStudioTool };
     }),
 
+  setPreviewFullscreenOpen: (open) => set({ previewFullscreenOpen: open }),
+  togglePreviewFullscreen: () => set((s) => ({ previewFullscreenOpen: !s.previewFullscreenOpen })),
+  toggleCanvasPreviewAxis: () => set((s) => ({ canvasPreviewAxis: !s.canvasPreviewAxis })),
+  toggleCanvasAttachSnap: () => set((s) => ({ canvasAttachSnap: !s.canvasAttachSnap })),
+  setCanvasZoom: (zoom) => set({ canvasZoom: Math.min(200, Math.max(25, zoom)) }),
+
   setTimelineZoom: (zoom) => set({ timelineZoom: Math.min(400, Math.max(25, zoom)) }),
   toggleTimelineTrackMuted: (trackId) =>
     set((s) => ({
       timelineTrackMuted: { ...s.timelineTrackMuted, [trackId]: !s.timelineTrackMuted[trackId] },
     })),
   setSelectedTimelineClip: (clip) => set({ selectedTimelineClip: clip }),
+  setSelectedTimelineClips: (clips) => set({ selectedTimelineClips: clips }),
+  addToTimelineSelection: (clip) => {
+    const { selectedTimelineClips } = get();
+    const exists = selectedTimelineClips.some(
+      (c) => c.trackId === clip.trackId && c.clipId === clip.clipId,
+    );
+    if (!exists) set({ selectedTimelineClips: [...selectedTimelineClips, clip] });
+  },
+  removeFromTimelineSelection: (clip) =>
+    set((state) => ({
+      selectedTimelineClips: state.selectedTimelineClips.filter(
+        (c) => !(c.trackId === clip.trackId && c.clipId === clip.clipId),
+      ),
+    })),
+  copyTimelineSelection: () => {
+    const { selectedTimelineClips, selectedTimelineClip, canvasElements } = get();
+    const keys =
+      selectedTimelineClips.length > 0
+        ? selectedTimelineClips
+        : selectedTimelineClip
+          ? [selectedTimelineClip]
+          : [];
+    if (!keys.length) return;
+    const ids = new Set(keys.map((k) => k.clipId));
+    const copied = canvasElements
+      .filter((el) => ids.has(el.id))
+      .map((el) => ({ ...el }));
+    if (copied.length) set({ timelineClipboard: copied });
+  },
+  cutTimelineSelection: () => {
+    get().copyTimelineSelection();
+    get().deleteTimelineSelection();
+  },
+  pasteTimelineClipboard: (atTime?: number) => {
+    const { timelineClipboard, currentTime, canvasElements, duration } = get();
+    if (!timelineClipboard || !timelineClipboard.length) return;
+    const pasteAt = atTime ?? currentTime;
+    const offset = pasteAt - (timelineClipboard[0].startTime ?? 0);
+    const newElements = timelineClipboard.map((el) => {
+      const id = `template-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const newStart = Math.max(0, (el.startTime ?? 0) + offset);
+      const newEnd = Math.min(duration || 3600, (el.endTime ?? 2) + offset);
+      return { ...el, id, startTime: newStart, endTime: newEnd };
+    });
+    const state = get();
+    set({
+      ...pushCanvasUndo(state),
+      canvasElements: [...canvasElements, ...newElements],
+      selectedCanvasElementId: newElements[0]?.id ?? null,
+      selectedTimelineClip: newElements[0]
+        ? { trackId: 'text', clipId: newElements[0].id }
+        : null,
+    });
+  },
+  duplicateTimelineSelection: () => {
+    const { selectedTimelineClips, selectedTimelineClip, canvasElements, duration } = get();
+    const keys =
+      selectedTimelineClips.length > 0
+        ? selectedTimelineClips
+        : selectedTimelineClip
+          ? [selectedTimelineClip]
+          : [];
+    if (!keys.length) return;
+    const ids = new Set(keys.map((k) => k.clipId));
+    const state = get();
+    const duped = canvasElements
+      .filter((el) => ids.has(el.id))
+      .map((el) => {
+        const id = `template-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const dur = (el.endTime ?? 2) - (el.startTime ?? 0);
+        const newStart = Math.min(
+          (el.endTime ?? 2),
+          (duration || 3600) - dur,
+        );
+        return { ...el, id, startTime: newStart, endTime: newStart + dur };
+      });
+    if (!duped.length) return;
+    set({
+      ...pushCanvasUndo(state),
+      canvasElements: [...canvasElements, ...duped],
+      selectedCanvasElementId: duped[0]?.id ?? null,
+      selectedTimelineClip: duped[0] ? { trackId: 'text', clipId: duped[0].id } : null,
+    });
+  },
+  deleteTimelineSelection: () => {
+    const { selectedTimelineClips, selectedTimelineClip } = get();
+    const keys =
+      selectedTimelineClips.length > 0
+        ? selectedTimelineClips
+        : selectedTimelineClip
+          ? [selectedTimelineClip]
+          : [];
+    if (!keys.length) return;
+    for (const { trackId, clipId } of keys) {
+      get().removeTimelineClip(trackId, clipId);
+    }
+    set({ selectedTimelineClips: [], selectedTimelineClip: null });
+  },
 
   updateSegment: (index, newText, type) => {
     const state = get();
@@ -333,7 +509,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   removeTimelineClip: (trackId, clipId) => {
-    if (clipId.startsWith('logo-') || clipId.startsWith('image-')) {
+    if (clipId.startsWith('logo-') || clipId.startsWith('image-') || clipId.startsWith('template-')) {
       get().removeCanvasElement(clipId);
       return;
     }
@@ -379,7 +555,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     let selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null = null;
     if (element) {
-      if (element.segmentType === 'translation') {
+      if (element.segmentType === 'translation' || element.templateId) {
         selectedTimelineClip = { trackId: 'text', clipId: element.id };
       } else if (element.segmentType === 'transcript' || element.type === 'logo' || element.type === 'image') {
         selectedTimelineClip = { trackId: 'overlay', clipId: element.id };
@@ -389,6 +565,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       selectedCanvasElementId: id,
       selectedTimelineClip: id ? selectedTimelineClip : null,
+      canvasTool: 'select',
       ...(id ? { activeStudioTool: tool, toolsDrawerOpen: true } : {}),
     });
   },
@@ -424,6 +601,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     set(updates);
   },
 
+  duplicateCanvasElement: (id) => {
+    const state = get();
+    const element = state.canvasElements.find((el) => el.id === id);
+    if (!element) return;
+    const newId = `${element.type}-${Date.now()}`;
+    const dup: CanvasElement = {
+      ...element,
+      id: newId,
+      x: element.x + 20,
+      y: element.y + 20,
+    };
+    set({
+      ...pushCanvasUndo(state),
+      canvasElements: [...state.canvasElements, dup],
+      selectedCanvasElementId: newId,
+      canvasTool: 'select',
+    });
+  },
+
+  replaceCanvasElementImage: (id, file) => {
+    const state = get();
+    const element = state.canvasElements.find((el) => el.id === id);
+    if (!element || (element.type !== 'image' && element.type !== 'logo')) return;
+
+    if (element.src?.startsWith('blob:')) {
+      URL.revokeObjectURL(element.src);
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      const maxDim = 160;
+      const scale = maxDim / Math.max(img.naturalWidth, img.naturalHeight, 1);
+      get().updateCanvasElement(id, {
+        src: url,
+        text: file.name,
+        width: Math.round(img.naturalWidth * scale),
+        height: Math.round(img.naturalHeight * scale),
+      });
+    };
+    img.onerror = () => {
+      get().updateCanvasElement(id, { src: url, text: file.name });
+    };
+    img.src = url;
+  },
+
   addCanvasLogo: (file) => {
     const state = get();
     const url = URL.createObjectURL(file);
@@ -453,39 +676,89 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  addCanvasImageOverlay: (file) => {
+  addCanvasImageOverlay: (file, options) => {
     const state = get();
     const url = URL.createObjectURL(file);
-    const id = `image-${Date.now()}`;
+    const element = buildCanvasImageElement(state, url, options?.label ?? file.name, options);
+    set({
+      ...pushCanvasUndo(state),
+      canvasElements: [...state.canvasElements, element],
+      selectedCanvasElementId: element.id,
+      activeStudioTool: options?.keepStudioTool ? state.activeStudioTool : 'media',
+      toolsDrawerOpen: true,
+    });
+  },
+
+  addCanvasImageFromUrl: (src, options) => {
+    const state = get();
+    const element = buildCanvasImageElement(state, src, options?.label ?? 'Sticker', options);
+    set({
+      ...pushCanvasUndo(state),
+      canvasElements: [...state.canvasElements, element],
+      selectedCanvasElementId: element.id,
+      activeStudioTool: options?.keepStudioTool ? state.activeStudioTool : 'effects',
+      toolsDrawerOpen: true,
+    });
+  },
+
+  addTextTemplate: (template, options) => {
+    const state = get();
+    const time = state.currentTime;
     const duration = state.duration || 3600;
+    const clipDuration = template.duration ?? 4;
+    const endTime = Math.min(duration, time + clipDuration);
+    const canvasSize = {
+      width: options?.canvasWidth ?? estimateCanvasSize(state.videoWidth, state.videoHeight).width,
+      height: options?.canvasHeight ?? estimateCanvasSize(state.videoWidth, state.videoHeight).height,
+    };
+    const placement = computeTemplatePlacement(
+      template.verticalAlign,
+      template.style.fontSize,
+      canvasSize,
+    );
+    const id = `template-${Date.now()}`;
+    const displayText =
+      template.style.textTransform === 'uppercase'
+        ? template.defaultText.toUpperCase()
+        : template.defaultText;
+
+    const x = options?.x ?? placement.x;
+    const y = options?.y ?? placement.y;
+
     const element: CanvasElement = {
       id,
-      type: 'image',
-      text: file.name,
-      src: url,
-      x: Math.max(24, state.videoWidth ? 48 : 24),
-      y: Math.max(24, state.videoHeight ? 48 : 24),
-      width: 200,
-      height: 120,
-      fontSize: 0,
+      type: 'text',
+      text: displayText,
+      templateId: template.id,
+      textStyle: { ...template.style },
+      fontFamily: template.fontFamily,
+      textEffect: template.textEffect,
+      x,
+      y,
+      width: placement.width,
+      height: placement.height,
+      fontSize: template.style.fontSize,
       rotation: 0,
-      opacity: 0.85,
-      startTime: 0,
-      endTime: duration,
+      opacity: 1,
+      startTime: time,
+      endTime: Math.max(time + 0.4, endTime),
     };
+
     set({
       ...pushCanvasUndo(state),
       canvasElements: [...state.canvasElements, element],
       selectedCanvasElementId: id,
-      activeStudioTool: 'media',
+      selectedTimelineClip: { trackId: 'text', clipId: id },
+      activeStudioTool: 'text',
       toolsDrawerOpen: true,
+      canvasTool: 'select',
     });
   },
 
   removeCanvasElement: (id) => {
     const state = get();
     const element = state.canvasElements.find((el) => el.id === id);
-    if (element?.src) URL.revokeObjectURL(element.src);
+    if (element?.src?.startsWith('blob:')) URL.revokeObjectURL(element.src);
     set({
       ...pushCanvasUndo(state),
       canvasElements: state.canvasElements.filter((el) => el.id !== id),

@@ -11,6 +11,8 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  AlignCenter,
+  Magnet,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
@@ -41,6 +43,17 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
+  const copyTimelineSelection = useAppStore((s) => s.copyTimelineSelection);
+  const cutTimelineSelection = useAppStore((s) => s.cutTimelineSelection);
+  const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
+  const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
+  const timelineClipboard = useAppStore((s) => s.timelineClipboard);
+  const togglePreviewFullscreen = useAppStore((s) => s.togglePreviewFullscreen);
+  const previewFullscreenOpen = useAppStore((s) => s.previewFullscreenOpen);
+  const canvasPreviewAxis = useAppStore((s) => s.canvasPreviewAxis);
+  const canvasAttachSnap = useAppStore((s) => s.canvasAttachSnap);
+  const toggleCanvasPreviewAxis = useAppStore((s) => s.toggleCanvasPreviewAxis);
+  const toggleCanvasAttachSnap = useAppStore((s) => s.toggleCanvasAttachSnap);
   const [isPaused, setIsPaused] = useState(true);
   const [barMenu, setBarMenu] = useState<{ x: number; y: number } | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -160,6 +173,25 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
           <div className="studio-playback-divider" />
           <button
             type="button"
+            className={cn('studio-playback-icon-btn', canvasPreviewAxis && 'studio-playback-icon-btn--active')}
+            onClick={toggleCanvasPreviewAxis}
+            title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} preview axis (S)`}
+            aria-pressed={canvasPreviewAxis}
+          >
+            <AlignCenter size={15} />
+          </button>
+          <button
+            type="button"
+            className={cn('studio-playback-icon-btn', canvasAttachSnap && 'studio-playback-icon-btn--active')}
+            onClick={toggleCanvasAttachSnap}
+            title={`${canvasAttachSnap ? 'Turn off' : 'Turn on'} Attach (N)`}
+            aria-pressed={canvasAttachSnap}
+          >
+            <Magnet size={15} />
+          </button>
+          <div className="studio-playback-divider" />
+          <button
+            type="button"
             className="studio-playback-icon-btn"
             onClick={() => setTimelineZoom(timelineZoom - 25)}
             title="Zoom out"
@@ -186,7 +218,13 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             <ZoomIn size={15} />
           </button>
           <div className="studio-playback-divider" />
-          <button type="button" className="studio-playback-icon-btn" title="Fullscreen">
+          <button
+            type="button"
+            className="studio-playback-icon-btn"
+            onClick={togglePreviewFullscreen}
+            title={previewFullscreenOpen ? 'Exit fullscreen preview' : 'Fullscreen preview'}
+            aria-pressed={previewFullscreenOpen}
+          >
             <Maximize2 size={15} />
           </button>
         </div>
@@ -202,6 +240,10 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         }}
         onSplit={splitTimelineAtPlayhead}
         onDelete={handleDeleteSelected}
+        onCopy={copyTimelineSelection}
+        onCut={cutTimelineSelection}
+        onPaste={(atTime) => pasteTimelineClipboard(atTime)}
+        onDuplicate={duplicateTimelineSelection}
         onAddClip={(trackId) => addTimelineClip(trackId, currentTime)}
         onSelectFootage={() => {}}
         onOpenMedia={() => {
@@ -216,6 +258,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         canEditCanvas={
           selectedTimelineClip?.trackId === 'text' || selectedTimelineClip?.trackId === 'overlay'
         }
+        hasClipboard={Boolean(timelineClipboard?.length)}
       />
     </div>
   );

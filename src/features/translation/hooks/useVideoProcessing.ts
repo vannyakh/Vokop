@@ -3,10 +3,13 @@ import { useAppStore } from '@/features/project';
 import { fileToBase64 } from '@/lib/utils/file';
 import {
   transcribeVideo,
+  translateSegmentsForEditor,
   translateText,
   generateSpeech,
   generateMultiSpeakerSpeech,
+  generateVoiceoverForEditor,
   analyzeVideo,
+  retranslateSegment,
 } from '@/features/translation/services/gemini';
 
 export function useVideoProcessing() {
@@ -27,31 +30,49 @@ export function useVideoProcessing() {
     [store],
   );
 
+  const openEditorAfterProcess = useCallback(() => {
+    store.setEditorOpen(true);
+    store.setActiveTab('translate');
+    store.setActiveStudioTool('text');
+    store.setToolsDrawerOpen(true);
+  }, [store]);
+
   const processAll = useCallback(async () => {
-    const { videoFile, targetLang, selectedVoice, speakerVoices } = useAppStore.getState();
+    const { videoFile, targetLang, selectedVoice, speakerVoices, duration, aspectRatio } =
+      useAppStore.getState();
     if (!videoFile) return;
 
     try {
       store.setStatus('transcribing');
+      store.setErrorMessage('');
       const base64 = await fileToBase64(videoFile);
-      const transcriptionResult = await transcribeVideo(base64, videoFile.type);
-      const text = transcriptionResult.transcript;
+
+      const transcriptionResult = await transcribeVideo(
+        base64,
+        videoFile.type,
+        duration > 0 ? duration : undefined,
+      );
 
       store.setDetectedLanguage(transcriptionResult.detectedLanguage);
-      store.setTranscript(text || 'No transcript generated.');
-      store.initSpeakersFromTranscript(text || '');
+      store.setTranscript(transcriptionResult.transcript);
+      store.initSpeakersFromTranscript(transcriptionResult.transcript);
 
       store.setStatus('analyzing');
       const analysis = await analyzeVideo(base64, videoFile.type, targetLang);
       store.setVideoAnalysis(analysis);
 
       store.setStatus('translating');
-      const translated = await translateText(text || '', targetLang, transcriptionResult.detectedLanguage);
-      store.setTranslatedText(translated || '');
+      const translationResult = await translateSegmentsForEditor(
+        transcriptionResult.segments,
+        targetLang,
+        transcriptionResult.detectedLanguage,
+        aspectRatio,
+      );
+      store.setTranslatedText(translationResult.translatedText);
 
       store.setStatus('speaking');
       const voices = useAppStore.getState().speakerVoices;
-      const audio = await generateMultiSpeakerSpeech(translated || '', voices);
+      const audio = await generateVoiceoverForEditor(translationResult.translatedText, voices);
       store.setAudioBase64(audio);
 
       if (analysis?.summary) {
@@ -64,12 +85,65 @@ export function useVideoProcessing() {
       }
 
       store.setStatus('idle');
+      openEditorAfterProcess();
     } catch (error: unknown) {
       console.error(error);
       store.setStatus('error');
       store.setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred.');
     }
-  }, [store, cacheReelAudio]);
+  }, [store, cacheReelAudio, openEditorAfterProcess]);
+
+  const regenerateVoiceover = useCallback(async () => {
+    const { translatedText, speakerVoices } = useAppStore.getState();
+    if (!translatedText.trim()) return;
+
+    try {
+      store.setStatus('speaking');
+      store.setErrorMessage('');
+      const audio = await generateVoiceoverForEditor(translatedText, speakerVoices);
+      store.setAudioBase64(audio);
+      store.setStatus('idle');
+    } catch (error: unknown) {
+      console.error(error);
+      store.setStatus('error');
+      store.setErrorMessage(error instanceof Error ? error.message : 'Voice regeneration failed.');
+    }
+  }, [store]);
+
+  const retranslateActiveSegment = useCallback(
+    async (segmentIndex: number) => {
+      const { transcript, targetLang, detectedLanguage, aspectRatio } = useAppStore.getState();
+      const lines = transcript.split('\n').filter(Boolean);
+      const line = lines[segmentIndex];
+      if (!line) return;
+
+      const match = line.match(/\[(\d{2}):(\d{2})\]\s+([^:]+):\s+(.*)/);
+      if (!match) return;
+
+      const segment = {
+        startSec: parseInt(match[1], 10) * 60 + parseInt(match[2], 10),
+        speaker: match[3].trim(),
+        text: match[4].trim(),
+      };
+
+      try {
+        store.setStatus('translating');
+        const translatedLine = await retranslateSegment(
+          segment,
+          targetLang,
+          detectedLanguage ?? undefined,
+          aspectRatio,
+        );
+        store.updateSegment(segmentIndex, translatedLine, 'translation');
+        store.setStatus('idle');
+      } catch (error: unknown) {
+        console.error(error);
+        store.setStatus('error');
+        store.setErrorMessage(error instanceof Error ? error.message : 'Retranslation failed.');
+      }
+    },
+    [store],
+  );
 
   const previewVoice = useCallback(
     async (speaker: string, playSegment: (base64: string, cb: (p: boolean) => void) => Promise<void>) => {
@@ -94,5 +168,12 @@ export function useVideoProcessing() {
     [store],
   );
 
-  return { processAll, previewVoice, cacheReelAudio };
+  return {
+    processAll,
+    previewVoice,
+    cacheReelAudio,
+    regenerateVoiceover,
+    retranslateActiveSegment,
+    translateText,
+  };
 }

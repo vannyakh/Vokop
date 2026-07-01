@@ -5,7 +5,20 @@ export { useSegments } from './hooks/useSegments';
 export {
   transcribeVideo,
   translateText,
+  translateSegmentsForEditor,
   generateSpeech,
   generateMultiSpeakerSpeech,
+  generateVoiceoverForEditor,
+  retranslateSegment,
   analyzeVideo,
+  editorSegmentsToTranscript,
 } from './services/gemini';
+export type {
+  EditorSegment,
+  TranscriptionResult,
+  TranslationResult,
+} from './types/editorAI';
+export {
+  captionLimitsForRatio,
+  parseEditorSegmentsFromTranscript,
+} from './services/editorFormat';

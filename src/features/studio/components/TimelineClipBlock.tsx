@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { X, GripHorizontal } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { TimelineClipModel, TimelineTrackModel } from '@/features/studio/lib/timelineTypes';
 
@@ -12,10 +12,23 @@ interface TimelineClipBlockProps {
   filmstripThumbs?: string[];
   thumbWidth?: number;
   children?: React.ReactNode;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onDelete?: () => void;
   onDragStart: (e: React.PointerEvent, mode: 'move' | 'left' | 'right') => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+}
+
+/** Determine the CapCut-style variant for coloring */
+function getClipVariant(
+  clip: TimelineClipModel,
+  trackType: TimelineTrackModel['type'],
+): string {
+  if (clip.canvasKind === 'template') return 'template';
+  if (clip.canvasKind === 'logo') return 'logo';
+  if (clip.canvasKind === 'image') return 'image';
+  if (clip.segmentType === 'translation') return 'translation';
+  if (clip.segmentType === 'transcript') return 'transcript';
+  return trackType;
 }
 
 export function TimelineClipBlock({
@@ -34,12 +47,13 @@ export function TimelineClipBlock({
   onContextMenu,
 }: TimelineClipBlockProps) {
   const canEdit = track.type === 'text' || track.type === 'overlay';
-  const isCanvasAsset = clip.canvasKind === 'logo' || clip.canvasKind === 'image';
   const isFootage = track.type === 'video';
+  const isAudio = track.type === 'audio';
+  const variant = getClipVariant(clip, track.type);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
-    onSelect();
+    onSelect(e as unknown as React.MouseEvent);
     if (canEdit) onDragStart(e, 'move');
   };
 
@@ -48,8 +62,10 @@ export function TimelineClipBlock({
       className={cn(
         'studio-timeline-clip-block',
         `studio-timeline-clip-block--${track.type}`,
+        `studio-timeline-clip-variant--${variant}`,
         selected && 'is-selected',
         isFootage && 'studio-timeline-clip-block--footage',
+        canEdit && 'studio-timeline-clip-block--editable',
       )}
       style={{ left, width, height }}
       onPointerDown={handlePointerDown}
@@ -58,9 +74,9 @@ export function TimelineClipBlock({
         e.stopPropagation();
         onSelect();
         onContextMenu?.(e);
-      }}
-    >
-      {track.type === 'video' && filmstripThumbs && filmstripThumbs.length > 0 ? (
+      }}    >
+      {/* Filmstrip for video */}
+      {isFootage && filmstripThumbs && filmstripThumbs.length > 0 && (
         <div className="studio-timeline-clip-filmstrip">
           {filmstripThumbs.map((src, i) => (
             <img
@@ -73,25 +89,28 @@ export function TimelineClipBlock({
             />
           ))}
         </div>
-      ) : track.type === 'audio' ? (
-        children
-      ) : (
-        <div
-          className={cn(
-            'studio-timeline-clip-label-wrap',
-            isCanvasAsset && `studio-timeline-clip-label-wrap--${clip.canvasKind}`,
+      )}
+
+      {/* Audio waveform */}
+      {isAudio && children}
+
+      {/* Editable clip label */}
+      {canEdit && (
+        <div className="studio-timeline-clip-inner">
+          {width > 50 && (
+            <span className="studio-timeline-clip-label">{clip.name}</span>
           )}
-        >
-          <span className="studio-timeline-clip-label">{clip.name}</span>
         </div>
       )}
 
+      {/* Video footage label */}
       {isFootage && selected && (
         <div className="studio-timeline-clip-footage-label">
           <span>{clip.name}</span>
         </div>
       )}
 
+      {/* Delete button */}
       {selected && canEdit && onDelete && (
         <button
           type="button"
@@ -103,10 +122,18 @@ export function TimelineClipBlock({
           }}
           aria-label="Delete clip"
         >
-          <X size={10} />
+          <X size={9} />
         </button>
       )}
 
+      {/* Drag grip indicator for selected editable clips */}
+      {selected && canEdit && width > 48 && (
+        <div className="studio-timeline-clip-grip" aria-hidden>
+          <GripHorizontal size={10} />
+        </div>
+      )}
+
+      {/* Resize handles */}
       {canEdit && (
         <>
           <div
@@ -124,8 +151,7 @@ export function TimelineClipBlock({
               onSelect();
               onDragStart(e, 'right');
             }}
-          />
-        </>
+          />        </>
       )}
     </div>
   );

@@ -9,8 +9,8 @@ export interface TimelineClipModel {
   name: string;
   segmentIndex?: number;
   segmentType?: 'translation' | 'transcript';
-  /** Canvas logo / image overlay linked to this clip */
-  canvasKind?: 'logo' | 'image';
+  /** Canvas logo / image / template text linked to this clip */
+  canvasKind?: 'logo' | 'image' | 'template';
 }
 
 export interface TimelineTrackModel {

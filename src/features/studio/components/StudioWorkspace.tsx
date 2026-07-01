@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { PanelRight } from 'lucide-react';
+import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { useAudioEngine, useSyncPlayback, useReelPlayback, useVideoExport } from '@/features/audio';
 import { useVideoProcessing } from '@/features/translation';
@@ -9,15 +10,26 @@ import { VideoViewport } from '@/features/studio/components/VideoViewport';
 import { TimelineBar } from '@/features/studio/components/TimelineBar';
 import { EditorSidebar } from '@/features/studio/components/EditorSidebar';
 import { IconButton } from '@/components/ui/IconButton';
+import { CinemaPreviewOverlay } from '@/features/studio/components/CinemaPreviewOverlay';
+import { ExportSettingsModal } from '@/features/studio/components/ExportSettingsModal';
+import { useCanvasKeyboardShortcuts } from '@/features/studio/hooks/useCanvasKeyboardShortcuts';
+import { useTimelineDockSplit } from '@/features/studio/hooks/useTimelineDockSplit';
+import type { ExportSettings } from '@/features/studio/lib/exportSettings';
 
 export function StudioWorkspace() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const editorOpen = useAppStore((s) => s.editorOpen);
+  const videoUrl = useAppStore((s) => s.videoUrl);
+  const isExporting = useAppStore((s) => s.isExporting);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+
+  const { containerRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
+  useCanvasKeyboardShortcuts(videoRef);
 
   const { audioContextRef, audioSourceRef, videoSourceRef, stopAudio, playSegment } =
     useAudioEngine();
-  const { processAll, previewVoice } = useVideoProcessing();
+  const { processAll, previewVoice, regenerateVoiceover } = useVideoProcessing();
 
   const syncRefs = {
     videoRef,
@@ -43,20 +55,46 @@ export function StudioWorkspace() {
     previewVoice(speaker, playSegment);
   };
 
+  const handleExport = (settings: ExportSettings) => {
+    setExportModalOpen(false);
+    void exportVideo(settings);
+  };
+
   return (
     <div className="studio-shell h-full min-h-screen flex flex-col overflow-hidden relative">
-      <AppHeader onExport={exportVideo} />
+      <AppHeader onExport={() => setExportModalOpen(true)} />
 
       <div className="flex-1 flex overflow-hidden relative z-10">
-        <StudioToolsDock videoRef={videoRef} onPreviewVoice={handlePreviewVoice} />
+        <StudioToolsDock
+          videoRef={videoRef}
+          onPreviewVoice={handlePreviewVoice}
+          onRegenerateVoiceover={regenerateVoiceover}
+        />
 
-        <main className="studio-main studio-main-split">
-          <VideoViewport videoRef={videoRef} />
-          <TimelineBar
-            videoRef={videoRef}
-            onProcessAll={processAll}
-            onToggleSyncPlayback={toggleSyncPlayback}
-          />
+        <main ref={containerRef} className="studio-main studio-main-split">
+          <div className="studio-preview-pane">
+            <VideoViewport videoRef={videoRef} />
+          </div>
+
+          {videoUrl && (
+            <>
+              <div
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize timeline panel"
+                aria-valuenow={Math.round(dockHeight)}
+                className={cn('studio-panel-splitter', dragging && 'is-dragging')}
+                {...splitterProps}
+              />
+              <div className="studio-editor-dock-shell" style={{ height: dockHeight }}>
+                <TimelineBar
+                  videoRef={videoRef}
+                  onProcessAll={processAll}
+                  onToggleSyncPlayback={toggleSyncPlayback}
+                />
+              </div>
+            </>
+          )}
         </main>
 
         <EditorSidebar
@@ -75,6 +113,16 @@ export function StudioWorkspace() {
           </IconButton>
         )}
       </div>
+
+      <CinemaPreviewOverlay videoRef={videoRef} />
+
+      {exportModalOpen && (
+        <ExportSettingsModal
+          onClose={() => setExportModalOpen(false)}
+          onExport={handleExport}
+          isExporting={isExporting}
+        />
+      )}
     </div>
   );
 }

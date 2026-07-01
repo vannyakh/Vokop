@@ -2,6 +2,13 @@ import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import { useAppStore } from '@/features/project';
 import { decodeBase64ToAudioBuffer, ensureAudioContext } from '@/lib/utils/audio';
+import {
+  detectBestVideoCodec,
+  resolveExportDimensions,
+  resolveExportBitrate,
+  type ExportSettings,
+} from '@/features/studio/lib/exportSettings';
+import { parseTranscriptCaptions, renderCaptionsOnCanvas } from '@/features/studio/lib/captionRenderer';
 
 interface ExportRefs {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -14,104 +21,120 @@ export function useVideoExport(refs: ExportRefs) {
   const setIsExporting = useAppStore((s) => s.setIsExporting);
   const setStatus = useAppStore((s) => s.setStatus);
 
-  const exportVideo = useCallback(async () => {
-    const { translatedText, audioBase64, originalVolume, voiceVolume } = useAppStore.getState();
-    const video = refs.videoRef.current;
-    if (!video || !translatedText) return;
+  const exportVideo = useCallback(
+    async (settings: ExportSettings) => {
+      const { translatedText, audioBase64, originalVolume, voiceVolume } = useAppStore.getState();
+      const video = refs.videoRef.current;
+      if (!video || !translatedText) return;
 
-    setIsExporting(true);
-    setStatus('idle');
+      setIsExporting(true);
+      setStatus('idle');
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const { videoWidth: nativeW, videoHeight: nativeH } = video;
+      const { width: outW, height: outH } = resolveExportDimensions(nativeW, nativeH, settings.resolution);
+      const bitrate = resolveExportBitrate(settings.quality);
+      const fps = settings.fps;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const stream = canvas.captureStream(30);
+      const canvas = document.createElement('canvas');
+      canvas.width = outW;
+      canvas.height = outH;
 
-    refs.audioContextRef.current = await ensureAudioContext(refs.audioContextRef.current);
-    const ctxAudio = refs.audioContextRef.current;
-    const dest = ctxAudio.createMediaStreamDestination();
+      const ctx = canvas.getContext('2d', { willReadFrequently: false });
+      if (!ctx) { setIsExporting(false); return; }
 
-    if (!refs.videoSourceRef.current) {
-      refs.videoSourceRef.current = ctxAudio.createMediaElementSource(video);
-    }
-    const videoSource = refs.videoSourceRef.current;
-    const videoGain = ctxAudio.createGain();
-    videoGain.gain.value = originalVolume;
-    videoSource.disconnect();
-    videoSource.connect(videoGain);
-    videoGain.connect(dest);
+      // Parse timeline-accurate captions
+      const captions = parseTranscriptCaptions(translatedText);
 
-    if (audioBase64) {
-      const audioBuffer = decodeBase64ToAudioBuffer(ctxAudio, audioBase64);
-      const voiceSource = ctxAudio.createBufferSource();
-      voiceSource.buffer = audioBuffer;
-      const voiceGain = ctxAudio.createGain();
-      voiceGain.gain.value = voiceVolume;
-      voiceSource.connect(voiceGain);
-      voiceGain.connect(dest);
-      voiceSource.start();
-    }
+      // Detect best codec (GPU-accelerated H.264 preferred)
+      const codec = detectBestVideoCodec();
+      const stream = canvas.captureStream(fps);
 
-    const combinedStream = new MediaStream([
-      ...stream.getVideoTracks(),
-      ...dest.stream.getAudioTracks(),
-    ]);
+      // Audio routing
+      refs.audioContextRef.current = await ensureAudioContext(refs.audioContextRef.current);
+      const actx = refs.audioContextRef.current;
+      const dest = actx.createMediaStreamDestination();
 
-    const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9' });
-    const chunks: Blob[] = [];
+      if (!refs.videoSourceRef.current) {
+        refs.videoSourceRef.current = actx.createMediaElementSource(video);
+      }
+      const videoSrc = refs.videoSourceRef.current;
+      const videoGain = actx.createGain();
+      videoGain.gain.value = settings.includeOriginalAudio ? originalVolume : 0;
+      videoSrc.disconnect();
+      videoSrc.connect(videoGain);
+      videoGain.connect(dest);
 
-    recorder.ondataavailable = (e) => chunks.push(e.data);
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'translated_video.webm';
-      a.click();
-      setIsExporting(false);
-    };
-
-    recorder.start();
-    video.currentTime = 0;
-    await video.play();
-
-    if (audioBase64) {
-      await refs.playMixedAudio();
-    }
-
-    const drawFrame = () => {
-      if (video.paused || video.ended) {
-        recorder.stop();
-        return;
+      if (audioBase64 && settings.includeVoiceover) {
+        const audioBuffer = decodeBase64ToAudioBuffer(actx, audioBase64);
+        const voiceSrc = actx.createBufferSource();
+        voiceSrc.buffer = audioBuffer;
+        const voiceGain = actx.createGain();
+        voiceGain.gain.value = voiceVolume;
+        voiceSrc.connect(voiceGain);
+        voiceGain.connect(dest);
+        voiceSrc.start();
       }
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const combined = new MediaStream([
+        ...stream.getVideoTracks(),
+        ...dest.stream.getAudioTracks(),
+      ]);
 
-      const fontSize = Math.floor(canvas.height * 0.05);
-      ctx.font = `bold ${fontSize}px "Khmer OS Battambang", "Inter", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.strokeStyle = 'black';
-      ctx.lineWidth = 4;
-      ctx.fillStyle = 'white';
+      const recorderOptions: MediaRecorderOptions = codec
+        ? { mimeType: codec, videoBitsPerSecond: bitrate }
+        : { videoBitsPerSecond: bitrate };
 
-      const lines = translatedText.split('\n').slice(0, 2);
-      const margin = canvas.height * 0.1;
+      const recorder = new MediaRecorder(combined, recorderOptions);
+      const chunks: Blob[] = [];
 
-      lines.forEach((line, i) => {
-        const y = canvas.height - margin - (lines.length - 1 - i) * (fontSize * 1.2);
-        ctx.strokeText(line, canvas.width / 2, y);
-        ctx.fillText(line, canvas.width / 2, y);
-      });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-      requestAnimationFrame(drawFrame);
-    };
+      recorder.onstop = () => {
+        const isMP4 = codec.includes('mp4') || codec.includes('avc1');
+        const mimeType = isMP4 ? 'video/mp4' : 'video/webm';
+        const ext = isMP4 ? 'mp4' : 'webm';
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `vokop_export_${settings.resolution}_${settings.quality}.${ext}`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        setIsExporting(false);
+      };
 
-    drawFrame();
-  }, [refs, setIsExporting, setStatus]);
+      recorder.start(100); // 100ms chunks for smooth streaming
+      video.currentTime = 0;
+      await video.play();
+
+      if (audioBase64 && settings.includeVoiceover) {
+        await refs.playMixedAudio();
+      }
+
+      const drawFrame = () => {
+        if (video.paused || video.ended) {
+          recorder.stop();
+          return;
+        }
+        ctx.drawImage(video, 0, 0, outW, outH);
+
+        renderCaptionsOnCanvas(
+          ctx,
+          captions,
+          video.currentTime,
+          outW,
+          outH,
+          settings.captionStyle,
+          settings.captionScale,
+        );
+
+        requestAnimationFrame(drawFrame);
+      };
+
+      drawFrame();
+    },
+    [refs, setIsExporting, setStatus],
+  );
 
   return { exportVideo };
 }

@@ -14,14 +14,24 @@ export function useTimelineTracks(): TimelineTrackModel[] {
   return useMemo(() => {
     const safeDuration = duration || 1;
 
-    const textClips = translationSegments.map((seg, i) => ({
+    const templateClips = canvasElements
+      .filter((el) => el.type === 'text' && el.templateId)
+      .map((el) => ({
+        id: el.id,
+        start: el.startTime,
+        duration: Math.max(0.4, el.endTime - el.startTime),
+        name: el.text,
+        canvasKind: 'template' as const,
+      }));
+
+    const textClips = [...translationSegments.map((seg, i) => ({
       id: `translation-${i}`,
       start: seg.time,
       duration: getSegmentEnd(translationSegments, i, safeDuration) - seg.time,
       name: seg.text,
       segmentIndex: i,
       segmentType: 'translation' as const,
-    }));
+    })), ...templateClips].sort((a, b) => a.start - b.start);
 
     const transcriptClips = transcriptSegments.map((seg, i) => ({
       id: `transcript-${i}`,

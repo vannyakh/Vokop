@@ -8,7 +8,15 @@ export type ProcessingStatus =
 
 export type EditorTab = 'translate' | 'transcript' | 'analysis';
 
-export type StudioToolId = 'media' | 'text' | 'sound' | 'voice';
+export type StudioToolId =
+  | 'media'
+  | 'text'
+  | 'audio'
+  | 'voice'
+  | 'captions'
+  | 'effects'
+  | 'transitions'
+  | 'filters';
 
 export type AspectRatioId =
   | 'original'
