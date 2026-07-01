@@ -19,12 +19,12 @@ export function AnalysisPanel({ videoRef, onPlayAnalysis, onStartReel }: Analysi
 
   if (!videoAnalysis) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-        <div className="w-14 h-14 rounded-2xl studio-panel flex items-center justify-center mb-4">
-          <Sparkles size={24} className="text-accent/60" />
+      <div className="studio-empty">
+        <div className="studio-empty-icon">
+          <Sparkles size={22} />
         </div>
-        <p className="text-sm font-medium text-muted mb-1">No analysis yet</p>
-        <p className="text-xs text-faint leading-relaxed max-w-[220px]">
+        <p className="studio-empty-title">No analysis yet</p>
+        <p className="studio-empty-desc">
           Process your video to get AI summaries and highlight reels.
         </p>
       </div>
@@ -46,10 +46,10 @@ export function AnalysisPanel({ videoRef, onPlayAnalysis, onStartReel }: Analysi
               type="button"
               onClick={onPlayAnalysis}
               className={cn(
-                'p-2 rounded-lg transition-all',
+                'p-2 rounded-lg border transition-colors cursor-pointer',
                 isPlayingAnalysis
-                  ? 'bg-red-500/90 text-white'
-                  : 'bg-white/5 text-accent hover:bg-white/10',
+                  ? 'bg-[rgba(232,116,106,0.15)] border-[rgba(232,116,106,0.3)] text-[#e8746a]'
+                  : 'bg-[var(--surface-hi)] border-[color:var(--border)] text-accent hover:border-[color:color-mix(in_srgb,var(--accent)_30%,transparent)]',
               )}
             >
               {isPlayingAnalysis ? <Pause size={12} /> : <Volume2 size={12} />}
@@ -92,10 +92,10 @@ export function AnalysisPanel({ videoRef, onPlayAnalysis, onStartReel }: Analysi
                   }
                 }}
                 className={cn(
-                  'flex flex-col gap-2 p-3 rounded-xl border transition-all text-left',
+                  'flex flex-col gap-2 p-3 rounded-xl border transition-colors text-left cursor-pointer',
                   isActive
-                    ? 'bg-accent border-[color:color-mix(in_srgb,var(--accent)_50%,transparent)] shadow-lg shadow-[rgba(232,163,61,0.25)]/20'
-                    : 'studio-panel hover:border-white/15',
+                    ? 'bg-accent-soft border-[color:color-mix(in_srgb,var(--accent)_40%,transparent)]'
+                    : 'studio-panel hover:border-[color:var(--border-strong)]',
                 )}
               >
                 <div className="flex items-center justify-between">
@@ -110,14 +110,14 @@ export function AnalysisPanel({ videoRef, onPlayAnalysis, onStartReel }: Analysi
                   <div
                     className={cn(
                       'w-2 h-2 rounded-full',
-                      isActive ? 'bg-white animate-pulse' : 'bg-white/15',
+                      isActive ? 'bg-accent animate-pulse' : 'bg-[color:var(--border-strong)]',
                     )}
                   />
                 </div>
                 <p
                   className={cn(
                     'text-xs font-medium leading-snug',
-                    isActive ? 'text-white' : 'text-muted',
+                    isActive ? 'text-[var(--text)]' : 'text-muted',
                   )}
                 >
                   {highlight.narration}

@@ -8,6 +8,17 @@ export type ProcessingStatus =
 
 export type EditorTab = 'translate' | 'transcript' | 'analysis';
 
+export type StudioToolId = 'media' | 'text' | 'sound' | 'voice';
+
+export type AspectRatioId =
+  | 'original'
+  | '16:9'
+  | '4:3'
+  | '2:1'
+  | '9:16'
+  | '1:1'
+  | '3:4';
+
 export interface Segment {
   time: number;
   speaker: string;

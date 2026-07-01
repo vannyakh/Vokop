@@ -1,0 +1,37 @@
+---
+description: Button hover and cursor conventions for Vokop UI
+globs: "**/*.{tsx,css}"
+alwaysApply: true
+---
+
+# Button interactions
+
+Do not use hover or active **transform** effects on buttons (`translateY`, `scale`, etc.).
+
+## Hover feedback
+
+Use subtle color, background, border, opacity, or shadow changes instead:
+
+```css
+/* Good */
+.btn:hover {
+  background: var(--accent-hover);
+}
+
+/* Bad */
+.btn:hover {
+  transform: translateY(-2px);
+}
+```
+
+## Cursor
+
+- Interactive buttons: `cursor: pointer`
+- Disabled buttons: `cursor: not-allowed` (and reduced opacity)
+- Non-interactive elements must not use `cursor: pointer`
+
+Global base styles live in `src/index.css` for `button`, `[role='button']`, and disabled states.
+
+## Tailwind
+
+Avoid `hover:scale-*`, `active:scale-*`, and `hover:-translate-y-*` on buttons. Prefer `hover:opacity-90`, `hover:bg-*`, or token-based CSS classes.

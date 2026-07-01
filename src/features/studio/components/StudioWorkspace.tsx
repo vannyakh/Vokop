@@ -1,11 +1,10 @@
 import { useRef } from 'react';
-import { PanelLeft, PanelRight } from 'lucide-react';
+import { PanelRight } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import { useAudioEngine, useSyncPlayback, useReelPlayback, useVideoExport } from '@/features/audio';
 import { useVideoProcessing } from '@/features/translation';
-import { StudioBackground } from '@/features/studio/components/StudioBackground';
 import { AppHeader } from '@/features/studio/components/AppHeader';
-import { SettingsSidebar } from '@/features/studio/components/SettingsSidebar';
+import { StudioToolsDock } from '@/features/studio/components/StudioToolsDock';
 import { VideoViewport } from '@/features/studio/components/VideoViewport';
 import { TimelineBar } from '@/features/studio/components/TimelineBar';
 import { EditorSidebar } from '@/features/studio/components/EditorSidebar';
@@ -13,9 +12,7 @@ import { IconButton } from '@/components/ui/IconButton';
 
 export function StudioWorkspace() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
-  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const editorOpen = useAppStore((s) => s.editorOpen);
 
   const { audioContextRef, audioSourceRef, videoSourceRef, stopAudio, playSegment } =
@@ -47,24 +44,13 @@ export function StudioWorkspace() {
   };
 
   return (
-    <div className="h-full min-h-screen bg-[var(--bg)] text-[var(--text)] flex flex-col overflow-hidden relative">
-      <StudioBackground />
+    <div className="studio-shell h-full min-h-screen flex flex-col overflow-hidden relative">
       <AppHeader onExport={exportVideo} />
 
       <div className="flex-1 flex overflow-hidden relative z-10">
-        <SettingsSidebar videoRef={videoRef} onPreviewVoice={handlePreviewVoice} />
+        <StudioToolsDock videoRef={videoRef} onPreviewVoice={handlePreviewVoice} />
 
-        {!sidebarOpen && (
-          <IconButton
-            onClick={() => setSidebarOpen(true)}
-            className="absolute top-3 left-3 z-20 studio-glass"
-            title="Open settings"
-          >
-            <PanelLeft size={18} />
-          </IconButton>
-        )}
-
-        <main className="flex-1 flex flex-col min-w-0 relative">
+        <main className="studio-main studio-main-split">
           <VideoViewport videoRef={videoRef} />
           <TimelineBar
             videoRef={videoRef}
@@ -82,7 +68,7 @@ export function StudioWorkspace() {
         {!editorOpen && (
           <IconButton
             onClick={() => setEditorOpen(true)}
-            className="absolute top-3 right-3 z-20 studio-glass"
+            className="studio-panel-trigger studio-panel-trigger--right"
             title="Open editor"
           >
             <PanelRight size={18} />

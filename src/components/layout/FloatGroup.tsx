@@ -24,9 +24,10 @@ export function FloatGroup({ children, className, theme = 'light' }: FloatGroupP
 interface BrandLogoProps {
   onClick?: () => void;
   className?: string;
+  round?: boolean;
 }
 
-export function BrandLogo({ onClick, className }: BrandLogoProps) {
+export function BrandLogo({ onClick, className, round = false }: BrandLogoProps) {
   const Tag = onClick ? 'button' : 'div';
 
   return (
@@ -35,7 +36,8 @@ export function BrandLogo({ onClick, className }: BrandLogoProps) {
       onClick={onClick}
       className={cn(
         'studio-brand-logo shrink-0 flex items-center justify-center',
-        onClick && 'transition-transform hover:scale-105 active:scale-95 cursor-pointer',
+        round && 'studio-brand-logo--round',
+        onClick && 'cursor-pointer transition-opacity hover:opacity-90 active:opacity-80',
         className ?? 'w-9 h-9',
       )}
     >

@@ -11,6 +11,7 @@ import { HomeBackground } from '@/components/layout/HomeBackground';
 import { UploadTopActions } from '@/features/upload/components/UploadTopActions';
 import { LoginModal } from '@/features/auth/components/LoginModal';
 import { LandingSections } from '@/features/landing';
+import { formatAppVersion } from '@/constants/version';
 
 const FORMATS = ['MP4', 'MOV', 'WebM'];
 
@@ -92,14 +93,14 @@ export function UploadDropzone() {
 
       <FloatGroup
         theme={floatTheme}
-        className="pointer-events-auto fixed top-5 left-5 sm:left-8 z-40 pl-2 pr-4 py-1.5 gap-2.5"
+        className="pointer-events-auto fixed top-5 left-5 sm:left-8 z-40 pl-2 pr-4 py-1.5 gap-3"
       >
-        <BrandLogo className="w-11 h-11" />
-        <div className="text-left pr-1">
-          <p className="text-base font-bold tracking-tight leading-none" style={{ color: 'var(--text)' }}>
-            Vokop
-          </p>
-          <p className="text-xs mt-1 text-muted">{t('tagline')}</p>
+        <BrandLogo round className="w-10 h-10 sm:w-11 sm:h-11" />
+        <div className="float-brand-text pr-1">
+          <div className="float-brand-title-row">
+            <p className="float-brand-name font-display">Vokop</p>
+            <span className="float-brand-version font-mono">{formatAppVersion()}</span>
+          </div>
         </div>
       </FloatGroup>
 
@@ -159,13 +160,20 @@ export function UploadDropzone() {
               className={cn(
                 'home-dropzone relative w-full rounded-[36px] sm:rounded-[44px]',
                 'flex flex-col items-center justify-center gap-8 sm:gap-10 cursor-pointer group',
-                'border-2 border-dashed transition-all duration-200',
-                isDragActive && 'home-dropzone-active scale-[1.008]',
+                isDragActive && 'home-dropzone-active',
               )}
             >
               <input {...getInputProps()} />
 
-              <div className="upload-dropzone-icon w-20 h-20 sm:w-24 sm:h-24 rounded-3xl flex items-center justify-center transition-all duration-200 group-hover:scale-110">
+              <svg
+                className="home-dropzone-border"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <rect className="home-dropzone-border-rect" />
+              </svg>
+
+              <div className="upload-dropzone-icon w-20 h-20 sm:w-24 sm:h-24 rounded-3xl flex items-center justify-center transition-colors duration-200">
                 <Upload size={40} strokeWidth={2} />
               </div>
 
@@ -176,7 +184,7 @@ export function UploadDropzone() {
                 <p className="text-base sm:text-lg text-muted">{t('dropHint')}</p>
               </div>
 
-              <div className="upload-browse-pill px-6 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest font-mono opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all">
+              <div className="upload-browse-pill px-6 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest font-mono opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 Browse files
               </div>
             </div>

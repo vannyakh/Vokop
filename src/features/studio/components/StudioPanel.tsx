@@ -10,9 +10,9 @@ interface StudioPanelProps {
 export function StudioPanel({ title, icon, children, className }: StudioPanelProps) {
   return (
     <section className={cn('studio-panel p-4 space-y-3', className)}>
-      <div className="flex items-center gap-2">
+      <div className="studio-panel-title">
         {icon}
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted">{title}</h3>
+        <h3>{title}</h3>
       </div>
       {children}
     </section>
