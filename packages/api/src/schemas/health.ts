@@ -1,0 +1,19 @@
+import { z } from 'zod';
+import { databaseHealthSchema, serviceStatusSchema } from './common.js';
+
+export const healthResponseSchema = z.object({
+  status: serviceStatusSchema,
+  service: z.string(),
+  databases: databaseHealthSchema,
+  timestamp: z.string().datetime(),
+});
+
+export type HealthResponse = z.infer<typeof healthResponseSchema>;
+
+export const gatewayHealthResponseSchema = healthResponseSchema.extend({
+  service: z.literal('gateway'),
+});
+
+export const videoToolsHealthResponseSchema = healthResponseSchema.extend({
+  service: z.literal('video-tools'),
+});

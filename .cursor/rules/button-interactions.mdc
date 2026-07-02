@@ -30,7 +30,7 @@ Use subtle color, background, border, opacity, or shadow changes instead:
 - Disabled buttons: `cursor: not-allowed` (and reduced opacity)
 - Non-interactive elements must not use `cursor: pointer`
 
-Global base styles live in `src/index.css` for `button`, `[role='button']`, and disabled states.
+Global base styles live in `apps/web/src/index.css` for `button`, `[role='button']`, and disabled states.
 
 ## Tailwind
 

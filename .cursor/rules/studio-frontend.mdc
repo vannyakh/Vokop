@@ -1,0 +1,43 @@
+---
+description: Vokop studio web app — features, state, and editing tools
+globs: apps/web/**/*
+alwaysApply: false
+---
+
+# Studio Frontend (`apps/web`)
+
+## Feature layout
+
+```
+src/features/
+  studio/     Timeline, canvas (Konva), tools dock, filmstrip, export
+  translation/  Gemini AI transcribe/translate/voiceover
+  project/    useAppStore (Zustand) — single project state
+  upload/     Video upload flow
+  settings/   Theme, i18n preferences
+```
+
+## Studio tools (CapCut-style rail)
+
+`media | text | audio | voice | captions | effects | transitions | filters`
+
+- Presets from `useEditorCatalog()` + apply via `useEditorActions()`.
+- Filter preview: CSS on `<video>` via `getVideoCssFilter()` in store.
+- Server apply/preview when `videoSessionId` exists (`useVideoSession` on studio load).
+
+## State
+
+- **useAppStore**: video file, timeline, canvas elements, `projectEditor` (filters, caption style, clip transitions).
+- **Server session**: `videoSessionId` set after `api.createVideoSession()`; cleared on new video.
+
+## API client
+
+```typescript
+import { api } from '@/lib/api/client';
+// Dev proxy: /api → gateway :4000 (see vite.config.ts)
+```
+
+## UI
+
+- Import components from `@vokop/ui` or `@/components/ui` (re-export).
+- Button hover: color/opacity only — no transform scale/translate (see `button-interactions` rule).

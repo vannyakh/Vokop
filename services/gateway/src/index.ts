@@ -1,0 +1,88 @@
+import cors from 'cors';
+import dotenv from 'dotenv';
+import express from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { checkDatabaseHealth, connectDatabases, setupGracefulShutdown } from '@vokop/db';
+import { toApiResponse, gatewayHealthResponseSchema } from '@vokop/api';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
+const PORT = Number(process.env.GATEWAY_PORT ?? 4000);
+const VIDEO_TOOLS_URL = process.env.VIDEO_TOOLS_URL ?? 'http://localhost:4001';
+const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
+
+const app = express();
+
+app.use(
+  cors({
+    origin: WEB_ORIGIN,
+    credentials: true,
+  }),
+);
+
+app.get('/api/v1/health', async (_req, res) => {
+  const databases = await checkDatabaseHealth();
+  const ok = databases.mongo && databases.redis;
+
+  const payload = toApiResponse(gatewayHealthResponseSchema, {
+    status: ok ? 'ok' : 'degraded',
+    service: 'gateway',
+    databases,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.status(ok ? 200 : 503).json(payload);
+});
+
+app.use(
+  '/api/v1/video',
+  createProxyMiddleware({
+    target: VIDEO_TOOLS_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/v1/video': '' },
+  }),
+);
+
+app.use(
+  '/api/v1/media',
+  createProxyMiddleware({
+    target: VIDEO_TOOLS_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/v1/media': '/media' },
+  }),
+);
+
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+async function start() {
+  try {
+    await connectDatabases();
+    console.log('[gateway] connected to MongoDB and Redis');
+  } catch (err) {
+    console.error('[gateway] database connection failed:', err);
+    process.exit(1);
+  }
+
+  setupGracefulShutdown();
+
+  const server = app.listen(PORT, () => {
+    console.log(`[gateway] http://localhost:${PORT}`);
+    console.log(`[gateway] proxying /api/v1/video -> ${VIDEO_TOOLS_URL}`);
+    console.log(`[gateway] proxying /api/v1/media -> ${VIDEO_TOOLS_URL}/media`);
+  });
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[gateway] Port ${PORT} is already in use. Run: pnpm stop`);
+      process.exit(1);
+    }
+    throw err;
+  });
+}
+
+void start();

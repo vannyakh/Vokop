@@ -1,0 +1,36 @@
+---
+description: Vokop project purpose, monorepo layout, and core development commands
+alwaysApply: true
+---
+
+# Vokop Project
+
+**Vokop** is a CapCut-style video editing studio: upload video, edit on a timeline/canvas, translate/voiceover with AI, apply filters/transitions, and export.
+
+## Monorepo (pnpm workspaces)
+
+| Path | Role |
+|------|------|
+| `apps/web` | React 19 + Vite UI (port 3000) |
+| `services/gateway` | API entry, proxies `/api/v1/*` (port 4000) |
+| `services/video-tools` | FFmpeg, sessions, jobs, editor presets (port 4001) |
+| `packages/shared` | Config, constants, types, preferences provider |
+| `packages/api` | Zod schemas, routes, typed `ApiClient` |
+| `packages/ui` | Shared React components (`Button`, `Select`, …) |
+| `packages/db` | MongoDB + Redis helpers |
+
+## Commands
+
+```bash
+pnpm db:up && pnpm dev    # Mongo/Redis + all services
+pnpm stop                 # free ports 3000–3001, 4000–4001
+pnpm build                # build all packages
+```
+
+## Conventions
+
+- **Shared contracts** live in `@vokop/api` (schemas) and `@vokop/shared` (domain types/constants).
+- **UI components** import from `@vokop/ui`; do not duplicate in `apps/web`.
+- **New API routes**: add Zod schema → `packages/api` client → proxy in `services/gateway` → handler in service.
+- **Video session**: upload once via `POST /api/v1/video/session`; reuse `sessionId` for filmstrip, editor apply, preview.
+- Keep diffs minimal; match existing naming and import style (`@/` in web app).

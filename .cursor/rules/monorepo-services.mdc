@@ -1,0 +1,33 @@
+---
+description: Backend services and shared packages conventions
+globs: services/**/*,packages/**/*
+alwaysApply: false
+---
+
+# Services & Packages
+
+## Adding a backend feature
+
+1. Define Zod schema in `packages/api/src/schemas/`
+2. Add route constant in `packages/api/src/routes.ts`
+3. Extend `ApiClient` in `packages/api/src/client.ts`
+4. Implement handler in `services/video-tools/` (or new service under `services/`)
+5. Register proxy in `services/gateway/src/index.ts` if new top-level path
+
+## video-tools patterns
+
+- Use `@vokop/db` for Mongo/Redis; `@vokop/shared` for constants (never duplicate filmstrip/editor presets).
+- **Sessions**: `sessionStore.ts` — upload once, TTL in Redis, file on disk.
+- **Jobs**: `jobQueue.ts` — async work with progress; respect `MAX_FFMPEG_JOBS`.
+- **Editor**: `src/editor/` — catalog, apply, FFmpeg preview; presets in `@vokop/shared/constants/editor.ts`.
+- Validate responses with `toApiResponse(schema, data)` from `@vokop/api`.
+- Handle `EADDRINUSE` with clear message; suggest `pnpm stop`.
+
+## Package exports
+
+- `@vokop/shared` — no React in main export; use `@vokop/shared/providers` for React providers.
+- `@vokop/ui` — peer dep on React; Tailwind classes scanned via `@source` in `apps/web/src/index.css`.
+
+## Env
+
+Root `.env` is loaded by all services. Key vars: `MONGODB_URI`, `REDIS_URL`, `GATEWAY_PORT`, `VIDEO_TOOLS_PORT`, `SESSION_TTL_SEC`.
