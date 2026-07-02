@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
+import { isEditableTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
 import { Button } from '@/components/ui/Button';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
@@ -82,14 +83,13 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const handleDeleteSelected = () => {
     if (!selectedTimelineClip) return;
     const { trackId, clipId } = selectedTimelineClip;
-    if (trackId === 'text' || trackId === 'overlay') {
+    if (isEditableTimelineTrack(trackId)) {
       removeTimelineClip(trackId, clipId);
       selectCanvasElement(null);
     }
   };
 
-  const canDelete =
-    selectedTimelineClip?.trackId === 'text' || selectedTimelineClip?.trackId === 'overlay';
+  const canDelete = isEditableTimelineTrack(selectedTimelineClip?.trackId);
 
   const canSplit =
     selectedTimelineClip?.trackId === 'text' ||
@@ -255,9 +255,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         }}
         canSplit={canSplit}
         canDelete={canDelete}
-        canEditCanvas={
-          selectedTimelineClip?.trackId === 'text' || selectedTimelineClip?.trackId === 'overlay'
-        }
+        canEditCanvas={isEditableTimelineTrack(selectedTimelineClip?.trackId)}
         hasClipboard={Boolean(timelineClipboard?.length)}
       />
     </div>

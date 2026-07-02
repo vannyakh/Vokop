@@ -9,6 +9,7 @@ export function useTimelineTracks(): TimelineTrackModel[] {
   const audioBase64 = useAppStore((s) => s.audioBase64);
   const videoFile = useAppStore((s) => s.videoFile);
   const canvasElements = useAppStore((s) => s.canvasElements);
+  const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
   const { transcriptSegments, translationSegments } = useSegments();
 
   return useMemo(() => {
@@ -50,9 +51,25 @@ export function useTimelineTracks(): TimelineTrackModel[] {
         duration: Math.max(0.4, el.endTime - el.startTime),
         name: el.type === 'logo' ? `Logo · ${el.text}` : el.text,
         canvasKind: el.type as 'logo' | 'image',
+        trackId: el.trackId ?? 'overlay',
       }));
 
-    const overlayClips = [...transcriptClips, ...canvasClips].sort((a, b) => a.start - b.start);
+    const overlayTextClips = canvasElements
+      .filter((el) => el.type === 'text' && !el.templateId && !el.segmentType && el.trackId)
+      .map((el) => ({
+        id: el.id,
+        start: el.startTime,
+        duration: Math.max(0.4, el.endTime - el.startTime),
+        name: el.text,
+        canvasKind: 'template' as const,
+        trackId: el.trackId!,
+      }));
+
+    const mainOverlayClips = [
+      ...transcriptClips,
+      ...canvasClips.filter((c) => c.trackId === 'overlay'),
+      ...overlayTextClips.filter((c) => c.trackId === 'overlay'),
+    ].sort((a, b) => a.start - b.start);
 
     const tracks: TimelineTrackModel[] = [
       {
@@ -73,9 +90,23 @@ export function useTimelineTracks(): TimelineTrackModel[] {
         id: 'overlay',
         type: 'overlay',
         label: 'Overlay',
-        clips: overlayClips,
+        clips: mainOverlayClips,
       },
     ];
+
+    for (const extra of extraTimelineTracks) {
+      const clips = [
+        ...canvasClips.filter((c) => c.trackId === extra.id),
+        ...overlayTextClips.filter((c) => c.trackId === extra.id),
+      ].sort((a, b) => a.start - b.start);
+      tracks.push({
+        id: extra.id,
+        type: 'overlay',
+        label: extra.label,
+        clips,
+        isExtra: true,
+      });
+    }
 
     if (audioBase64) {
       tracks.push({
@@ -87,5 +118,5 @@ export function useTimelineTracks(): TimelineTrackModel[] {
     }
 
     return tracks;
-  }, [duration, audioBase64, videoFile, canvasElements, transcriptSegments, translationSegments]);
+  }, [duration, audioBase64, videoFile, canvasElements, extraTimelineTracks, transcriptSegments, translationSegments]);
 }

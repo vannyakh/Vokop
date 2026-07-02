@@ -153,7 +153,7 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
 
       e.stopPropagation();
       setSelectedTimelineClip({ trackId, clipId: clip.id });
-      if (trackId === 'text' || trackId === 'overlay') {
+      if (trackId === 'text' || trackId === 'overlay' || String(trackId).startsWith('overlay-')) {
         selectCanvasElement(clip.id);
       }
 

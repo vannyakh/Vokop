@@ -6,7 +6,6 @@ export interface CanvasGuideLine {
   snapped?: boolean;
 }
 
-const PAD = 24;
 const SNAP_THRESHOLD = 8;
 
 function snapAxis(
@@ -40,42 +39,52 @@ function snapAxis(
 }
 
 function buildTargets(
-  stage: { width: number; height: number },
+  bounds: { x: number; y: number; width: number; height: number },
   others: CanvasElement[],
   excludeId: string,
 ) {
-  const vertical = [stage.width / 2, PAD, stage.width - PAD];
-  const horizontal = [stage.height / 2, PAD, stage.height - PAD];
+  const cx = bounds.x + bounds.width / 2;
+  const cy = bounds.y + bounds.height / 2;
+  const right = bounds.x + bounds.width;
+  const bottom = bounds.y + bounds.height;
+  const vertical = [cx, bounds.x, right];
+  const horizontal = [cy, bounds.y, bottom];
 
   for (const el of others) {
     if (el.id === excludeId) continue;
+    const h = el.type === 'logo' || el.type === 'image' ? el.height : el.fontSize * 1.6;
     vertical.push(el.x, el.x + el.width / 2, el.x + el.width);
-    horizontal.push(el.y, el.y + el.height / 2, el.y + el.height);
+    horizontal.push(el.y, el.y + h / 2, el.y + h);
   }
 
   return { vertical, horizontal };
 }
 
-export function getPreviewAxisGuides(stage: { width: number; height: number }): CanvasGuideLine[] {
+export function getPreviewAxisGuides(bounds: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): CanvasGuideLine[] {
   return [
-    { orientation: 'vertical', position: stage.width / 2 },
-    { orientation: 'horizontal', position: stage.height / 2 },
+    { orientation: 'vertical', position: bounds.x + bounds.width / 2 },
+    { orientation: 'horizontal', position: bounds.y + bounds.height / 2 },
   ];
 }
 
 export function snapDragPosition(
   pos: { x: number; y: number },
   size: { width: number; height: number },
-  stage: { width: number; height: number },
+  bounds: { x: number; y: number; width: number; height: number },
   others: CanvasElement[],
   excludeId: string,
   attach: boolean,
   showAxis: boolean,
 ): { x: number; y: number; guides: CanvasGuideLine[] } {
-  const guides: CanvasGuideLine[] = showAxis ? getPreviewAxisGuides(stage) : [];
+  const guides: CanvasGuideLine[] = showAxis ? getPreviewAxisGuides(bounds) : [];
   if (!attach) return { ...pos, guides };
 
-  const { vertical, horizontal } = buildTargets(stage, others, excludeId);
+  const { vertical, horizontal } = buildTargets(bounds, others, excludeId);
   const snapX = snapAxis(pos.x, size.width, vertical, SNAP_THRESHOLD);
   const snapY = snapAxis(pos.y, size.height, horizontal, SNAP_THRESHOLD);
 

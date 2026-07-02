@@ -31,7 +31,8 @@ import {
   TimelineContextMenu,
   type TimelineContextMenuTarget,
 } from '@/features/studio/components/TimelineContextMenu';
-import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
+import { Plus } from 'lucide-react';
+import { isEditableTimelineTrack, isOverlayTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
 
 interface StudioTimelineProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -65,6 +66,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
+  const addTimelineTrack = useAppStore((s) => s.addTimelineTrack);
   const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
@@ -289,13 +291,13 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         } else {
           addToTimelineSelection(item);
           setSelectedTimelineClip(item);
-          if (trackId === 'text' || trackId === 'overlay') selectCanvasElement(clipId);
+          if (isEditableTimelineTrack(trackId)) selectCanvasElement(clipId);
         }
         return;
       }
       setSelectedTimelineClips([item]);
       setSelectedTimelineClip(item);
-      if (trackId === 'text' || trackId === 'overlay') {
+      if (isEditableTimelineTrack(trackId)) {
         selectCanvasElement(clipId);
       } else {
         selectCanvasElement(null);
@@ -311,12 +313,12 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     ],
   );
 
-  const canDeleteSelection =
-    selectedTimelineClip?.trackId === 'text' || selectedTimelineClip?.trackId === 'overlay';
+  const canDeleteSelection = isEditableTimelineTrack(selectedTimelineClip?.trackId);
 
   const canSplitSelection =
     selectedTimelineClip?.trackId === 'text' ||
-    (selectedTimelineClip?.trackId === 'overlay' &&
+    (isOverlayTimelineTrack(selectedTimelineClip?.trackId) &&
+      selectedTimelineClip?.clipId &&
       !selectedTimelineClip.clipId.startsWith('logo-') &&
       !selectedTimelineClip.clipId.startsWith('image-'));
 
@@ -344,11 +346,20 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             key={track.id}
             track={track}
             height={TRACK_HEIGHT[track.type]}
-            muted={timelineTrackMuted[track.id]}
+            muted={timelineTrackMuted[track.id] ?? false}
             onToggleMute={() => toggleTimelineTrackMuted(track.id)}
             onAddClip={() => addTimelineClip(track.id as TimelineTrackId, currentTime)}
           />
         ))}
+        <button
+          type="button"
+          className="studio-track-add-row"
+          onClick={() => addTimelineTrack()}
+          title="Add overlay track"
+        >
+          <Plus size={12} />
+          <span>Add track</span>
+        </button>
       </div>
 
       {/* Scrollable timeline content */}
@@ -418,7 +429,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           >
           {tracks.map((track) => {
             const laneHeight = TRACK_HEIGHT[track.type];
-            const muted = timelineTrackMuted[track.id];
+            const muted = timelineTrackMuted[track.id] ?? false;
 
             return (
               <div
@@ -491,6 +502,16 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               </div>
             );
           })}
+
+          <button
+            type="button"
+            className="studio-timeline-add-lane"
+            onClick={() => addTimelineTrack()}
+            title="Add overlay track"
+          >
+            <Plus size={14} />
+            Add overlay track
+          </button>
 
           {/* Marquee selection box */}
           {marquee && (
@@ -571,9 +592,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         }}
         canSplit={canSplitSelection}
         canDelete={canDeleteSelection}
-        canEditCanvas={
-          selectedTimelineClip?.trackId === 'text' || selectedTimelineClip?.trackId === 'overlay'
-        }
+        canEditCanvas={isEditableTimelineTrack(selectedTimelineClip?.trackId)}
         hasClipboard={Boolean(timelineClipboard?.length)}
       />
     </div>

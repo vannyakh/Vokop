@@ -179,9 +179,6 @@ export function CanvasElementPanel() {
   const replaceInputRef = useRef<HTMLInputElement>(null);
 
   const element = canvasElements.find((el) => el.id === selectedId);
-  const isImage = element?.type === 'logo' || element?.type === 'image';
-  const canvasW = Math.max(720, Math.round(element.x + element.width + 80));
-  const canvasH = Math.max(480, Math.round(element.y + (isImage ? element.height : element.fontSize * 1.6) + 80));
 
   if (!element) {
     return (
@@ -193,6 +190,13 @@ export function CanvasElementPanel() {
       </StudioPanel>
     );
   }
+
+  const isImage = element.type === 'logo' || element.type === 'image';
+  const canvasW = Math.max(720, Math.round(element.x + element.width + 80));
+  const canvasH = Math.max(
+    480,
+    Math.round(element.y + (isImage ? element.height : element.fontSize * 1.6) + 80),
+  );
 
   const style = element.textStyle ?? {};
 

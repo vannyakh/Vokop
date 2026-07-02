@@ -4,6 +4,7 @@ import { DEFAULT_VOICE, VOICES } from '@/features/translation/constants/voices';
 import { extractSpeakers } from '@/lib/utils/transcript';
 import { updateSegmentText, parseSegments, updateSegmentTime, updateSegmentDuration, removeSegment, addSegmentAtTime, splitSegmentAtTime, getSegmentIndexAtTime } from '@/lib/utils/transcript';
 import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
+import type { ExtraTimelineTrack } from '@/features/studio/lib/timelineTypes';
 import type { CanvasElement, CanvasTool } from '@/types/canvas';
 import { defaultProjectName, detectAspectRatioId } from '@/features/studio/constants/aspectRatios';
 import { cloneCanvasElements, pushCanvasUndoStack } from '@/features/studio/lib/canvasHistory';
@@ -17,15 +18,23 @@ export type AddCanvasImageOptions = {
   label?: string;
   startTime?: number;
   endTime?: number;
+  trackId?: string;
 };
+
+function resolveOverlayTrackId(state: {
+  selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
+}): string {
+  const tid = state.selectedTimelineClip?.trackId;
+  if (tid && (tid === 'overlay' || String(tid).startsWith('overlay-'))) return String(tid);
+  return 'overlay';
+}
 
 function buildCanvasImageElement(
   state: {
     canvasElements: CanvasElement[];
     duration: number;
     currentTime: number;
-    videoWidth: number;
-    videoHeight: number;
+    selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
   },
   src: string,
   label: string,
@@ -34,20 +43,23 @@ function buildCanvasImageElement(
   const duration = state.duration || 3600;
   const startTime = options?.startTime ?? state.currentTime;
   const endTime = options?.endTime ?? Math.min(duration, startTime + 4);
+  const w = options?.width ?? 160;
+  const h = options?.height ?? 160;
   return {
     id: `image-${Date.now()}`,
     type: 'image',
     text: label,
     src,
-    x: Math.max(24, state.videoWidth ? 48 : 24),
-    y: Math.max(24, state.videoHeight ? 48 : 24),
-    width: options?.width ?? 160,
-    height: options?.height ?? 160,
+    x: 40,
+    y: 40,
+    width: w,
+    height: h,
     fontSize: 0,
     rotation: 0,
     opacity: 1,
     startTime,
     endTime,
+    trackId: options?.trackId ?? resolveOverlayTrackId(state),
   };
 }
 
@@ -96,7 +108,8 @@ interface AppState {
   toolsDrawerOpen: boolean;
   activeStudioTool: StudioToolId;
   timelineZoom: number;
-  timelineTrackMuted: Record<TimelineTrackId, boolean>;
+  timelineTrackMuted: Record<string, boolean>;
+  extraTimelineTracks: ExtraTimelineTrack[];
   selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
   selectedTimelineClips: { trackId: TimelineTrackId; clipId: string }[];
   timelineClipboard: CanvasElement[] | null;
@@ -168,6 +181,8 @@ interface AppState {
   updateSegmentDuration: (index: number, duration: number, type: 'transcript' | 'translation') => void;
   removeTimelineClip: (trackId: TimelineTrackId, clipId: string) => void;
   addTimelineClip: (trackId: TimelineTrackId, time: number) => void;
+  addTimelineTrack: () => void;
+  removeTimelineTrack: (trackId: string) => void;
   setCanvasElements: (elements: CanvasElement[]) => void;
   setCanvasTool: (tool: CanvasTool) => void;
   setSelectedCanvasElementId: (id: string | null) => void;
@@ -229,7 +244,8 @@ const initialState = {
     text: false,
     overlay: false,
     audio: false,
-  } as Record<TimelineTrackId, boolean>,
+  } as Record<string, boolean>,
+  extraTimelineTracks: [] as ExtraTimelineTrack[],
   selectedTimelineClip: null as { trackId: TimelineTrackId; clipId: string } | null,
   selectedTimelineClips: [] as { trackId: TimelineTrackId; clipId: string }[],
   timelineClipboard: null as CanvasElement[] | null,
@@ -277,6 +293,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeStudioTool: 'media',
       timelineZoom: 100,
       timelineTrackMuted: { video: false, text: false, overlay: false, audio: false },
+      extraTimelineTracks: [],
       selectedTimelineClip: null,
       canvasElements: [],
       selectedCanvasElementId: null,
@@ -542,7 +559,63 @@ export const useAppStore = create<AppState>((set, get) => ({
         transcript: addSegmentAtTime(segments, time, 'Speaker', 'New line'),
         selectedTimelineClip: null,
       });
+    } else if (String(trackId).startsWith('overlay-')) {
+      const duration = state.duration || 3600;
+      const id = `overlay-text-${Date.now()}`;
+      const element: CanvasElement = {
+        id,
+        type: 'text',
+        text: 'New overlay',
+        x: 40,
+        y: 40,
+        width: 220,
+        height: 32,
+        fontSize: 20,
+        rotation: 0,
+        opacity: 1,
+        startTime: time,
+        endTime: Math.min(duration, time + 4),
+        trackId: String(trackId),
+      };
+      set({
+        ...pushCanvasUndo(state),
+        canvasElements: [...state.canvasElements, element],
+        selectedCanvasElementId: id,
+        selectedTimelineClip: { trackId, clipId: id },
+        canvasTool: 'select',
+        activeStudioTool: 'text',
+        toolsDrawerOpen: true,
+      });
     }
+  },
+
+  addTimelineTrack: () => {
+    const state = get();
+    const n = state.extraTimelineTracks.length + 2;
+    const track: ExtraTimelineTrack = {
+      id: `overlay-${Date.now()}`,
+      type: 'overlay',
+      label: `Overlay ${n}`,
+    };
+    set({
+      extraTimelineTracks: [...state.extraTimelineTracks, track],
+      timelineTrackMuted: { ...state.timelineTrackMuted, [track.id]: false },
+    });
+  },
+
+  removeTimelineTrack: (trackId) => {
+    const state = get();
+    set({
+      extraTimelineTracks: state.extraTimelineTracks.filter((t) => t.id !== trackId),
+      canvasElements: state.canvasElements.filter((el) => el.trackId !== trackId),
+      selectedTimelineClip:
+        state.selectedTimelineClip?.trackId === trackId ? null : state.selectedTimelineClip,
+      selectedTimelineClips: state.selectedTimelineClips.filter((c) => c.trackId !== trackId),
+      selectedCanvasElementId:
+        state.canvasElements.find((el) => el.id === state.selectedCanvasElementId)?.trackId === trackId
+          ? null
+          : state.selectedCanvasElementId,
+    });
   },
 
   setCanvasElements: (elements) => set({ canvasElements: elements }),
@@ -557,8 +630,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (element) {
       if (element.segmentType === 'translation' || element.templateId) {
         selectedTimelineClip = { trackId: 'text', clipId: element.id };
-      } else if (element.segmentType === 'transcript' || element.type === 'logo' || element.type === 'image') {
+      } else if (element.segmentType === 'transcript') {
         selectedTimelineClip = { trackId: 'overlay', clipId: element.id };
+      } else if (element.type === 'logo' || element.type === 'image' || element.trackId) {
+        selectedTimelineClip = {
+          trackId: (element.trackId ?? 'overlay') as TimelineTrackId,
+          clipId: element.id,
+        };
       }
     }
 

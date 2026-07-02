@@ -49,4 +49,6 @@ export interface CanvasElement {
   textEffect?: CanvasTextEffectId;
   startTime: number;
   endTime: number;
+  /** Timeline row for overlay/image clips (default: overlay) */
+  trackId?: string;
 }

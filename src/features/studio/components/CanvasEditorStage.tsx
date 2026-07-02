@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Stage, Layer, Text, Group, Rect, Transformer, Image as KonvaImage, Line } from 'react-konva';
 import type Konva from 'konva';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { useCanvasElementSync } from '@/features/studio/hooks/useCanvasElementSync';
 import { isElementVisible } from '@/features/studio/lib/canvasElements';
+import { getVideoContentRect, clampToContentRect, type CanvasRect } from '@/features/studio/lib/canvasCoords';
+import { getDisplayRatio } from '@/features/studio/constants/aspectRatios';
 import { snapDragPosition, type CanvasGuideLine } from '@/features/studio/lib/canvasSnap';
 import { loadGoogleFont } from '@/features/studio/lib/googleFontLoader';
 import { getEffectProps } from '@/features/studio/constants/textEffects';
@@ -20,7 +22,7 @@ interface CanvasEditorStageProps {
   previewMode?: boolean;
 }
 
-const PAD = 24;
+const PAD = 4;
 
 function useCanvasImage(src?: string) {
   const [image, setImage] = useState<HTMLImageElement | undefined>();
@@ -52,12 +54,10 @@ function useCanvasImage(src?: string) {
   return { image, failed };
 }
 
-function clampNode(node: Konva.Group, size: { width: number; height: number }) {
-  const box = node.getClientRect({ skipTransform: false });
-  const maxX = Math.max(PAD, size.width - box.width - PAD);
-  const maxY = Math.max(PAD, size.height - box.height - PAD);
-  node.x(Math.min(Math.max(PAD, node.x()), maxX));
-  node.y(Math.min(Math.max(PAD, node.y()), maxY));
+function clampNode(node: Konva.Group, boxSize: { width: number; height: number }, content: CanvasRect) {
+  const clamped = clampToContentRect(node.x(), node.y(), boxSize, content, PAD);
+  node.x(clamped.x);
+  node.y(clamped.y);
 }
 
 function CanvasGuideLines({
@@ -93,7 +93,7 @@ function CanvasElementNode({
   element,
   selected,
   interactive,
-  stageSize,
+  contentRect,
   snapPeers,
   canvasPreviewAxis,
   canvasAttachSnap,
@@ -105,7 +105,7 @@ function CanvasElementNode({
   element: CanvasElement;
   selected: boolean;
   interactive: boolean;
-  stageSize: { width: number; height: number };
+  contentRect: CanvasRect;
   snapPeers: CanvasElement[];
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
@@ -148,7 +148,7 @@ function CanvasElementNode({
     const snapped = snapDragPosition(
       { x: node.x(), y: node.y() },
       elementSize,
-      stageSize,
+      contentRect,
       snapPeers,
       element.id,
       canvasAttachSnap,
@@ -190,7 +190,7 @@ function CanvasElementNode({
             snapDragPosition(
               { x: element.x, y: element.y },
               elementSize,
-              stageSize,
+              contentRect,
               snapPeers,
               element.id,
               false,
@@ -205,7 +205,7 @@ function CanvasElementNode({
       onDragEnd={(e) => {
         const node = e.target as Konva.Group;
         applySnap(node);
-        clampNode(node, stageSize);
+        clampNode(node, elementSize, contentRect);
         onDragGuideChange(null);
         onChange({ x: node.x(), y: node.y() });
       }}
@@ -216,7 +216,7 @@ function CanvasElementNode({
         const scaleY = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-        clampNode(node, stageSize);
+        clampNode(node, elementSize, contentRect);
         onChange({
           x: node.x(),
           y: node.y(),
@@ -314,6 +314,9 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
   const canvasTool = useAppStore((s) => s.canvasTool);
   const canvasPreviewAxis = useAppStore((s) => s.canvasPreviewAxis);
   const canvasAttachSnap = useAppStore((s) => s.canvasAttachSnap);
+  const videoWidth = useAppStore((s) => s.videoWidth);
+  const videoHeight = useAppStore((s) => s.videoHeight);
+  const aspectRatio = useAppStore((s) => s.aspectRatio);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
 
@@ -323,6 +326,13 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const layerRef = useRef<Konva.Layer>(null);
+  const contentRectRef = useRef<CanvasRect | null>(null);
+
+  const frameRatio = getDisplayRatio(aspectRatio, videoWidth, videoHeight);
+  const contentRect = useMemo(
+    () => getVideoContentRect(size, { width: videoWidth, height: videoHeight }, frameRatio),
+    [size, videoWidth, videoHeight, frameRatio],
+  );
 
   useCanvasElementSync(size.width, size.height);
 
@@ -365,6 +375,27 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
     if (!selectedCanvasElementId) setEditingElementId(null);
   }, [selectedCanvasElementId]);
 
+  useEffect(() => {
+    if (previewMode || contentRect.width <= 0) return;
+    const prev = contentRectRef.current;
+    const changed =
+      !prev ||
+      prev.x !== contentRect.x ||
+      prev.y !== contentRect.y ||
+      prev.width !== contentRect.width ||
+      prev.height !== contentRect.height;
+    contentRectRef.current = contentRect;
+    if (!changed) return;
+
+    for (const el of useAppStore.getState().canvasElements) {
+      const h = el.type === 'logo' || el.type === 'image' ? el.height : el.fontSize * 1.6;
+      const clamped = clampToContentRect(el.x, el.y, { width: el.width, height: h }, contentRect, PAD);
+      if (Math.abs(clamped.x - el.x) > 0.5 || Math.abs(clamped.y - el.y) > 0.5) {
+        updateCanvasElement(el.id, clamped);
+      }
+    }
+  }, [contentRect, previewMode, updateCanvasElement]);
+
   if (size.width <= 0 || size.height <= 0) return null;
 
   const visibleElements = canvasElements.filter((el) => isElementVisible(el, currentTime));
@@ -400,6 +431,16 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
         }}
       >
         <Layer ref={layerRef} listening={interactive}>
+          <Rect
+            x={contentRect.x}
+            y={contentRect.y}
+            width={contentRect.width}
+            height={contentRect.height}
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth={1}
+            listening={false}
+          />
+
           {dragGuides && <CanvasGuideLines guides={dragGuides} stageSize={size} />}
 
           {visibleElements.map((element) => (
@@ -408,7 +449,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
               element={element}
               selected={interactive && selectedCanvasElementId === element.id}
               interactive={interactive}
-              stageSize={size}
+              contentRect={contentRect}
               snapPeers={visibleElements}
               canvasPreviewAxis={canvasPreviewAxis}
               canvasAttachSnap={canvasAttachSnap}

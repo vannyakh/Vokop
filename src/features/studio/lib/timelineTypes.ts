@@ -1,6 +1,12 @@
-export type TimelineTrackId = 'video' | 'text' | 'overlay' | 'audio';
+export type TimelineTrackId = 'video' | 'text' | 'overlay' | 'audio' | (string & {});
 
 export type TimelineTrackType = 'video' | 'text' | 'overlay' | 'audio';
+
+export interface ExtraTimelineTrack {
+  id: string;
+  type: 'overlay';
+  label: string;
+}
 
 export interface TimelineClipModel {
   id: string;
@@ -18,6 +24,8 @@ export interface TimelineTrackModel {
   type: TimelineTrackType;
   label: string;
   clips: TimelineClipModel[];
+  /** Extra overlay row (not the default overlay track) */
+  isExtra?: boolean;
 }
 
 export const TRACK_HEADER_WIDTH = 132;
