@@ -1,23 +1,44 @@
-import { handleResponse, parseJson } from './http.js';
+import type { AxiosInstance } from 'axios';
+import { z } from 'zod';
+import type { ZodTypeAny } from 'zod';
+import { createBrowserApiConfig, type ApiConfig } from './config.js';
+import { apiRequest, createHttpClient } from './http.js';
 import { routes } from './routes.js';
 import {
+  adminMenuSchema,
+  adminMenusResponseSchema,
   applyEditorEditResponseSchema,
+  authSessionResponseSchema,
+  authUserSchema,
+  emailLookupResponseSchema,
   editorCatalogResponseSchema,
   editorPreviewResponseSchema,
   filmstripResponseSchema,
   giphyStickersResponseSchema,
   healthResponseSchema,
   mediaStatusResponseSchema,
+  meResponseSchema,
+  permissionsListResponseSchema,
   pixabayImageSearchResponseSchema,
   pixabayVideoSearchResponseSchema,
+  roleSchema,
+  rolesListResponseSchema,
   startFilmstripJobResponseSchema,
   textEffectPreviewsResponseSchema,
+  updateUserRolesRequestSchema,
+  upsertAdminMenuRequestSchema,
+  upsertRoleRequestSchema,
+  usersListResponseSchema,
   videoJobResponseSchema,
   videoProbeResponseSchema,
   videoSessionResponseSchema,
 } from './schemas/index.js';
 import type {
   ApplyEditorEditResponse,
+  AuthSessionResponse,
+  AuthUser,
+  AdminMenu,
+  Role,
   EditorCatalogResponse,
   EditorPreviewResponse,
   FilmstripResponse,
@@ -33,9 +54,9 @@ import type {
 } from './schemas/index.js';
 import type { StudioToolId } from './schemas/editor.js';
 
-export interface ApiClientOptions {
-  baseUrl?: string;
-  fetch?: typeof fetch;
+export interface ApiClientOptions extends ApiConfig {
+  /** Inject a custom axios instance (tests, interceptors). */
+  http?: AxiosInstance;
 }
 
 export interface PollJobOptions {
@@ -45,84 +66,88 @@ export interface PollJobOptions {
 }
 
 export class ApiClient {
-  private readonly baseUrl: string;
-  private readonly fetchFn: typeof fetch;
+  private readonly http: AxiosInstance;
 
   constructor(options: ApiClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? '').replace(/\/$/, '');
-    this.fetchFn = options.fetch ?? fetch.bind(globalThis);
+    this.http = options.http ?? createHttpClient(options);
   }
 
-  private url(path: string): string {
-    return `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  private get<T extends ZodTypeAny>(
+    schema: T,
+    url: string,
+    message: string,
+    params?: Record<string, string | number>,
+  ): Promise<z.infer<T>> {
+    return apiRequest(this.http, schema, { method: 'GET', url, params }, message);
+  }
+
+  private postJson<T extends ZodTypeAny>(
+    schema: T,
+    url: string,
+    data: unknown,
+    message: string,
+  ): Promise<z.infer<T>> {
+    return apiRequest(this.http, schema, { method: 'POST', url, data }, message);
+  }
+
+  private postForm<T extends ZodTypeAny>(
+    schema: T,
+    url: string,
+    form: FormData,
+    message: string,
+  ): Promise<z.infer<T>> {
+    return apiRequest(this.http, schema, { method: 'POST', url, data: form }, message);
   }
 
   async health(): Promise<HealthResponse> {
-    const res = await this.fetchFn(this.url(routes.health));
-    return handleResponse(healthResponseSchema, res, 'Health check failed');
+    return this.get(healthResponseSchema, routes.health, 'Health check failed');
   }
 
   async probeVideo(file: File): Promise<VideoProbeResponse> {
     const form = new FormData();
     form.append('video', file);
-
-    const res = await this.fetchFn(this.url(routes.video.probe), {
-      method: 'POST',
-      body: form,
-    });
-
-    return handleResponse(videoProbeResponseSchema, res, 'Probe failed');
+    return this.postForm(videoProbeResponseSchema, routes.video.probe, form, 'Probe failed');
   }
 
   async filmstrip(file: File, duration: number): Promise<FilmstripResponse> {
     const form = new FormData();
     form.append('video', file);
     form.append('duration', String(duration));
-
-    const res = await this.fetchFn(this.url(routes.video.filmstrip), {
-      method: 'POST',
-      body: form,
-    });
-
-    return handleResponse(filmstripResponseSchema, res, 'Filmstrip failed');
+    return this.postForm(filmstripResponseSchema, routes.video.filmstrip, form, 'Filmstrip failed');
   }
 
   /** Upload once — reuse sessionId for probe, filmstrip, and async jobs. */
   async createVideoSession(file: File): Promise<VideoSessionResponse> {
     const form = new FormData();
     form.append('video', file);
-
-    const res = await this.fetchFn(this.url(routes.video.session), {
-      method: 'POST',
-      body: form,
-    });
-
-    return handleResponse(videoSessionResponseSchema, res, 'Session creation failed');
+    return this.postForm(
+      videoSessionResponseSchema,
+      routes.video.session,
+      form,
+      'Session creation failed',
+    );
   }
 
   async filmstripSession(sessionId: string, duration: number): Promise<FilmstripResponse> {
-    const res = await this.fetchFn(this.url(routes.video.sessionFilmstrip(sessionId)), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ duration }),
-    });
-
-    return handleResponse(filmstripResponseSchema, res, 'Filmstrip failed');
+    return this.postJson(
+      filmstripResponseSchema,
+      routes.video.sessionFilmstrip(sessionId),
+      { duration },
+      'Filmstrip failed',
+    );
   }
 
   async startFilmstripJob(sessionId: string, duration: number): Promise<{ jobId: string }> {
-    const res = await this.fetchFn(this.url(routes.video.sessionFilmstripJob(sessionId)), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ duration }),
-    });
-
-    return handleResponse(startFilmstripJobResponseSchema, res, 'Failed to start filmstrip job');
+    return this.postJson(
+      startFilmstripJobResponseSchema,
+      routes.video.sessionFilmstripJob(sessionId),
+      { duration },
+      'Failed to start filmstrip job',
+    );
   }
 
   async getVideoJob(jobId: string): Promise<VideoJobResponse> {
-    const res = await this.fetchFn(this.url(routes.video.job(jobId)));
-    return handleResponse(videoJobResponseSchema, res, 'Failed to fetch job');
+    return this.get(videoJobResponseSchema, routes.video.job(jobId), 'Failed to fetch job');
   }
 
   /** Poll until job completes; streams partial thumbnails via onUpdate. */
@@ -155,8 +180,7 @@ export class ApiClient {
   }
 
   async getEditorCatalog(): Promise<EditorCatalogResponse> {
-    const res = await this.fetchFn(this.url(routes.video.editorCatalog));
-    return handleResponse(editorCatalogResponseSchema, res, 'Failed to load editor catalog');
+    return this.get(editorCatalogResponseSchema, routes.video.editorCatalog, 'Failed to load editor catalog');
   }
 
   async applyEditorEdit(
@@ -165,12 +189,12 @@ export class ApiClient {
     presetId: string,
     clipId?: string,
   ): Promise<ApplyEditorEditResponse> {
-    const res = await this.fetchFn(this.url(routes.video.editorApply), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, tool, presetId, clipId }),
-    });
-    return handleResponse(applyEditorEditResponseSchema, res, 'Failed to apply edit');
+    return this.postJson(
+      applyEditorEditResponseSchema,
+      routes.video.editorApply,
+      { sessionId, tool, presetId, clipId },
+      'Failed to apply edit',
+    );
   }
 
   async previewEditorFilter(
@@ -179,17 +203,16 @@ export class ApiClient {
     presetId: string,
     atTime?: number,
   ): Promise<EditorPreviewResponse> {
-    const res = await this.fetchFn(this.url(routes.video.editorPreview), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, tool, presetId, atTime }),
-    });
-    return handleResponse(editorPreviewResponseSchema, res, 'Preview failed');
+    return this.postJson(
+      editorPreviewResponseSchema,
+      routes.video.editorPreview,
+      { sessionId, tool, presetId, atTime },
+      'Preview failed',
+    );
   }
 
   async getMediaStatus(): Promise<MediaStatusResponse> {
-    const res = await this.fetchFn(this.url(routes.media.status));
-    return handleResponse(mediaStatusResponseSchema, res, 'Failed to load media status');
+    return this.get(mediaStatusResponseSchema, routes.media.status, 'Failed to load media status');
   }
 
   async searchPixabayImages(
@@ -197,13 +220,12 @@ export class ApiClient {
     page = 1,
     perPage = 20,
   ): Promise<{ total: number; totalHits: number; hits: PixabayImage[] }> {
-    const params = new URLSearchParams({
-      q: query,
-      page: String(page),
-      perPage: String(perPage),
-    });
-    const res = await this.fetchFn(`${this.url(routes.media.pixabayImages)}?${params}`);
-    return handleResponse(pixabayImageSearchResponseSchema, res, 'Pixabay image search failed');
+    return this.get(
+      pixabayImageSearchResponseSchema,
+      routes.media.pixabayImages,
+      'Pixabay image search failed',
+      { q: query, page, perPage },
+    );
   }
 
   async searchPixabayVideos(
@@ -211,48 +233,179 @@ export class ApiClient {
     page = 1,
     perPage = 20,
   ): Promise<{ total: number; totalHits: number; hits: PixabayVideo[] }> {
-    const params = new URLSearchParams({
-      q: query,
-      page: String(page),
-      perPage: String(perPage),
-    });
-    const res = await this.fetchFn(`${this.url(routes.media.pixabayVideos)}?${params}`);
-    return handleResponse(pixabayVideoSearchResponseSchema, res, 'Pixabay video search failed');
+    return this.get(
+      pixabayVideoSearchResponseSchema,
+      routes.media.pixabayVideos,
+      'Pixabay video search failed',
+      { q: query, page, perPage },
+    );
   }
 
   async trendingGiphyStickers(limit = 10, offset = 0): Promise<GiphySticker[]> {
-    const params = new URLSearchParams({
-      limit: String(limit),
-      offset: String(offset),
-    });
-    const res = await this.fetchFn(`${this.url(routes.media.giphyTrending)}?${params}`);
-    const data = await handleResponse(giphyStickersResponseSchema, res, 'Giphy trending failed');
+    const data = await this.get(
+      giphyStickersResponseSchema,
+      routes.media.giphyTrending,
+      'Giphy trending failed',
+      { limit, offset },
+    );
     return data.stickers;
   }
 
-  async searchGiphyStickers(
-    query: string,
-    limit = 10,
-    offset = 0,
-  ): Promise<GiphySticker[]> {
-    const params = new URLSearchParams({
-      q: query,
-      limit: String(limit),
-      offset: String(offset),
-    });
-    const res = await this.fetchFn(`${this.url(routes.media.giphySearch)}?${params}`);
-    const data = await handleResponse(giphyStickersResponseSchema, res, 'Giphy search failed');
+  async searchGiphyStickers(query: string, limit = 10, offset = 0): Promise<GiphySticker[]> {
+    const data = await this.get(
+      giphyStickersResponseSchema,
+      routes.media.giphySearch,
+      'Giphy search failed',
+      { q: query, limit, offset },
+    );
     return data.stickers;
   }
 
   async getTextEffectPreviews(): Promise<TextEffectPreviewsResponse> {
-    const res = await this.fetchFn(this.url(routes.media.textEffectPreviews));
-    return handleResponse(textEffectPreviewsResponseSchema, res, 'Text effect previews failed');
+    return this.get(
+      textEffectPreviewsResponseSchema,
+      routes.media.textEffectPreviews,
+      'Text effect previews failed',
+    );
+  }
+
+  async login(email: string, password: string): Promise<AuthSessionResponse> {
+    return this.postJson(authSessionResponseSchema, routes.auth.login, { email, password }, 'Login failed');
+  }
+
+  async lookupEmail(email: string): Promise<{ exists: boolean }> {
+    return this.postJson(
+      emailLookupResponseSchema,
+      routes.auth.lookup,
+      { email },
+      'Email lookup failed',
+    );
+  }
+
+  async register(email: string, password: string, name: string): Promise<AuthSessionResponse> {
+    return this.postJson(
+      authSessionResponseSchema,
+      routes.auth.register,
+      { email, password, name },
+      'Registration failed',
+    );
+  }
+
+  async refreshSession(refreshToken: string): Promise<AuthSessionResponse> {
+    return this.postJson(
+      authSessionResponseSchema,
+      routes.auth.refresh,
+      { refreshToken },
+      'Refresh failed',
+    );
+  }
+
+  async logout(refreshToken: string): Promise<{ ok: true }> {
+    return this.postJson(
+      z.object({ ok: z.literal(true) }),
+      routes.auth.logout,
+      { refreshToken },
+      'Logout failed',
+    );
+  }
+
+  async getMe(): Promise<{ user: AuthUser }> {
+    return this.get(meResponseSchema, routes.auth.me, 'Failed to load profile');
+  }
+
+  async getAdminMenus(): Promise<{ menus: AdminMenu[] }> {
+    return this.get(adminMenusResponseSchema, routes.admin.menus, 'Failed to load admin menus');
+  }
+
+  async listRoles(): Promise<{ roles: Role[] }> {
+    return this.get(rolesListResponseSchema, routes.admin.roles, 'Failed to load roles');
+  }
+
+  async listPermissions(): Promise<{ permissions: { slug: string; label: string; group: string }[] }> {
+    return this.get(permissionsListResponseSchema, routes.admin.permissions, 'Failed to load permissions');
+  }
+
+  async listUsers(): Promise<{ users: AuthUser[] }> {
+    return this.get(usersListResponseSchema, routes.admin.users, 'Failed to load users');
+  }
+
+  async createRole(input: z.infer<typeof upsertRoleRequestSchema>): Promise<{ role: Role }> {
+    return this.postJson(
+      z.object({ role: roleSchema }),
+      routes.admin.roles,
+      input,
+      'Failed to create role',
+    );
+  }
+
+  async updateRole(id: string, input: Partial<z.infer<typeof upsertRoleRequestSchema>>): Promise<{ role: Role }> {
+    return apiRequest(
+      this.http,
+      z.object({ role: roleSchema }),
+      { method: 'PATCH', url: routes.admin.role(id), data: input },
+      'Failed to update role',
+    );
+  }
+
+  async deleteRole(id: string): Promise<{ ok: true }> {
+    return apiRequest(
+      this.http,
+      z.object({ ok: z.literal(true) }),
+      { method: 'DELETE', url: routes.admin.role(id) },
+      'Failed to delete role',
+    );
+  }
+
+  async updateUser(id: string, input: z.infer<typeof updateUserRolesRequestSchema>): Promise<{ user: AuthUser }> {
+    return apiRequest(
+      this.http,
+      z.object({ user: authUserSchema }),
+      { method: 'PATCH', url: routes.admin.user(id), data: input },
+      'Failed to update user',
+    );
+  }
+
+  async createAdminMenu(input: z.infer<typeof upsertAdminMenuRequestSchema>): Promise<{ menu: AdminMenu }> {
+    return this.postJson(
+      z.object({ menu: adminMenuSchema }),
+      routes.admin.menus,
+      input,
+      'Failed to create menu',
+    );
+  }
+
+  async updateAdminMenu(
+    id: string,
+    input: Partial<z.infer<typeof upsertAdminMenuRequestSchema>>,
+  ): Promise<{ menu: AdminMenu }> {
+    return apiRequest(
+      this.http,
+      z.object({ menu: adminMenuSchema }),
+      { method: 'PATCH', url: `${routes.admin.menus}/${id}`, data: input },
+      'Failed to update menu',
+    );
+  }
+
+  async deleteAdminMenu(id: string): Promise<{ ok: true }> {
+    return apiRequest(
+      this.http,
+      z.object({ ok: z.literal(true) }),
+      { method: 'DELETE', url: `${routes.admin.menus}/${id}` },
+      'Failed to delete menu',
+    );
   }
 }
 
-export function createApiClient(options?: ApiClientOptions): ApiClient {
+export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   return new ApiClient(options);
 }
 
-export { parseJson };
+/** Browser/Vite app — uses empty base URL + dev proxy by default. */
+export function createBrowserApiClient(
+  baseUrl?: string,
+  getAccessToken?: () => string | undefined | null,
+): ApiClient {
+  return createApiClient(createBrowserApiConfig(baseUrl, getAccessToken));
+}
+
+export { parseData as parseJson } from './http.js';

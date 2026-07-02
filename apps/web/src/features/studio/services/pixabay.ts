@@ -1,4 +1,4 @@
-import { api } from '@/lib/api/client';
+import { api } from '@/lib/api';
 import type { PixabayImage, PixabayVideo } from '@vokop/api';
 
 export type { PixabayImage, PixabayVideo };

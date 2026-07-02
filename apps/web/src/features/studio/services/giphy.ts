@@ -1,4 +1,4 @@
-import { api } from '@/lib/api/client';
+import { api } from '@/lib/api';
 import type { GiphySticker } from '@vokop/api';
 
 export type { GiphySticker };

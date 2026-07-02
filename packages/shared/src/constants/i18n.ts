@@ -22,7 +22,6 @@ export const translations = {
     darkMode: 'Dark mode',
     loginTitle: 'Sign in to Vokop',
     loginSubtitle: 'Sign in to upload and translate your videos.',
-    continueGuest: 'Continue as guest',
     signInGoogle: 'Continue with Google',
   },
   km: {
@@ -39,7 +38,6 @@ export const translations = {
     darkMode: 'រចនាបថងងឹត',
     loginTitle: 'ចូល Vokop',
     loginSubtitle: 'ចូលដើម្បីផ្ទុក និងបកប្រែវីដេអូរបស់អ្នក។',
-    continueGuest: 'បន្តជាភ្ញៀវ',
     signInGoogle: 'បន្តជាមួយ Google',
   },
   es: {
@@ -56,7 +54,6 @@ export const translations = {
     darkMode: 'Modo oscuro',
     loginTitle: 'Iniciar sesión en Vokop',
     loginSubtitle: 'Inicia sesión para subir y traducir tus videos.',
-    continueGuest: 'Continuar como invitado',
     signInGoogle: 'Continuar con Google',
   },
   fr: {
@@ -73,7 +70,6 @@ export const translations = {
     darkMode: 'Mode sombre',
     loginTitle: 'Connexion à Vokop',
     loginSubtitle: 'Connectez-vous pour téléverser et traduire vos vidéos.',
-    continueGuest: 'Continuer en invité',
     signInGoogle: 'Continuer avec Google',
   },
 } as const;

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api } from '@/lib/api';
 import { queryKeys, videoFileKey } from '@/lib/api/queryKeys';
 import { useAppStore } from '@/features/project';
 

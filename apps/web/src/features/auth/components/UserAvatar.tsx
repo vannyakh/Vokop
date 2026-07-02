@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { useAuthStore } from '@/features/auth';
+import { Link } from 'react-router-dom';
+import { useAuthStore, userHasPermission } from '@/features/auth';
 import { useTranslation } from '@/features/settings';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Shield } from 'lucide-react';
+import { ROUTES } from '@/routes/paths';
+import { api } from '@/lib/api';
 
 interface UserAvatarProps {
   onLoginClick: () => void;
@@ -20,6 +23,7 @@ export function UserAvatar({ onLoginClick }: UserAvatarProps) {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const refreshToken = useAuthStore((s) => s.refreshToken);
   const { t } = useTranslation();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,9 +73,20 @@ export function UserAvatar({ onLoginClick }: UserAvatarProps) {
             </p>
             <p className="text-[10px] text-faint truncate font-mono">{user?.email}</p>
           </div>
+          {userHasPermission(user, 'admin.access') && (
+            <Link
+              to={ROUTES.admin}
+              onClick={() => setMenuOpen(false)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hi)]"
+            >
+              <Shield size={13} />
+              Admin
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => {
+              if (refreshToken) void api.logout(refreshToken);
               logout();
               setMenuOpen(false);
             }}

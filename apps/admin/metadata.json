@@ -1,0 +1,6 @@
+{
+  "name": "VOK2Z Seller Dashboard",
+  "description": "An interactive, highly polished seller administration dashboard featuring liquid glass UI design, dynamic custom page tabs, stateful notifications drawer with spring-physics tab bar, comprehensive settings, and modular atomic components.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

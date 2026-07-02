@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FILMSTRIP_THUMB_WIDTH } from '@vokop/shared';
 import { extractFilmstripThumbnails } from '@/features/studio/lib/ffmpeg';
 import { captureFilmstripFromVideo } from '@/features/studio/lib/filmstripCapture';
-import { api } from '@/lib/api/client';
+import { api } from '@/lib/api';
 
 function revokeThumbnailUrls(urls: string[]) {
   urls.forEach((url) => {

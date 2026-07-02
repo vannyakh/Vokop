@@ -1,5 +1,24 @@
-export { ApiClient, createApiClient, type ApiClientOptions } from './client.js';
-export { ApiRequestError, handleResponse, parseJson } from './http.js';
+export {
+  ApiClient,
+  createApiClient,
+  createBrowserApiClient,
+  type ApiClientOptions,
+} from './client.js';
+export {
+  API_DEFAULTS,
+  createBrowserApiConfig,
+  normalizeBaseUrl,
+  resolveServerBaseUrl,
+  type ApiConfig,
+} from './config.js';
+export {
+  ApiRequestError,
+  apiRequest,
+  createHttpClient,
+  parseData,
+  parseJson,
+  toApiRequestError,
+} from './http.js';
 export { API_PREFIX, routes } from './routes.js';
 export { toApiResponse } from './server.js';
 export * from './schemas/index.js';

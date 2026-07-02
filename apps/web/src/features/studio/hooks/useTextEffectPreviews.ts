@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
+import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/api/queryKeys';
 import type { TextEffectPreview, TextEffectPreviewsResponse } from '@vokop/api';
 import type { CanvasTextEffectId } from '@/types/canvas';

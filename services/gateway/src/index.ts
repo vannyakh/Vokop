@@ -12,6 +12,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 4000);
 const VIDEO_TOOLS_URL = process.env.VIDEO_TOOLS_URL ?? 'http://localhost:4001';
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL ?? 'http://localhost:4002';
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
 
 const app = express();
@@ -42,7 +43,7 @@ app.use(
   createProxyMiddleware({
     target: VIDEO_TOOLS_URL,
     changeOrigin: true,
-    pathRewrite: { '^/api/v1/video': '' },
+    pathRewrite: { '^/': '/' },
   }),
 );
 
@@ -51,7 +52,25 @@ app.use(
   createProxyMiddleware({
     target: VIDEO_TOOLS_URL,
     changeOrigin: true,
-    pathRewrite: { '^/api/v1/media': '/media' },
+    pathRewrite: { '^/': '/media/' },
+  }),
+);
+
+app.use(
+  '/api/v1/auth',
+  createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/': '/auth/' },
+  }),
+);
+
+app.use(
+  '/api/v1/admin',
+  createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/': '/admin/' },
   }),
 );
 
@@ -74,6 +93,8 @@ async function start() {
     console.log(`[gateway] http://localhost:${PORT}`);
     console.log(`[gateway] proxying /api/v1/video -> ${VIDEO_TOOLS_URL}`);
     console.log(`[gateway] proxying /api/v1/media -> ${VIDEO_TOOLS_URL}/media`);
+    console.log(`[gateway] proxying /api/v1/auth -> ${AUTH_SERVICE_URL}/auth`);
+    console.log(`[gateway] proxying /api/v1/admin -> ${AUTH_SERVICE_URL}/admin`);
   });
 
   server.on('error', (err: NodeJS.ErrnoException) => {

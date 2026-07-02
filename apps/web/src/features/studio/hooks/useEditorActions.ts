@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useAppStore } from '@/features/project';
-import { api } from '@/lib/api/client';
+import { api } from '@/lib/api';
 import type { StudioToolId } from '@/types';
 
 interface ApplyPresetInput {

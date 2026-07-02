@@ -12,6 +12,17 @@ export const queryKeys = {
     all: ['editor'] as const,
     catalog: () => [...queryKeys.editor.all, 'catalog'] as const,
   },
+  auth: {
+    all: ['auth'] as const,
+    me: () => [...queryKeys.auth.all, 'me'] as const,
+  },
+  admin: {
+    all: ['admin'] as const,
+    menus: () => [...queryKeys.admin.all, 'menus'] as const,
+    roles: () => [...queryKeys.admin.all, 'roles'] as const,
+    permissions: () => [...queryKeys.admin.all, 'permissions'] as const,
+    users: () => [...queryKeys.admin.all, 'users'] as const,
+  },
   video: {
     all: ['video'] as const,
     session: (fileKey: string) => [...queryKeys.video.all, 'session', fileKey] as const,

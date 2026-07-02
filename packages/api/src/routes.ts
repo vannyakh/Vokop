@@ -22,4 +22,20 @@ export const routes = {
     giphySearch: `${API_PREFIX}/media/giphy/stickers/search`,
     textEffectPreviews: `${API_PREFIX}/media/text-effects/previews`,
   },
+  auth: {
+    login: `${API_PREFIX}/auth/login`,
+    lookup: `${API_PREFIX}/auth/lookup`,
+    register: `${API_PREFIX}/auth/register`,
+    refresh: `${API_PREFIX}/auth/refresh`,
+    logout: `${API_PREFIX}/auth/logout`,
+    me: `${API_PREFIX}/auth/me`,
+  },
+  admin: {
+    menus: `${API_PREFIX}/admin/menus`,
+    roles: `${API_PREFIX}/admin/roles`,
+    role: (id: string) => `${API_PREFIX}/admin/roles/${id}`,
+    permissions: `${API_PREFIX}/admin/permissions`,
+    users: `${API_PREFIX}/admin/users`,
+    user: (id: string) => `${API_PREFIX}/admin/users/${id}`,
+  },
 } as const;
