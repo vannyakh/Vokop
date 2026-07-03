@@ -1,0 +1,13 @@
+{
+  "extends": "@vokop/tsconfig/react-library.json",
+  "include": ["src/renderer/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "out/renderer",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/renderer/*"],
+      "@web/*": ["../web/src/*"]
+    }
+  }
+}

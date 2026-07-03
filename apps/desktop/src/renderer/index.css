@@ -1,0 +1,29 @@
+@import "@vokop/ui/styles.css";
+@import "@web/index.css";
+
+/* ── Desktop-specific overrides ───────────────────────────────────────────── */
+
+/* Hide scrollbars globally for a cleaner desktop look */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+/* macOS traffic-light safe-area — avoid content under hiddenInset titlebar */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Prevent text selection on UI chrome — same as Electron's default UX */
+.app-header,
+.tools-dock,
+.sidebar {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+/* Titlebar drag region for macOS hiddenInset */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
