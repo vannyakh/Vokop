@@ -9,3 +9,4 @@ coverage/
 .turbo/
 .pnpm-store/
 @templates
+dump

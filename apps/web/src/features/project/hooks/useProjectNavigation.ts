@@ -12,5 +12,13 @@ export function useProjectNavigation() {
     navigate(ROUTES.home);
   }, [resetProject, navigate]);
 
-  return { closeProject };
+  const openProject = useCallback(
+    (projectId: string) => {
+      resetProject();
+      navigate(ROUTES.studioProject.replace(':projectId', projectId));
+    },
+    [resetProject, navigate],
+  );
+
+  return { closeProject, openProject };
 }

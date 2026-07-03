@@ -1,0 +1,12 @@
+{
+  "appName": "Vokop Admin",
+  "login": "Iniciar sesión",
+  "logout": "Cerrar sesión",
+  "dashboard": "Panel",
+  "users": "Usuarios",
+  "settings": "Configuración",
+  "save": "Guardar",
+  "cancel": "Cancelar",
+  "search": "Buscar",
+  "loading": "Cargando…"
+}

@@ -16,6 +16,11 @@ export const queryKeys = {
     all: ['auth'] as const,
     me: () => [...queryKeys.auth.all, 'me'] as const,
   },
+  projects: {
+    all: ['projects'] as const,
+    list: () => [...queryKeys.projects.all, 'list'] as const,
+    detail: (projectId: string) => [...queryKeys.projects.all, 'detail', projectId] as const,
+  },
   admin: {
     all: ['admin'] as const,
     menus: () => [...queryKeys.admin.all, 'menus'] as const,

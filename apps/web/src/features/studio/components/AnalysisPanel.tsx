@@ -10,7 +10,7 @@ interface AnalysisPanelProps {
   onStartReel: () => void;
 }
 
-export function AnalysisPanel({ videoRef, onPlayAnalysis, onStartReel }: AnalysisPanelProps) {
+export function AnalysisPanel({ onPlayAnalysis, onStartReel }: AnalysisPanelProps) {
   const videoAnalysis = useAppStore((s) => s.videoAnalysis);
   const analysisAudio = useAppStore((s) => s.analysisAudio);
   const isPlayingAnalysis = useAppStore((s) => s.isPlayingAnalysis);
@@ -86,10 +86,9 @@ export function AnalysisPanel({ videoRef, onPlayAnalysis, onStartReel }: Analysi
                 key={i}
                 type="button"
                 onClick={() => {
-                  if (videoRef.current) {
-                    videoRef.current.currentTime = parseTimeToSeconds(highlight.start);
-                    videoRef.current.play();
-                  }
+                  const time = parseTimeToSeconds(highlight.start);
+                  useAppStore.getState().seekTimeline(time);
+                  useAppStore.getState().setTimelinePlaying(true);
                 }}
                 className={cn(
                   'flex flex-col gap-2 p-3 rounded-xl border transition-colors text-left cursor-pointer',

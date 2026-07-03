@@ -10,6 +10,7 @@ export {
   normalizeBaseUrl,
   resolveServerBaseUrl,
   type ApiConfig,
+  type BrowserApiOptions,
 } from './config.js';
 export {
   ApiRequestError,

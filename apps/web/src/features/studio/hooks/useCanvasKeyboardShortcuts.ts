@@ -29,11 +29,7 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
       // Space = play/pause (only when not in text input)
       if (e.code === 'Space' && !isEditable) {
         e.preventDefault();
-        const video = videoRef?.current;
-        if (video) {
-          if (video.paused) void video.play();
-          else video.pause();
-        }
+        useAppStore.getState().toggleTimelinePlaying();
         return;
       }
 

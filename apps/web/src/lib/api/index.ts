@@ -1,8 +1,12 @@
 import { createBrowserApiClient } from '@vokop/api';
-import { getAccessToken } from '@/features/auth/store/useAuthStore';
+import { getAccessToken, useAuthStore } from '@/features/auth/store/useAuthStore';
 
 /** Browser API client — empty base URL uses the Vite dev proxy (`/api/v1/...`). */
-export const api = createBrowserApiClient(import.meta.env.VITE_API_URL, getAccessToken);
+export const api = createBrowserApiClient(import.meta.env.VITE_API_URL, getAccessToken, {
+  getRefreshToken: () => useAuthStore.getState().refreshToken,
+  onTokenRefreshed: (session) => useAuthStore.getState().setSession(session),
+  onAuthFailure: () => useAuthStore.getState().logout(),
+});
 
 export { ApiClient, ApiRequestError, createApiClient, createBrowserApiClient } from '@vokop/api';
 

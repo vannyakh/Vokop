@@ -16,6 +16,8 @@ interface TimelineClipBlockProps {
   onDelete?: () => void;
   onDragStart: (e: React.PointerEvent, mode: 'move' | 'left' | 'right') => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  /** Split/drag unlocks after transcript is ready. */
+  canDrag?: boolean;
 }
 
 /** Determine the CapCut-style variant for coloring */
@@ -45,8 +47,14 @@ export function TimelineClipBlock({
   onDelete,
   onDragStart,
   onContextMenu,
+  canDrag = true,
 }: TimelineClipBlockProps) {
-  const canEdit = track.type === 'text' || track.type === 'overlay';
+  const isEditableTrack =
+    track.type === 'text' ||
+    track.type === 'overlay' ||
+    clip.mediaKind === 'video' ||
+    clip.mediaKind === 'audio';
+  const canEdit = canDrag && isEditableTrack;
   const isFootage = track.type === 'video';
   const isAudio = track.type === 'audio';
   const variant = getClipVariant(clip, track.type);
@@ -94,8 +102,8 @@ export function TimelineClipBlock({
       {/* Audio waveform */}
       {isAudio && children}
 
-      {/* Editable clip label */}
-      {canEdit && (
+      {/* Clip label */}
+      {isEditableTrack && (
         <div className="studio-timeline-clip-inner">
           {width > 50 && (
             <span className="studio-timeline-clip-label">{clip.name}</span>

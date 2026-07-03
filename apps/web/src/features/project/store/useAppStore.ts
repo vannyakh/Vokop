@@ -10,11 +10,35 @@ import {
 import { DEFAULT_VOICE, VOICES } from '@/features/translation/constants/voices';
 import { extractSpeakers } from '@/lib/utils/transcript';
 import { updateSegmentText, parseSegments, updateSegmentTime, updateSegmentDuration, removeSegment, addSegmentAtTime, splitSegmentAtTime, getSegmentIndexAtTime } from '@/lib/utils/transcript';
-import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
-import type { ExtraTimelineTrack } from '@/features/studio/lib/timelineTypes';
+import type {
+  ExtraTimelineTrack,
+  MediaClip,
+  TimelineTrackId,
+} from '@/features/studio/lib/timelineTypes';
 import type { CanvasElement, CanvasTool } from '@/types/canvas';
 import { defaultProjectName, detectAspectRatioId } from '@/features/studio/constants/aspectRatios';
-import { cloneCanvasElements, pushCanvasUndoStack } from '@/features/studio/lib/canvasHistory';
+import {
+  computeTimelineDuration,
+  createMediaClip,
+  findClipAtTime,
+  splitMediaClipAt,
+  timelineToSourceTime,
+} from '@/features/studio/lib/mediaClips';
+import { getTimelineVideo } from '@/features/studio/lib/timelinePlaybackBridge';
+import {
+  forgetMediaFile,
+  getMediaFile,
+  kindFromFile,
+  probeMediaMeta,
+  storeMediaFile,
+  type MediaAsset,
+} from '@/features/studio/lib/mediaLibrary';
+import { isTranscriptReady } from '@/features/studio/lib/transcriptReady';
+import {
+  cloneProjectSnapshot,
+  pushProjectHistory,
+  type ProjectSnapshot,
+} from '@/features/studio/lib/projectHistory';
 import type { TextTemplateInput, AddTextTemplateOptions } from '@/features/studio/constants/textTemplates';
 import { computeTemplatePlacement, estimateCanvasSize } from '@/features/studio/lib/textTemplatePlacement';
 
@@ -70,11 +94,85 @@ function buildCanvasImageElement(
   };
 }
 
-function pushCanvasUndo(state: { canvasElements: CanvasElement[]; canvasUndoStack: CanvasElement[][] }) {
+function snapshotFromState(state: {
+  canvasElements: CanvasElement[];
+  transcript: string;
+  translatedText: string;
+  videoClips: MediaClip[];
+  audioClips: MediaClip[];
+  extraTimelineTracks: ExtraTimelineTrack[];
+}): ProjectSnapshot {
   return {
-    canvasUndoStack: pushCanvasUndoStack(state.canvasUndoStack, state.canvasElements),
-    canvasRedoStack: [] as CanvasElement[][],
+    canvasElements: state.canvasElements,
+    transcript: state.transcript,
+    translatedText: state.translatedText,
+    videoClips: state.videoClips,
+    audioClips: state.audioClips,
+    extraTimelineTracks: state.extraTimelineTracks,
   };
+}
+
+function pushHistory(state: {
+  canvasElements: CanvasElement[];
+  transcript: string;
+  translatedText: string;
+  videoClips: MediaClip[];
+  audioClips: MediaClip[];
+  extraTimelineTracks: ExtraTimelineTrack[];
+  projectUndoStack: ProjectSnapshot[];
+}) {
+  return {
+    projectUndoStack: pushProjectHistory(state.projectUndoStack, snapshotFromState(state)),
+    projectRedoStack: [] as ProjectSnapshot[],
+  };
+}
+
+function applySnapshot(snapshot: ProjectSnapshot) {
+  return {
+    canvasElements: snapshot.canvasElements,
+    transcript: snapshot.transcript,
+    translatedText: snapshot.translatedText,
+    videoClips: snapshot.videoClips,
+    audioClips: snapshot.audioClips,
+    extraTimelineTracks: snapshot.extraTimelineTracks,
+  };
+}
+
+function withTimelineDuration<T extends {
+  mediaDuration: number;
+  videoClips: MediaClip[];
+  audioClips: MediaClip[];
+  duration: number;
+}>(state: T, patch: Partial<Pick<T, 'videoClips' | 'audioClips' | 'mediaDuration' | 'duration'>>) {
+  const mediaDuration = patch.mediaDuration ?? state.mediaDuration;
+  const videoClips = patch.videoClips ?? state.videoClips;
+  const audioClips = patch.audioClips ?? state.audioClips;
+  const fallback = patch.duration ?? state.duration;
+  return {
+    ...patch,
+    mediaDuration,
+    videoClips,
+    audioClips,
+    duration: computeTimelineDuration(mediaDuration, [...videoClips, ...audioClips], fallback),
+  };
+}
+
+function syncVideoToTimeline(clips: MediaClip[], time: number, playing: boolean) {
+  const video = getTimelineVideo();
+  if (!video) return;
+
+  const sourceTime = timelineToSourceTime(clips, time);
+  if (sourceTime == null) {
+    if (!video.paused) video.pause();
+    return;
+  }
+
+  if (Math.abs(video.currentTime - sourceTime) > 0.04) {
+    video.currentTime = sourceTime;
+  }
+
+  if (playing && video.paused) void video.play().catch(() => undefined);
+  if (!playing && !video.paused) video.pause();
 }
 
 interface AppState {
@@ -107,7 +205,10 @@ interface AppState {
   sidebarOpen: boolean;
   editorOpen: boolean;
   activeTab: EditorTab;
+  projectId: string | null;
   projectName: string;
+  projectStatus: 'done' | 'processing' | 'failed' | null;
+  projectProgress: number;
   aspectRatio: AspectRatioId;
   videoWidth: number;
   videoHeight: number;
@@ -123,8 +224,13 @@ interface AppState {
   canvasElements: CanvasElement[];
   selectedCanvasElementId: string | null;
   canvasTool: CanvasTool;
-  canvasUndoStack: CanvasElement[][];
-  canvasRedoStack: CanvasElement[][];
+  /** Omniclip-style media clips (source of truth for video/audio tracks). */
+  videoClips: MediaClip[];
+  audioClips: MediaClip[];
+  /** Imported media library (session-local files). */
+  mediaAssets: MediaAsset[];
+  projectUndoStack: ProjectSnapshot[];
+  projectRedoStack: ProjectSnapshot[];
   previewFullscreenOpen: boolean;
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
@@ -134,7 +240,28 @@ interface AppState {
   projectEditor: ProjectEditorState;
 
   setVideo: (file: File, url: string) => void;
+  importMediaFiles: (files: FileList | File[]) => Promise<void>;
+  removeMediaAsset: (id: string) => void;
+  addMediaAssetToTimeline: (assetId: string, atTime?: number) => void;
+  setPrimaryVideoAsset: (assetId: string) => void;
   resetProject: () => void;
+  setProjectId: (projectId: string | null) => void;
+  hydrateProject: (input: {
+    id: string;
+    title: string;
+    aspectRatio: AspectRatioId;
+    status: 'done' | 'processing' | 'failed';
+    progress?: number;
+    durationSec?: number;
+    editorState?: {
+      videoClips?: MediaClip[];
+      audioClips?: MediaClip[];
+      canvasElements?: CanvasElement[];
+      transcript?: string;
+      translatedText?: string;
+    };
+  }) => void;
+  setProjectStatus: (status: 'done' | 'processing' | 'failed' | null, progress?: number) => void;
   setTranscript: (text: string) => void;
   setTranslatedText: (text: string) => void;
   setTargetLang: (lang: string) => void;
@@ -156,7 +283,14 @@ interface AppState {
   setCurrentReelStep: (step: number) => void;
   setPreviewingSpeaker: (speaker: string | null) => void;
   setCurrentTime: (time: number) => void;
+  /** Source media length (video file). Timeline `duration` may be longer. */
+  mediaDuration: number;
+  isTimelinePlaying: boolean;
   setDuration: (duration: number) => void;
+  setMediaDuration: (mediaDuration: number) => void;
+  seekTimeline: (time: number) => void;
+  setTimelinePlaying: (playing: boolean) => void;
+  toggleTimelinePlaying: () => void;
   setStatus: (status: ProcessingStatus) => void;
   setErrorMessage: (message: string) => void;
   setIsExporting: (exporting: boolean) => void;
@@ -204,7 +338,17 @@ interface AppState {
   setCanvasTool: (tool: CanvasTool) => void;
   setSelectedCanvasElementId: (id: string | null) => void;
   selectCanvasElement: (id: string | null) => void;
-  updateCanvasElement: (id: string, patch: Partial<CanvasElement>) => void;
+  updateCanvasElement: (
+    id: string,
+    patch: Partial<CanvasElement>,
+    options?: { history?: boolean },
+  ) => void;
+  updateMediaClip: (
+    id: string,
+    patch: Partial<MediaClip>,
+    options?: { history?: boolean },
+  ) => void;
+  commitProjectHistory: () => void;
   duplicateCanvasElement: (id: string) => void;
   replaceCanvasElementImage: (id: string, file: File) => void;
   addCanvasLogo: (file: File) => void;
@@ -242,13 +386,18 @@ const initialState = {
   previewingSpeaker: null as string | null,
   currentTime: 0,
   duration: 0,
+  mediaDuration: 0,
+  isTimelinePlaying: false,
   status: 'idle' as ProcessingStatus,
   errorMessage: '',
   isExporting: false,
   sidebarOpen: true,
   editorOpen: true,
   activeTab: 'translate' as EditorTab,
+  projectId: null as string | null,
   projectName: '',
+  projectStatus: null as 'done' | 'processing' | 'failed' | null,
+  projectProgress: 0,
   aspectRatio: 'original' as AspectRatioId,
   videoWidth: 0,
   videoHeight: 0,
@@ -269,8 +418,11 @@ const initialState = {
   canvasElements: [] as CanvasElement[],
   selectedCanvasElementId: null as string | null,
   canvasTool: 'select' as CanvasTool,
-  canvasUndoStack: [] as CanvasElement[][],
-  canvasRedoStack: [] as CanvasElement[][],
+  videoClips: [] as MediaClip[],
+  audioClips: [] as MediaClip[],
+  mediaAssets: [] as MediaAsset[],
+  projectUndoStack: [] as ProjectSnapshot[],
+  projectRedoStack: [] as ProjectSnapshot[],
   previewFullscreenOpen: false,
   canvasPreviewAxis: true,
   canvasAttachSnap: true,
@@ -284,15 +436,43 @@ export const useAppStore = create<AppState>((set, get) => ({
   ...initialState,
 
   setVideo: (file, url) => {
-    const prevUrl = get().videoUrl;
-    if (prevUrl) URL.revokeObjectURL(prevUrl);
+    const state = get();
+    const prevUrl = state.videoUrl;
+    const existingByUrl = state.mediaAssets.find((asset) => asset.url === url);
+    const primaryId = existingByUrl?.id ?? `asset-primary-${Date.now()}`;
+    storeMediaFile(primaryId, file);
+
+    const otherAssets = state.mediaAssets.filter((asset) => asset.id !== primaryId);
+    if (prevUrl && prevUrl !== url) {
+      const stillUsed = otherAssets.some((asset) => asset.url === prevUrl);
+      if (!stillUsed) URL.revokeObjectURL(prevUrl);
+    }
+
+    const primaryAsset: MediaAsset = {
+      id: primaryId,
+      kind: 'video',
+      name: file.name,
+      url,
+      mimeType: file.type || 'video/mp4',
+      size: file.size,
+      duration: existingByUrl?.duration || state.mediaDuration || 0,
+      width: existingByUrl?.width || state.videoWidth || undefined,
+      height: existingByUrl?.height || state.videoHeight || undefined,
+      isPrimary: true,
+    };
+
     set({
       videoFile: file,
       videoUrl: url,
-      projectName: defaultProjectName(file.name),
-      aspectRatio: 'original',
+      projectName: state.projectName?.trim() ? state.projectName : defaultProjectName(file.name),
       videoWidth: 0,
       videoHeight: 0,
+      videoClips: [],
+      audioClips: state.audioClips,
+      mediaAssets: [
+        primaryAsset,
+        ...otherAssets.map((asset) => ({ ...asset, isPrimary: false })),
+      ],
       transcript: '',
       translatedText: '',
       audioBase64: null,
@@ -311,26 +491,198 @@ export const useAppStore = create<AppState>((set, get) => ({
       captionPosition: null,
       toolsDrawerOpen: true,
       activeStudioTool: 'media',
-      timelineZoom: 100,
-      timelineTrackMuted: { video: false, text: false, overlay: false, audio: false },
-      extraTimelineTracks: [],
       selectedTimelineClip: null,
-      canvasElements: [],
+      selectedTimelineClips: [],
       selectedCanvasElementId: null,
-      canvasTool: 'select',
-      canvasUndoStack: [],
-      canvasRedoStack: [],
+      projectUndoStack: [],
+      projectRedoStack: [],
       videoSessionId: null,
       videoSessionLoading: false,
       projectEditor: { ...DEFAULT_PROJECT_EDITOR_STATE },
+      mediaDuration: primaryAsset.duration,
+      isTimelinePlaying: false,
+      currentTime: 0,
     });
   },
 
+  importMediaFiles: async (files) => {
+    const list = Array.from(files);
+    for (const file of list) {
+      const kind = kindFromFile(file);
+      if (!kind) continue;
+
+      const url = URL.createObjectURL(file);
+      const meta = await probeMediaMeta(file, url);
+      const state = get();
+
+      if (kind === 'video' && !state.videoUrl) {
+        get().setVideo(file, url);
+        set((s) => ({
+          mediaAssets: s.mediaAssets.map((item) =>
+            item.isPrimary
+              ? { ...item, duration: meta.duration, width: meta.width, height: meta.height }
+              : item,
+          ),
+          mediaDuration: meta.duration,
+          duration: computeTimelineDuration(meta.duration, s.videoClips, meta.duration || 30),
+        }));
+        continue;
+      }
+
+      const id = `asset-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      storeMediaFile(id, file);
+      const asset: MediaAsset = {
+        id,
+        kind,
+        name: file.name,
+        url,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        duration: meta.duration,
+        width: meta.width,
+        height: meta.height,
+      };
+      set((s) => ({ mediaAssets: [...s.mediaAssets, asset] }));
+    }
+  },
+
+  removeMediaAsset: (id) => {
+    const state = get();
+    const asset = state.mediaAssets.find((item) => item.id === id);
+    if (!asset || asset.isPrimary) return;
+
+    const stillUsed =
+      state.videoUrl === asset.url ||
+      state.canvasElements.some((el) => el.src === asset.url) ||
+      state.mediaAssets.some((item) => item.id !== id && item.url === asset.url);
+    if (!stillUsed) URL.revokeObjectURL(asset.url);
+    forgetMediaFile(id);
+    set({ mediaAssets: state.mediaAssets.filter((item) => item.id !== id) });
+  },
+
+  setPrimaryVideoAsset: (assetId) => {
+    const state = get();
+    const asset = state.mediaAssets.find((item) => item.id === assetId);
+    if (!asset || asset.kind !== 'video' || asset.isPrimary) return;
+    const file = getMediaFile(assetId);
+    if (!file) return;
+    get().setVideo(file, asset.url);
+  },
+
+  addMediaAssetToTimeline: (assetId, atTime) => {
+    const state = get();
+    const asset = state.mediaAssets.find((item) => item.id === assetId);
+    if (!asset) return;
+    if (!isTranscriptReady(state.transcript, state.status)) return;
+    const time = Math.max(0, atTime ?? state.currentTime);
+
+    const openInspector = true;
+
+    if (asset.kind === 'image') {
+      get().addCanvasImageFromUrl(asset.url, {
+        label: asset.name,
+        startTime: time,
+        endTime: time + Math.max(1, asset.duration || 4),
+        keepStudioTool: true,
+      });
+      if (openInspector) set({ activeTab: 'inspector', editorOpen: true });
+      return;
+    }
+
+    if (asset.kind === 'video') {
+      if (!asset.isPrimary) get().setPrimaryVideoAsset(assetId);
+      const latest = get();
+      const clipDuration = Math.max(
+        0.4,
+        asset.duration || latest.mediaDuration || latest.duration || 1,
+      );
+      const clip = createMediaClip({
+        name: asset.name,
+        duration: clipDuration,
+        start: time,
+        sourceStart: 0,
+      });
+      set({
+        ...pushHistory(latest),
+        ...withTimelineDuration(latest, {
+          videoClips: [...latest.videoClips, clip],
+        }),
+        selectedTimelineClip: { trackId: 'video', clipId: clip.id },
+        selectedTimelineClips: [{ trackId: 'video', clipId: clip.id }],
+        ...(openInspector ? { activeTab: 'inspector' as const, editorOpen: true } : {}),
+      });
+      return;
+    }
+
+    if (asset.kind === 'audio') {
+      const clipDuration = Math.max(0.4, asset.duration || 1);
+      const clip = createMediaClip({
+        name: asset.name,
+        duration: clipDuration,
+        start: time,
+        sourceStart: 0,
+      });
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, {
+          audioClips: [...state.audioClips, clip],
+        }),
+        selectedTimelineClip: { trackId: 'audio', clipId: clip.id },
+        selectedTimelineClips: [{ trackId: 'audio', clipId: clip.id }],
+        ...(openInspector ? { activeTab: 'inspector' as const, editorOpen: true } : {}),
+      });
+    }
+  },
+
   resetProject: () => {
-    const prevUrl = get().videoUrl;
-    if (prevUrl) URL.revokeObjectURL(prevUrl);
+    const state = get();
+    for (const asset of state.mediaAssets) {
+      URL.revokeObjectURL(asset.url);
+      forgetMediaFile(asset.id);
+    }
+    const prevUrl = state.videoUrl;
+    if (prevUrl && !state.mediaAssets.some((asset) => asset.url === prevUrl)) {
+      URL.revokeObjectURL(prevUrl);
+    }
     set({ ...initialState });
   },
+
+  setProjectId: (projectId) => set({ projectId }),
+
+  hydrateProject: (input) => {
+    const state = get();
+    const editor = input.editorState;
+    const videoClips = editor?.videoClips ?? state.videoClips;
+    const audioClips = editor?.audioClips ?? state.audioClips;
+    const fallbackDuration = input.durationSec ?? state.duration ?? 0;
+    const duration = computeTimelineDuration(
+      state.mediaDuration,
+      [...videoClips, ...audioClips],
+      fallbackDuration > 0 ? fallbackDuration : 30,
+    );
+    set({
+      projectId: input.id,
+      projectName: input.title,
+      aspectRatio: input.aspectRatio,
+      projectStatus: input.status,
+      projectProgress: input.progress ?? (input.status === 'done' ? 100 : 0),
+      duration,
+      ...(editor?.videoClips ? { videoClips: editor.videoClips } : {}),
+      ...(editor?.audioClips ? { audioClips: editor.audioClips } : {}),
+      ...(editor?.canvasElements ? { canvasElements: editor.canvasElements } : {}),
+      ...(editor?.transcript != null ? { transcript: editor.transcript } : {}),
+      ...(editor?.translatedText != null ? { translatedText: editor.translatedText } : {}),
+      projectUndoStack: [],
+      projectRedoStack: [],
+      isTimelinePlaying: false,
+    });
+  },
+
+  setProjectStatus: (status, progress) =>
+    set({
+      projectStatus: status,
+      projectProgress: progress ?? (status === 'done' ? 100 : get().projectProgress),
+    }),
 
   setTranscript: (text) => set({ transcript: text }),
   setTranslatedText: (text) => set({ translatedText: text }),
@@ -339,7 +691,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSpeakerVoices: (voices) => set({ speakerVoices: voices }),
   updateSpeakerVoice: (speaker, voiceId) =>
     set((s) => ({ speakerVoices: { ...s.speakerVoices, [speaker]: voiceId } })),
-  setAudioBase64: (audio) => set({ audioBase64: audio }),
+  setAudioBase64: (audio) => {
+    const state = get();
+    const duration = state.duration || 1;
+    const audioClips = audio
+      ? state.audioClips.length > 0
+        ? state.audioClips
+        : [createMediaClip({ name: 'Generated voice', duration, id: 'audio-main' })]
+      : [];
+    set({
+      audioBase64: audio,
+      ...withTimelineDuration(state, { audioClips }),
+    });
+  },
   setAnalysisAudio: (audio) => set({ analysisAudio: audio }),
   setReelAudioCache: (cache) => set({ reelAudioCache: cache }),
   addReelAudioCache: (index, audio) =>
@@ -355,7 +719,101 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentReelStep: (step) => set({ currentReelStep: step }),
   setPreviewingSpeaker: (speaker) => set({ previewingSpeaker: speaker }),
   setCurrentTime: (time) => set({ currentTime: time }),
-  setDuration: (duration) => set({ duration }),
+
+  setMediaDuration: (mediaDuration) => {
+    const state = get();
+    let videoClips = state.videoClips;
+    let audioClips = state.audioClips;
+    if (mediaDuration > 0 && state.videoFile && videoClips.length === 0) {
+      videoClips = [
+        createMediaClip({
+          name: state.videoFile.name,
+          duration: mediaDuration,
+          start: 0,
+          sourceStart: 0,
+        }),
+      ];
+    }
+    if (mediaDuration > 0 && state.audioBase64 && audioClips.length === 0) {
+      audioClips = [
+        createMediaClip({
+          name: 'Generated voice',
+          duration: mediaDuration,
+          start: 0,
+          sourceStart: 0,
+          id: 'audio-main',
+        }),
+      ];
+    }
+    set({
+      ...withTimelineDuration(state, { mediaDuration, videoClips, audioClips }),
+      mediaAssets: state.mediaAssets.map((asset) =>
+        asset.isPrimary
+          ? {
+              ...asset,
+              duration: mediaDuration,
+              width: state.videoWidth || asset.width,
+              height: state.videoHeight || asset.height,
+            }
+          : asset,
+      ),
+    });
+  },
+
+  setDuration: (duration) => {
+    // Back-compat: treat as media duration when loading a video file.
+    get().setMediaDuration(duration);
+  },
+
+  seekTimeline: (time) => {
+    const state = get();
+    const max = state.duration > 0 ? state.duration : Number.POSITIVE_INFINITY;
+    const next = Math.min(Math.max(0, time), max);
+    set({ currentTime: next });
+    syncVideoToTimeline(state.videoClips, next, state.isTimelinePlaying);
+  },
+
+  setTimelinePlaying: (playing) => {
+    const state = get();
+    if (playing) {
+      const atEnd = state.duration > 0 && state.currentTime >= state.duration - 0.05;
+      const time = atEnd ? 0 : state.currentTime;
+      set({ isTimelinePlaying: true, currentTime: time });
+      syncVideoToTimeline(state.videoClips, time, true);
+      // If playhead is in a gap (or no video), the rAF clock still advances.
+      const clip = findClipAtTime(state.videoClips, time);
+      if (!clip || !state.videoUrl) {
+        getTimelineVideo()?.pause();
+      }
+      return;
+    }
+    set({ isTimelinePlaying: false });
+    getTimelineVideo()?.pause();
+  },
+
+  toggleTimelinePlaying: () => {
+    get().setTimelinePlaying(!get().isTimelinePlaying);
+  },
+
+  commitProjectHistory: () => {
+    const state = get();
+    set(pushHistory(state));
+  },
+
+  updateMediaClip: (id, patch, options) => {
+    const state = get();
+    const recordHistory = options?.history !== false;
+    const inVideo = state.videoClips.some((clip) => clip.id === id);
+    const listKey = inVideo ? 'videoClips' : 'audioClips';
+    const list = state[listKey];
+    if (!list.some((clip) => clip.id === id)) return;
+
+    const nextList = list.map((clip) => (clip.id === id ? { ...clip, ...patch } : clip));
+    set({
+      ...(recordHistory ? pushHistory(state) : {}),
+      ...withTimelineDuration(state, { [listKey]: nextList }),
+    });
+  },
   setStatus: (status) => set({ status }),
   setErrorMessage: (message) => set({ errorMessage: message }),
   setIsExporting: (exporting) => set({ isExporting: exporting }),
@@ -495,7 +953,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     const state = get();
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...canvasElements, ...newElements],
       selectedCanvasElementId: newElements[0]?.id ?? null,
       selectedTimelineClip: newElements[0]
@@ -527,7 +985,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     if (!duped.length) return;
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...canvasElements, ...duped],
       selectedCanvasElementId: duped[0]?.id ?? null,
       selectedTimelineClip: duped[0] ? { trackId: 'text', clipId: duped[0].id } : null,
@@ -584,7 +1042,37 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   removeTimelineClip: (trackId, clipId) => {
-    if (clipId.startsWith('logo-') || clipId.startsWith('image-') || clipId.startsWith('template-')) {
+    const state = get();
+
+    if (trackId === 'video') {
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, {
+          videoClips: state.videoClips.filter((clip) => clip.id !== clipId),
+        }),
+        selectedTimelineClip: null,
+      });
+      return;
+    }
+
+    if (trackId === 'audio') {
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, {
+          audioClips: state.audioClips.filter((clip) => clip.id !== clipId),
+        }),
+        selectedTimelineClip: null,
+      });
+      return;
+    }
+
+    if (clipId.startsWith('logo-') || clipId.startsWith('image-') || clipId.startsWith('template-') || clipId.startsWith('overlay-text-')) {
+      get().removeCanvasElement(clipId);
+      return;
+    }
+
+    // Canvas elements with arbitrary ids (e.g. split clones).
+    if (state.canvasElements.some((el) => el.id === clipId)) {
       get().removeCanvasElement(clipId);
       return;
     }
@@ -593,13 +1081,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!meta) return;
     const type = meta[1] as 'translation' | 'transcript';
     const index = parseInt(meta[2], 10);
-    const state = get();
     if (type === 'transcript') {
       const segments = parseSegments(state.transcript);
-      set({ transcript: removeSegment(segments, index), selectedTimelineClip: null });
+      set({
+        ...pushHistory(state),
+        transcript: removeSegment(segments, index),
+        selectedTimelineClip: null,
+      });
     } else {
       const segments = parseSegments(state.translatedText);
-      set({ translatedText: removeSegment(segments, index), selectedTimelineClip: null });
+      set({
+        ...pushHistory(state),
+        translatedText: removeSegment(segments, index),
+        selectedTimelineClip: null,
+      });
     }
   },
 
@@ -636,7 +1131,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         trackId: String(trackId),
       };
       set({
-        ...pushCanvasUndo(state),
+        ...pushHistory(state),
         canvasElements: [...state.canvasElements, element],
         selectedCanvasElementId: id,
         selectedTimelineClip: { trackId, clipId: id },
@@ -680,44 +1175,55 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setSelectedCanvasElementId: (id) => set({ selectedCanvasElementId: id }),
   selectCanvasElement: (id) => {
-    const element = id ? get().canvasElements.find((el) => el.id === id) : null;
-    const tool: StudioToolId =
-      element?.type === 'logo' || element?.type === 'image' ? 'media' : 'text';
+    if (!id) {
+      set({ selectedCanvasElementId: null });
+      return;
+    }
 
-    let selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null = null;
-    if (element) {
-      if (element.segmentType === 'translation' || element.templateId) {
-        selectedTimelineClip = { trackId: 'text', clipId: element.id };
-      } else if (element.segmentType === 'transcript') {
-        selectedTimelineClip = { trackId: 'overlay', clipId: element.id };
-      } else if (element.type === 'logo' || element.type === 'image' || element.trackId) {
-        selectedTimelineClip = {
-          trackId: (element.trackId ?? 'overlay') as TimelineTrackId,
-          clipId: element.id,
-        };
-      }
+    const element = get().canvasElements.find((el) => el.id === id);
+    // Non-canvas ids (video/audio/segment clips) must not wipe timeline selection.
+    if (!element) {
+      set({ selectedCanvasElementId: null });
+      return;
+    }
+
+    const tool: StudioToolId =
+      element.type === 'logo' || element.type === 'image' ? 'media' : 'text';
+
+    let selectedTimelineClip: { trackId: TimelineTrackId; clipId: string };
+    if (element.segmentType === 'translation' || element.templateId) {
+      selectedTimelineClip = { trackId: 'text', clipId: element.id };
+    } else if (element.segmentType === 'transcript') {
+      selectedTimelineClip = { trackId: 'overlay', clipId: element.id };
+    } else if (element.type === 'logo' || element.type === 'image' || element.trackId) {
+      selectedTimelineClip = {
+        trackId: (element.trackId ?? 'overlay') as TimelineTrackId,
+        clipId: element.id,
+      };
+    } else {
+      selectedTimelineClip = { trackId: 'text', clipId: element.id };
     }
 
     set({
       selectedCanvasElementId: id,
-      selectedTimelineClip: id ? selectedTimelineClip : null,
+      selectedTimelineClip,
+      selectedTimelineClips: [selectedTimelineClip],
       canvasTool: 'select',
-      ...(id ? { activeStudioTool: tool, toolsDrawerOpen: true } : {}),
+      activeStudioTool: tool,
+      activeTab: 'inspector' as EditorTab,
+      editorOpen: true,
     });
   },
-  updateCanvasElement: (id, patch) => {
+  updateCanvasElement: (id, patch, options) => {
     const state = get();
     const element = state.canvasElements.find((el) => el.id === id);
     if (!element) return;
+    const recordHistory = options?.history !== false;
 
     const nextElements = state.canvasElements.map((el) => (el.id === id ? { ...el, ...patch } : el));
-    const updates: Partial<typeof initialState> & {
-      canvasElements: CanvasElement[];
-      canvasUndoStack: CanvasElement[][];
-      canvasRedoStack: CanvasElement[][];
-    } = {
+    const updates: Partial<AppState> = {
       canvasElements: nextElements,
-      ...pushCanvasUndo(state),
+      ...(recordHistory ? pushHistory(state) : {}),
     };
 
     if (
@@ -749,7 +1255,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       y: element.y + 20,
     };
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...state.canvasElements, dup],
       selectedCanvasElementId: newId,
       canvasTool: 'select',
@@ -804,7 +1310,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       endTime: duration,
     };
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...state.canvasElements, element],
       selectedCanvasElementId: id,
       activeStudioTool: 'media',
@@ -817,7 +1323,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const url = URL.createObjectURL(file);
     const element = buildCanvasImageElement(state, url, options?.label ?? file.name, options);
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...state.canvasElements, element],
       selectedCanvasElementId: element.id,
       activeStudioTool: options?.keepStudioTool ? state.activeStudioTool : 'media',
@@ -829,7 +1335,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const element = buildCanvasImageElement(state, src, options?.label ?? 'Sticker', options);
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...state.canvasElements, element],
       selectedCanvasElementId: element.id,
       activeStudioTool: options?.keepStudioTool ? state.activeStudioTool : 'effects',
@@ -881,7 +1387,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
 
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: [...state.canvasElements, element],
       selectedCanvasElementId: id,
       selectedTimelineClip: { trackId: 'text', clipId: id },
@@ -896,7 +1402,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const element = state.canvasElements.find((el) => el.id === id);
     if (element?.src?.startsWith('blob:')) URL.revokeObjectURL(element.src);
     set({
-      ...pushCanvasUndo(state),
+      ...pushHistory(state),
       canvasElements: state.canvasElements.filter((el) => el.id !== id),
       selectedCanvasElementId: state.selectedCanvasElementId === id ? null : state.selectedCanvasElementId,
     });
@@ -904,35 +1410,92 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   undoCanvas: () => {
     const state = get();
-    if (state.canvasUndoStack.length === 0) return;
-    const previous = state.canvasUndoStack[state.canvasUndoStack.length - 1];
+    if (state.projectUndoStack.length === 0) return;
+    const previous = state.projectUndoStack[state.projectUndoStack.length - 1];
+    const snapshot = applySnapshot(cloneProjectSnapshot(previous));
     set({
-      canvasUndoStack: state.canvasUndoStack.slice(0, -1),
-      canvasRedoStack: pushCanvasUndoStack(state.canvasRedoStack, state.canvasElements),
-      canvasElements: cloneCanvasElements(previous),
+      projectUndoStack: state.projectUndoStack.slice(0, -1),
+      projectRedoStack: pushProjectHistory(state.projectRedoStack, snapshotFromState(state)),
+      ...snapshot,
+      ...withTimelineDuration(state, {
+        videoClips: snapshot.videoClips,
+        audioClips: snapshot.audioClips,
+      }),
     });
   },
 
   redoCanvas: () => {
     const state = get();
-    if (state.canvasRedoStack.length === 0) return;
-    const next = state.canvasRedoStack[state.canvasRedoStack.length - 1];
+    if (state.projectRedoStack.length === 0) return;
+    const next = state.projectRedoStack[state.projectRedoStack.length - 1];
+    const snapshot = applySnapshot(cloneProjectSnapshot(next));
     set({
-      canvasRedoStack: state.canvasRedoStack.slice(0, -1),
-      canvasUndoStack: pushCanvasUndoStack(state.canvasUndoStack, state.canvasElements),
-      canvasElements: cloneCanvasElements(next),
+      projectRedoStack: state.projectRedoStack.slice(0, -1),
+      projectUndoStack: pushProjectHistory(state.projectUndoStack, snapshotFromState(state)),
+      ...snapshot,
+      ...withTimelineDuration(state, {
+        videoClips: snapshot.videoClips,
+        audioClips: snapshot.audioClips,
+      }),
     });
   },
 
   splitTimelineAtPlayhead: () => {
     const state = get();
     const { currentTime, duration, selectedTimelineClip } = state;
-    if (!duration) return;
+    if (!duration || !isTranscriptReady(state.transcript, state.status)) return;
 
     const trackId = selectedTimelineClip?.trackId ?? 'text';
-    if (trackId === 'overlay' && selectedTimelineClip?.clipId.startsWith('logo-')) return;
-    if (trackId === 'overlay' && selectedTimelineClip?.clipId.startsWith('image-')) return;
+    const clipId = selectedTimelineClip?.clipId;
 
+    // Omniclip-style: split video/audio media clips.
+    if (trackId === 'video' || trackId === 'audio') {
+      const listKey = trackId === 'video' ? 'videoClips' : 'audioClips';
+      const clips = state[listKey];
+      const clip =
+        (clipId ? clips.find((item) => item.id === clipId) : null) ??
+        clips.find(
+          (item) => currentTime > item.start + 0.4 && currentTime < item.start + item.duration - 0.4,
+        );
+      if (!clip) return;
+      const parts = splitMediaClipAt(clip, currentTime);
+      if (!parts) return;
+      const [left, right] = parts;
+      const nextList = clips.flatMap((item) => (item.id === clip.id ? [left, right] : [item]));
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, { [listKey]: nextList }),
+        selectedTimelineClip: { trackId, clipId: right.id },
+      });
+      return;
+    }
+
+    // Split canvas overlays / templates.
+    if (clipId) {
+      const element = state.canvasElements.find((el) => el.id === clipId);
+      if (element) {
+        const start = element.startTime;
+        const end = element.endTime;
+        if (currentTime <= start + 0.4 || currentTime >= end - 0.4) return;
+        const left = { ...element, endTime: currentTime };
+        const right = {
+          ...element,
+          id: `${element.type}-${Date.now()}`,
+          startTime: currentTime,
+        };
+        set({
+          ...pushHistory(state),
+          canvasElements: state.canvasElements.flatMap((el) =>
+            el.id === element.id ? [left, right] : [el],
+          ),
+          selectedTimelineClip: { trackId, clipId: right.id },
+          selectedCanvasElementId: right.id,
+        });
+        return;
+      }
+    }
+
+    // Caption segments (transcript / translation).
     const type =
       trackId === 'overlay' ? ('transcript' as const) : ('translation' as const);
     const source = type === 'transcript' ? state.transcript : state.translatedText;
@@ -951,8 +1514,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = splitSegmentAtTime(segments, currentTime, duration);
     if (!next) return;
 
-    if (type === 'transcript') set({ transcript: next });
-    else set({ translatedText: next });
+    set({
+      ...pushHistory(state),
+      ...(type === 'transcript' ? { transcript: next } : { translatedText: next }),
+    });
   },
 
   initSpeakersFromTranscript: (text) => {

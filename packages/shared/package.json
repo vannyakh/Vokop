@@ -19,7 +19,8 @@
     "lint": "tsc --noEmit",
     "clean": "echo 'nothing to clean'"
   },
-  "peerDependencies": {
+  "dependencies": {
+    "@vokop/i18n": "workspace:*",
     "react": "^19.0.0"
   },
   "devDependencies": {

@@ -1,0 +1,12 @@
+{
+  "appName": "Vokop Admin",
+  "login": "ចូល",
+  "logout": "ចេញ",
+  "dashboard": "ផ្ទាំងគ្រប់គ្រង",
+  "users": "អ្នកប្រើ",
+  "settings": "ការកំណត់",
+  "save": "រក្សាទុក",
+  "cancel": "បោះបង់",
+  "search": "ស្វែងរក",
+  "loading": "កំពុងផ្ទុក…"
+}

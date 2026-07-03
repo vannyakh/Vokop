@@ -1,50 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Theme } from '../types';
+import type { ReactNode } from 'react';
+import {
+  ThemeProvider as SharedThemeProvider,
+  useTheme,
+  type UiTheme,
+} from '@vokop/ui/antd';
 
-interface ThemeContextType {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
+/** Admin theme shell — shared tokens + Ant Design config from `@vokop/ui/antd`. */
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  return (
+    <SharedThemeProvider storageKey="vokop-admin-theme" defaultTheme="dark">
+      {children}
+    </SharedThemeProvider>
+  );
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
-
-export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem('vok2z-theme');
-    return (saved as Theme) || 'dark';
-  });
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem('vok2z-theme', newTheme);
-  };
-
-  const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'dim' : 'light');
-  };
-
-  useEffect(() => {
-    const html = document.documentElement;
-    html.setAttribute('data-theme', theme);
-    if (theme === 'dark' || theme === 'dim') {
-      html.classList.add('dark');
-    } else {
-      html.classList.remove('dark');
-    }
-  }, [theme]);
-
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-};
-
-export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
-};
+export { useTheme };
+export type { UiTheme as Theme };

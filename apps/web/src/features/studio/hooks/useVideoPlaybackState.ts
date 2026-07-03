@@ -1,32 +1,14 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useAppStore } from '@/features/project';
 
-export function useVideoPlaybackState(videoRef: RefObject<HTMLVideoElement | null>, videoUrl: string | null) {
-  const [isPaused, setIsPaused] = useState(true);
+/** Timeline-aware play/pause/seek (maps playhead ↔ media source via videoClips). */
+export function useVideoPlaybackState() {
+  const isTimelinePlaying = useAppStore((s) => s.isTimelinePlaying);
+  const toggleTimelinePlaying = useAppStore((s) => s.toggleTimelinePlaying);
+  const seekTimeline = useAppStore((s) => s.seekTimeline);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onPlay = () => setIsPaused(false);
-    const onPause = () => setIsPaused(true);
-    video.addEventListener('play', onPlay);
-    video.addEventListener('pause', onPause);
-    setIsPaused(video.paused);
-
-    return () => {
-      video.removeEventListener('play', onPlay);
-      video.removeEventListener('pause', onPause);
-    };
-  }, [videoRef, videoUrl]);
-
-  const togglePlay = () => {
-    if (videoRef.current?.paused) void videoRef.current.play();
-    else videoRef.current?.pause();
+  return {
+    isPaused: !isTimelinePlaying,
+    togglePlay: toggleTimelinePlaying,
+    seek: seekTimeline,
   };
-
-  const seek = (time: number) => {
-    if (videoRef.current) videoRef.current.currentTime = time;
-  };
-
-  return { isPaused, togglePlay, seek };
 }

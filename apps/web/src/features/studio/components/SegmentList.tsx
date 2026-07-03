@@ -3,6 +3,7 @@ import { Languages, Type } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { Segment } from '@/types';
 import { formatDuration } from '@/lib/utils/time';
+import { useAppStore } from '@/features/project';
 
 interface SegmentListProps {
   segments: Segment[];
@@ -35,9 +36,10 @@ export function SegmentList({
   segments,
   activeSegmentIndex,
   type,
-  videoRef,
   onUpdateSegment,
 }: SegmentListProps) {
+  const seekTimeline = useAppStore((s) => s.seekTimeline);
+
   if (segments.length === 0) {
     return <EmptyState type={type} />;
   }
@@ -50,13 +52,9 @@ export function SegmentList({
           role="button"
           tabIndex={0}
           className={cn('studio-segment-card', activeSegmentIndex === i && 'active')}
-          onClick={() => {
-            if (videoRef.current) videoRef.current.currentTime = seg.time;
-          }}
+          onClick={() => seekTimeline(seg.time)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && videoRef.current) {
-              videoRef.current.currentTime = seg.time;
-            }
+            if (e.key === 'Enter') seekTimeline(seg.time);
           }}
         >
           <div className="flex items-center gap-2 mb-2">

@@ -1,0 +1,4 @@
+{
+  "extends": "@vokop/tsconfig/react-library.json",
+  "include": ["src"]
+}

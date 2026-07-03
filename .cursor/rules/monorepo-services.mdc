@@ -11,8 +11,16 @@ alwaysApply: false
 1. Define Zod schema in `packages/api/src/schemas/`
 2. Add route constant in `packages/api/src/routes.ts`
 3. Extend `ApiClient` in `packages/api/src/client.ts`
-4. Implement handler in `services/video-tools/` (or new service under `services/`)
+4. Implement handler in the owning service (`video-tools`, `auth`, or `ai-content`)
 5. Register proxy in `services/gateway/src/index.ts` if new top-level path
+
+## Service map
+
+| Service | Owns |
+|---------|------|
+| `video-tools` | FFmpeg sessions, filmstrip jobs, editor apply/preview |
+| `auth` | Login/register, RBAC, projects CRUD |
+| `ai-content` (planned) | FunClip-inspired ASR, subtitles, LLM clip suggestions |
 
 ## video-tools patterns
 
@@ -23,11 +31,23 @@ alwaysApply: false
 - Validate responses with `toApiResponse(schema, data)` from `@vokop/api`.
 - Handle `EADDRINUSE` with clear message; suggest `pnpm stop`.
 
+## ai-content patterns (FunClip reference)
+
+Reference: https://github.com/modelscope/FunClip
+
+- Implement as **HTTP service** under `services/ai-content`, not Gradio.
+- Prefer `sessionId` from video-tools for media input (no full re-upload).
+- Long ASR/LLM work = **async jobs** + `GET /api/v1/ai/jobs/:id` progress (mirror filmstrip jobs).
+- Outputs: timed transcript segments, SRT, optional `speakerId`, LLM clip ranges `[start, end]`.
+- Gateway proxy: `/api/v1/ai` → `AI_CONTENT_URL`.
+- Studio consumes results into timeline/captions; never embed FunClip UI.
+
 ## Package exports
 
 - `@vokop/shared` — no React in main export; use `@vokop/shared/providers` for React providers.
 - `@vokop/ui` — peer dep on React; Tailwind classes scanned via `@source` in `apps/web/src/index.css`.
+- `@vokop/ui/antd` — Ant Design widgets + shared theme (`ThemeProvider`, tokens).
 
 ## Env
 
-Root `.env` is loaded by all services. Key vars: `MONGODB_URI`, `REDIS_URL`, `GATEWAY_PORT`, `VIDEO_TOOLS_PORT`, `SESSION_TTL_SEC`.
+Root `.env` is loaded by all services. Key vars: `MONGODB_URI`, `REDIS_URL`, `GATEWAY_PORT`, `VIDEO_TOOLS_PORT`, `AUTH_PORT`, `AI_CONTENT_PORT`, `SESSION_TTL_SEC`.

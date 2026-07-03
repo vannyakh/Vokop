@@ -13,7 +13,7 @@ export function CinemaPreviewOverlay({ videoRef }: CinemaPreviewOverlayProps) {
   const videoUrl = useAppStore((s) => s.videoUrl);
   const previewFullscreenOpen = useAppStore((s) => s.previewFullscreenOpen);
   const setPreviewFullscreenOpen = useAppStore((s) => s.setPreviewFullscreenOpen);
-  const { togglePlay } = useVideoPlaybackState(videoRef, videoUrl);
+  const { togglePlay } = useVideoPlaybackState();
 
   useEffect(() => {
     if (!previewFullscreenOpen) return;

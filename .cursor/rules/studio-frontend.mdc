@@ -10,34 +10,53 @@ alwaysApply: false
 
 ```
 src/features/
-  studio/     Timeline, canvas (Konva), tools dock, filmstrip, export
+  studio/     Timeline, canvas (Konva), tools dock, filmstrip, export, menubar
   translation/  Gemini AI transcribe/translate/voiceover
-  project/    useAppStore (Zustand) — single project state
-  upload/     Video upload flow
+  project/    useAppStore + useStudioProject (API load/poll/save)
+  projects/   Recent projects list
+  upload/     Video upload + blank project create
   settings/   Theme, i18n preferences
+  landing/    Marketing sections, what's new
 ```
+
+## Editor core (Omniclip reference)
+
+Reference: https://github.com/omni-media/omniclip
+
+Use Omniclip for **editor core behavior**, not visuals:
+
+- Timeline/clip mental model: trim, split, transitions, effects
+- Undo/redo and project-level state updates
+- Preview interactions (move/resize/style) on canvas
+
+**Always keep Vokop’s own CapCut-style UI/UX**: app menubar, tools rail, near-black studio shell, custom export/launch buttons. Do not install or render Omniclip web components as the product UI.
 
 ## Studio tools (CapCut-style rail)
 
-`media | text | audio | voice | captions | effects | transitions | filters`
+`media | text | audio | voice | captions | effects | transitions | filters` (+ future AI clip)
 
 - Presets from `useEditorCatalog()` + apply via `useEditorActions()`.
 - Filter preview: CSS on `<video>` via `getVideoCssFilter()` in store.
 - Server apply/preview when `videoSessionId` exists (`useVideoSession` on studio load).
+- AI generate-content (ASR/subtitles/clip suggest) will call `services/ai-content` via `/api/v1/ai/*`.
 
 ## State
 
-- **useAppStore**: video file, timeline, canvas elements, `projectEditor` (filters, caption style, clip transitions).
+- **useAppStore**: video file, timeline, canvas elements, `projectId`, `projectEditor`.
+- **useStudioProject**: loads `/projects/:id`, polls while `processing`, debounced PATCH for name/aspect ratio.
 - **Server session**: `videoSessionId` set after `api.createVideoSession()`; cleared on new video.
 
 ## API client
 
 ```typescript
-import { api } from '@/lib/api/client';
-// Dev proxy: /api → gateway :4000 (see vite.config.ts)
+import { api } from '@/lib/api';
+// Dev proxy: /api → gateway :4000
 ```
 
 ## UI
 
-- Import components from `@vokop/ui` or `@/components/ui` (re-export).
+- Prefer reusable primitives from `@vokop/ui`; move stable cross-app UI there instead of duplicating components in `apps/web`.
+- Import Ant Design widgets from `@vokop/ui/antd` (e.g. `Popover`, `Select`, `Modal`) — do not add `antd` as a direct app dependency.
+- Import shadcn/Radix-style primitives from `@vokop/ui/shadcn` when needed for custom product UI.
+- Keep one-off visual customization in the owning feature/component. Promote it to `packages/ui` only when it is reusable across apps.
 - Button hover: color/opacity only — no transform scale/translate (see `button-interactions` rule).

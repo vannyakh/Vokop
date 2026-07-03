@@ -1,0 +1,4 @@
+{
+  "extends": "@vokop/tsconfig/base.json",
+  "include": ["src"]
+}

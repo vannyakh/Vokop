@@ -1,4 +1,6 @@
-export type UiLanguage = 'en' | 'km' | 'es' | 'fr';
+import type { UiLanguage } from '@vokop/i18n';
+
+export type { UiLanguage };
 export type ColorTheme = 'light' | 'dark';
 
 export interface UserPreferences {

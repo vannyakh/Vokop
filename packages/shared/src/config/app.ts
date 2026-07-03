@@ -12,6 +12,7 @@ export const APP_STORAGE_KEYS = {
 export const ROUTES = {
   home: '/',
   studio: '/studio',
+  studioProject: '/studio/:projectId',
 } as const;
 
 /** Standalone admin app routes (apps/admin). */

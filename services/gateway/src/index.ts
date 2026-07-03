@@ -75,6 +75,15 @@ app.use(
   }),
 );
 
+app.use(
+  '/api/v1/projects',
+  createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/': '/projects/' },
+  }),
+);
+
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
@@ -96,6 +105,7 @@ async function start() {
     console.log(`[gateway] proxying /api/v1/media -> ${VIDEO_TOOLS_URL}/media`);
     console.log(`[gateway] proxying /api/v1/auth -> ${AUTH_SERVICE_URL}/auth`);
     console.log(`[gateway] proxying /api/v1/admin -> ${AUTH_SERVICE_URL}/admin`);
+    console.log(`[gateway] proxying /api/v1/projects -> ${AUTH_SERVICE_URL}/projects`);
   });
 
   server.on('error', (err: NodeJS.ErrnoException) => {

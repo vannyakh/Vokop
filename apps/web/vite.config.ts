@@ -13,6 +13,6 @@ export default createReactAppViteConfig({
     'process.env.GEMINI_API_KEY': 'GEMINI_API_KEY',
   },
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@omnimedia/omnitool'],
   },
 });

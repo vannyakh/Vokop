@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FILMSTRIP_THUMB_WIDTH } from '@vokop/shared';
 import { extractFilmstripThumbnails } from '@/features/studio/lib/ffmpeg';
 import { captureFilmstripFromVideo } from '@/features/studio/lib/filmstripCapture';
+import { extractFilmstripWithOmnitool } from '@/features/studio/lib/omniTool';
 import { api } from '@/lib/api';
 
 function revokeThumbnailUrls(urls: string[]) {
@@ -85,6 +86,14 @@ export function useVideoFilmstrip(
           frames = result.thumbnails;
         } catch (err) {
           console.warn('[filmstrip] server upload failed, trying client ffmpeg:', err);
+        }
+      }
+
+      if (!frames.length && !controller.signal.aborted) {
+        try {
+          frames = await extractFilmstripWithOmnitool(videoFile, duration, controller.signal);
+        } catch (err) {
+          console.warn('[filmstrip] omnitool failed, trying client ffmpeg:', err);
         }
       }
 

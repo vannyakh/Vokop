@@ -11,7 +11,7 @@ export interface PreferencesProviderProps {
 export function PreferencesProvider({ children, colorTheme }: PreferencesProviderProps) {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', colorTheme);
-    document.documentElement.classList.toggle('dark', colorTheme === 'dark');
+    document.documentElement.classList.toggle('dark', colorTheme !== 'light');
   }, [colorTheme]);
 
   return children;

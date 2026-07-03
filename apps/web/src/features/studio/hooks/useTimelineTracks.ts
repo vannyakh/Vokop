@@ -8,6 +8,8 @@ export function useTimelineTracks(): TimelineTrackModel[] {
   const duration = useAppStore((s) => s.duration);
   const audioBase64 = useAppStore((s) => s.audioBase64);
   const videoFile = useAppStore((s) => s.videoFile);
+  const videoClips = useAppStore((s) => s.videoClips);
+  const audioClips = useAppStore((s) => s.audioClips);
   const canvasElements = useAppStore((s) => s.canvasElements);
   const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
   const { transcriptSegments, translationSegments } = useSegments();
@@ -76,9 +78,14 @@ export function useTimelineTracks(): TimelineTrackModel[] {
         id: 'video',
         type: 'video',
         label: 'Video',
-        clips: videoFile
-          ? [{ id: 'video-main', start: 0, duration: safeDuration, name: videoFile.name }]
-          : [],
+        clips: videoClips.map((clip) => ({
+          id: clip.id,
+          start: clip.start,
+          duration: clip.duration,
+          name: clip.name,
+          mediaKind: 'video' as const,
+          sourceStart: clip.sourceStart,
+        })),
       },
       {
         id: 'text',
@@ -108,15 +115,44 @@ export function useTimelineTracks(): TimelineTrackModel[] {
       });
     }
 
-    if (audioBase64) {
+    if (audioClips.length > 0 || audioBase64) {
       tracks.push({
         id: 'audio',
         type: 'audio',
         label: 'Voiceover',
-        clips: [{ id: 'audio-main', start: 0, duration: safeDuration, name: 'Generated voice' }],
+        clips:
+          audioClips.length > 0
+            ? audioClips.map((clip) => ({
+                id: clip.id,
+                start: clip.start,
+                duration: clip.duration,
+                name: clip.name,
+                mediaKind: 'audio' as const,
+                sourceStart: clip.sourceStart,
+              }))
+            : [
+                {
+                  id: 'audio-main',
+                  start: 0,
+                  duration: safeDuration,
+                  name: 'Generated voice',
+                  mediaKind: 'audio' as const,
+                  sourceStart: 0,
+                },
+              ],
       });
     }
 
     return tracks;
-  }, [duration, audioBase64, videoFile, canvasElements, extraTimelineTracks, transcriptSegments, translationSegments]);
+  }, [
+    duration,
+    audioBase64,
+    videoFile,
+    videoClips,
+    audioClips,
+    canvasElements,
+    extraTimelineTracks,
+    transcriptSegments,
+    translationSegments,
+  ]);
 }

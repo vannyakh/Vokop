@@ -9,5 +9,5 @@ export function isOverlayTimelineTrack(trackId: TimelineTrackId | string | undef
 export function isEditableTimelineTrack(trackId: TimelineTrackId | string | undefined): boolean {
   if (!trackId) return false;
   const id = String(trackId);
-  return id === 'text' || isOverlayTimelineTrack(id);
+  return id === 'text' || id === 'video' || id === 'audio' || isOverlayTimelineTrack(id);
 }

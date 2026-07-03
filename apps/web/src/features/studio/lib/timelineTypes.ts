@@ -8,6 +8,18 @@ export interface ExtraTimelineTrack {
   label: string;
 }
 
+/**
+ * Omniclip-style media clip (source of truth for video/audio tracks).
+ * `start`/`duration` are timeline placement; `sourceStart` is the in-point in the media file.
+ */
+export interface MediaClip {
+  id: string;
+  start: number;
+  duration: number;
+  sourceStart: number;
+  name: string;
+}
+
 export interface TimelineClipModel {
   id: string;
   start: number;
@@ -17,6 +29,9 @@ export interface TimelineClipModel {
   segmentType?: 'translation' | 'transcript';
   /** Canvas logo / image / template text linked to this clip */
   canvasKind?: 'logo' | 'image' | 'template';
+  /** Video/audio media clip (Omniclip-style) */
+  mediaKind?: 'video' | 'audio';
+  sourceStart?: number;
 }
 
 export interface TimelineTrackModel {

@@ -3,6 +3,7 @@ import { useAppStore } from '@/features/project';
 import { clampClip } from '@/features/studio/lib/timelineClipUtils';
 import { timeToPx } from '@/features/studio/lib/timelineUtils';
 import type { TimelineClipModel, TimelineTrackId } from '@/features/studio/lib/timelineTypes';
+import { isTranscriptReady } from '@/features/studio/lib/transcriptReady';
 
 type DragMode = 'move' | 'left' | 'right';
 
@@ -31,6 +32,8 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
   const updateSegmentTime = useAppStore((s) => s.updateSegmentTime);
   const updateSegmentDuration = useAppStore((s) => s.updateSegmentDuration);
   const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
+  const updateMediaClip = useAppStore((s) => s.updateMediaClip);
+  const commitProjectHistory = useAppStore((s) => s.commitProjectHistory);
   const setSelectedTimelineClip = useAppStore((s) => s.setSelectedTimelineClip);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
 
@@ -71,9 +74,33 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
 
   const applyCanvasTiming = useCallback(
     (clip: TimelineClipModel, start: number, clipDuration: number) => {
-      updateCanvasElement(clip.id, { startTime: start, endTime: start + clipDuration });
+      updateCanvasElement(
+        clip.id,
+        { startTime: start, endTime: start + clipDuration },
+        { history: false },
+      );
     },
     [updateCanvasElement],
+  );
+
+  const applyMediaTiming = useCallback(
+    (
+      clip: TimelineClipModel,
+      start: number,
+      clipDuration: number,
+      mode: DragMode,
+      origStart: number,
+    ) => {
+      const baseSource = clip.sourceStart ?? 0;
+      const sourceStart =
+        mode === 'left' ? Math.max(0, baseSource + (start - origStart)) : baseSource;
+      updateMediaClip(
+        clip.id,
+        { start, duration: clipDuration, sourceStart },
+        { history: false },
+      );
+    },
+    [updateMediaClip],
   );
 
   const applyClipPatch = useCallback(
@@ -81,7 +108,19 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
       trackId: TimelineTrackId,
       clip: TimelineClipModel,
       patch: { start?: number; duration?: number },
+      mode: DragMode,
+      origStart: number,
     ) => {
+      if (clip.mediaKind) {
+        applyMediaTiming(
+          clip,
+          patch.start ?? clip.start,
+          patch.duration ?? clip.duration,
+          mode,
+          origStart,
+        );
+        return;
+      }
       if (clip.canvasKind) {
         applyCanvasTiming(clip, patch.start ?? clip.start, patch.duration ?? clip.duration);
         return;
@@ -99,7 +138,7 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
         }
       }
     },
-    [updateSegmentTime, updateSegmentDuration, applyCanvasTiming],
+    [updateSegmentTime, updateSegmentDuration, applyCanvasTiming, applyMediaTiming],
   );
 
   const onDragMove = useCallback(
@@ -117,17 +156,17 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
           d.clip.id,
         );
         const { start, duration: clipDur } = clampClip(snapped, d.origDuration, duration);
-        applyClipPatch(d.trackId, d.clip, { start, duration: clipDur });
+        applyClipPatch(d.trackId, d.clip, { start, duration: clipDur }, d.mode, d.origStart);
         setSnapIndicator(snapX != null ? { snapX, trackId: d.trackId } : null);
       } else if (d.mode === 'right') {
         const clipDur = Math.max(0.4, Math.min(duration - d.origStart, d.origDuration + deltaSec));
-        applyClipPatch(d.trackId, d.clip, { duration: clipDur });
+        applyClipPatch(d.trackId, d.clip, { duration: clipDur }, d.mode, d.origStart);
         setSnapIndicator(null);
       } else if (d.mode === 'left') {
         const end = d.origStart + d.origDuration;
         const rawStart = d.origStart + deltaSec;
         const start = Math.max(0, Math.min(end - 0.4, rawStart));
-        applyClipPatch(d.trackId, d.clip, { start, duration: end - start });
+        applyClipPatch(d.trackId, d.clip, { start, duration: end - start }, d.mode, d.origStart);
         setSnapIndicator(null);
       }
     },
@@ -149,9 +188,14 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
       mode: DragMode,
       trackClips: TimelineClipModel[] = [],
     ) => {
-      if (!clip.segmentType && !clip.canvasKind) return;
+      if (!clip.segmentType && !clip.canvasKind && !clip.mediaKind) return;
+
+      const state = useAppStore.getState();
+      if (!isTranscriptReady(state.transcript, state.status)) return;
 
       e.stopPropagation();
+      // Snapshot pre-drag state once (Omniclip-style project history).
+      commitProjectHistory();
       setSelectedTimelineClip({ trackId, clipId: clip.id });
       if (trackId === 'text' || trackId === 'overlay' || String(trackId).startsWith('overlay-')) {
         selectCanvasElement(clip.id);
@@ -170,7 +214,7 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', onDragEnd);
     },
-    [onDragMove, onDragEnd, setSelectedTimelineClip, selectCanvasElement],
+    [commitProjectHistory, onDragMove, onDragEnd, setSelectedTimelineClip, selectCanvasElement],
   );
 
   return { beginClipDrag, snapIndicator };

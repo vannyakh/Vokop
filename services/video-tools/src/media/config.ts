@@ -1,25 +1,24 @@
-const PIXABAY_KEY = process.env.PIXABAY_API_KEY ?? '';
-const GIPHY_KEY = process.env.GIPHY_API_KEY ?? '';
-const MEDIA_CACHE_TTL = Number(process.env.MEDIA_CACHE_TTL_SEC ?? 300);
-
+// Read lazily so dotenv.config() in index.ts has already run by call time.
 export function hasPixabayKey(): boolean {
-  return PIXABAY_KEY.length > 0;
+  return Boolean(process.env.PIXABAY_API_KEY);
 }
 
 export function hasGiphyKey(): boolean {
-  return GIPHY_KEY.length > 0;
+  return Boolean(process.env.GIPHY_API_KEY);
 }
 
 export function mediaCacheTtl(): number {
-  return MEDIA_CACHE_TTL;
+  return Number(process.env.MEDIA_CACHE_TTL_SEC ?? 300);
 }
 
 export function getPixabayKey(): string {
-  if (!PIXABAY_KEY) throw new Error('PIXABAY_API_KEY not configured on server');
-  return PIXABAY_KEY;
+  const key = process.env.PIXABAY_API_KEY ?? '';
+  if (!key) throw new Error('PIXABAY_API_KEY not configured on server');
+  return key;
 }
 
 export function getGiphyKey(): string {
-  if (!GIPHY_KEY) throw new Error('GIPHY_API_KEY not configured on server');
-  return GIPHY_KEY;
+  const key = process.env.GIPHY_API_KEY ?? '';
+  if (!key) throw new Error('GIPHY_API_KEY not configured on server');
+  return key;
 }

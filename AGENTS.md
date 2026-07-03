@@ -1,6 +1,6 @@
 # Vokop — Agent Guide
 
-Video editing studio monorepo (CapCut-style UI + FFmpeg backend + AI translation).
+Video editing studio monorepo (CapCut-style UI + FFmpeg backend + AI translation/content).
 
 ## Quick start
 
@@ -21,6 +21,13 @@ pnpm db:up && pnpm dev
 
 Read `.cursor/skills/vokop/SKILL.md` when implementing features across UI, API, or video processing. Details in `reference.md`.
 
+## External references
+
+| Project | Role |
+|---------|------|
+| [Omniclip](https://github.com/omni-media/omniclip) | Editor frontend **core** patterns (timeline/clips). Keep own UI/UX. |
+| [FunClip](https://github.com/modelscope/FunClip) | **AI content** service design (`services/ai-content`). No Gradio UI. |
+
 ## Stack
 
-React 19 · Vite · Zustand · Konva · Express · FFmpeg · MongoDB · Redis · pnpm workspaces · Zod
+React 19 · Vite · Zustand · Konva · Express · FFmpeg · MongoDB · Redis · pnpm workspaces · Zod · react-i18next

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import {
   Play,
   Pause,
@@ -21,6 +21,7 @@ import { isEditableTimelineTrack } from '@/features/studio/lib/timelineTrackUtil
 import { Button } from '@vokop/ui';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
+import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
 interface TimelineBarProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -30,6 +31,7 @@ interface TimelineBarProps {
 
 export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: TimelineBarProps) {
   const videoUrl = useAppStore((s) => s.videoUrl);
+  const projectId = useAppStore((s) => s.projectId);
   const currentTime = useAppStore((s) => s.currentTime);
   const duration = useAppStore((s) => s.duration);
   const status = useAppStore((s) => s.status);
@@ -55,30 +57,22 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const canvasAttachSnap = useAppStore((s) => s.canvasAttachSnap);
   const toggleCanvasPreviewAxis = useAppStore((s) => s.toggleCanvasPreviewAxis);
   const toggleCanvasAttachSnap = useAppStore((s) => s.toggleCanvasAttachSnap);
-  const [isPaused, setIsPaused] = useState(true);
+  const isTimelinePlaying = useAppStore((s) => s.isTimelinePlaying);
+  const toggleTimelinePlaying = useAppStore((s) => s.toggleTimelinePlaying);
+  const seekTimeline = useAppStore((s) => s.seekTimeline);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const setEditorOpen = useAppStore((s) => s.setEditorOpen);
+  const isPaused = !isTimelinePlaying;
+  const transcriptReady = useTranscriptReady();
+
+  const openInspector = () => {
+    setActiveTab('inspector');
+    setEditorOpen(true);
+  };
   const [barMenu, setBarMenu] = useState<{ x: number; y: number } | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onPlay = () => setIsPaused(false);
-    const onPause = () => setIsPaused(true);
-    video.addEventListener('play', onPlay);
-    video.addEventListener('pause', onPause);
-    setIsPaused(video.paused);
-
-    return () => {
-      video.removeEventListener('play', onPlay);
-      video.removeEventListener('pause', onPause);
-    };
-  }, [videoRef, videoUrl]);
-
-  const togglePlay = () => {
-    if (videoRef.current?.paused) void videoRef.current.play();
-    else videoRef.current?.pause();
-  };
+  const togglePlay = () => toggleTimelinePlaying();
 
   const handleDeleteSelected = () => {
     if (!selectedTimelineClip) return;
@@ -92,13 +86,16 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const canDelete = isEditableTimelineTrack(selectedTimelineClip?.trackId);
 
   const canSplit =
-    selectedTimelineClip?.trackId === 'text' ||
-    (selectedTimelineClip?.trackId === 'overlay' &&
-      selectedTimelineClip.clipId &&
-      !selectedTimelineClip.clipId.startsWith('logo-') &&
-      !selectedTimelineClip.clipId.startsWith('image-'));
+    transcriptReady &&
+    (selectedTimelineClip?.trackId === 'text' ||
+      selectedTimelineClip?.trackId === 'video' ||
+      selectedTimelineClip?.trackId === 'audio' ||
+      (selectedTimelineClip?.trackId === 'overlay' &&
+        selectedTimelineClip.clipId &&
+        !selectedTimelineClip.clipId.startsWith('logo-') &&
+        !selectedTimelineClip.clipId.startsWith('image-')));
 
-  if (!videoUrl) return null;
+  if (!videoUrl && !projectId) return null;
 
   return (
     <div
@@ -117,7 +114,12 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
           <button
             type="button"
             className="studio-playback-icon-btn"
-            title="Split at playhead"
+            title={
+              transcriptReady
+                ? 'Split at playhead'
+                : 'Split unlocks after transcript is ready'
+            }
+            disabled={!transcriptReady}
             onClick={splitTimelineAtPlayhead}
           >
             <Scissors size={15} />
@@ -235,9 +237,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
       <TimelineContextMenu
         target={barMenu ? { x: barMenu.x, y: barMenu.y, time: currentTime } : null}
         onClose={() => setBarMenu(null)}
-        onSeek={(time) => {
-          if (videoRef.current) videoRef.current.currentTime = time;
-        }}
+        onSeek={seekTimeline}
         onSplit={splitTimelineAtPlayhead}
         onDelete={handleDeleteSelected}
         onCopy={copyTimelineSelection}
@@ -251,7 +251,13 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
           setToolsDrawerOpen(true);
         }}
         onEditCanvas={() => {
-          if (selectedTimelineClip) selectCanvasElement(selectedTimelineClip.clipId);
+          if (!selectedTimelineClip) return;
+          const clipId = selectedTimelineClip.clipId;
+          const isCanvasClip = useAppStore
+            .getState()
+            .canvasElements.some((el) => el.id === clipId);
+          if (isCanvasClip) selectCanvasElement(clipId);
+          openInspector();
         }}
         canSplit={canSplit}
         canDelete={canDelete}

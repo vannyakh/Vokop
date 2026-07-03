@@ -19,6 +19,14 @@ export function AppRouter() {
               </RequireVideo>
             }
           />
+          <Route
+            path={ROUTES.studioProject}
+            element={
+              <RequireVideo allowBlankProject>
+                <StudioPage />
+              </RequireVideo>
+            }
+          />
         </Route>
       </Routes>
     </BrowserRouter>

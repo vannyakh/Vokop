@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
-import { createBrowserApiConfig, type ApiConfig } from './config.js';
+import { createBrowserApiConfig, type ApiConfig, type BrowserApiOptions } from './config.js';
 import { apiRequest, createHttpClient } from './http.js';
 import { routes } from './routes.js';
 import {
@@ -29,6 +29,10 @@ import {
   upsertAdminMenuRequestSchema,
   upsertRoleRequestSchema,
   usersListResponseSchema,
+  projectsListResponseSchema,
+  projectResponseSchema,
+  createProjectRequestSchema,
+  updateProjectRequestSchema,
   videoJobResponseSchema,
   videoProbeResponseSchema,
   videoSessionResponseSchema,
@@ -308,6 +312,37 @@ export class ApiClient {
     return this.get(meResponseSchema, routes.auth.me, 'Failed to load profile');
   }
 
+  async listProjects(): Promise<z.infer<typeof projectsListResponseSchema>> {
+    return this.get(projectsListResponseSchema, routes.projects.list, 'Failed to load projects');
+  }
+
+  async createProject(
+    input: z.infer<typeof createProjectRequestSchema>,
+  ): Promise<z.infer<typeof projectResponseSchema>> {
+    return this.postJson(
+      projectResponseSchema,
+      routes.projects.create,
+      input,
+      'Failed to create project',
+    );
+  }
+
+  async getProject(id: string): Promise<z.infer<typeof projectResponseSchema>> {
+    return this.get(projectResponseSchema, routes.projects.get(id), 'Failed to load project');
+  }
+
+  async updateProject(
+    id: string,
+    input: z.infer<typeof updateProjectRequestSchema>,
+  ): Promise<z.infer<typeof projectResponseSchema>> {
+    return apiRequest(
+      this.http,
+      projectResponseSchema,
+      { method: 'PATCH', url: routes.projects.update(id), data: input },
+      'Failed to update project',
+    );
+  }
+
   async getAdminMenus(): Promise<z.infer<typeof adminMenusResponseSchema>> {
     return this.get(adminMenusResponseSchema, routes.admin.menus, 'Failed to load admin menus');
   }
@@ -399,8 +434,9 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 export function createBrowserApiClient(
   baseUrl?: string,
   getAccessToken?: () => string | undefined | null,
+  options?: BrowserApiOptions,
 ): ApiClient {
-  return createApiClient(createBrowserApiConfig(baseUrl, getAccessToken));
+  return createApiClient(createBrowserApiConfig(baseUrl, getAccessToken, options));
 }
 
 export { parseData as parseJson } from './http.js';

@@ -15,6 +15,7 @@ import { ExportSettingsModal } from '@/features/studio/components/ExportSettings
 import { useVideoSession } from '@/features/studio/hooks/useVideoSession';
 import { useCanvasKeyboardShortcuts } from '@/features/studio/hooks/useCanvasKeyboardShortcuts';
 import { useTimelineDockSplit } from '@/features/studio/hooks/useTimelineDockSplit';
+import { useTimelinePlayback } from '@/features/studio/hooks/useTimelinePlayback';
 import type { ExportSettings } from '@/features/studio/lib/exportSettings';
 
 export function StudioWorkspace() {
@@ -22,11 +23,13 @@ export function StudioWorkspace() {
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const editorOpen = useAppStore((s) => s.editorOpen);
   const videoUrl = useAppStore((s) => s.videoUrl);
+  const projectId = useAppStore((s) => s.projectId);
   const isExporting = useAppStore((s) => s.isExporting);
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const { containerRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
   useCanvasKeyboardShortcuts(videoRef);
+  useTimelinePlayback(videoRef);
   useVideoSession();
 
   const { audioContextRef, audioSourceRef, videoSourceRef, stopAudio, playSegment } =
@@ -78,7 +81,7 @@ export function StudioWorkspace() {
             <VideoViewport videoRef={videoRef} />
           </div>
 
-          {videoUrl && (
+          {(videoUrl || projectId) && (
             <>
               <div
                 role="separator"

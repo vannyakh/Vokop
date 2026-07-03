@@ -38,4 +38,10 @@ export const routes = {
     users: `${API_PREFIX}/admin/users`,
     user: (id: string) => `${API_PREFIX}/admin/users/${id}`,
   },
+  projects: {
+    list: `${API_PREFIX}/projects`,
+    create: `${API_PREFIX}/projects`,
+    get: (id: string) => `${API_PREFIX}/projects/${id}`,
+    update: (id: string) => `${API_PREFIX}/projects/${id}`,
+  },
 } as const;

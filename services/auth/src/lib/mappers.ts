@@ -1,5 +1,5 @@
 import type { ObjectId } from 'mongodb';
-import type { AdminMenuTreeItem } from '@vokop/api';
+import type { AdminMenuTreeItem, Project } from '@vokop/api';
 import type { AdminMenuItem, AuthUser, PermissionSlug, RoleDefinition, UserKind, UserStatus } from '@vokop/shared';
 
 export interface UserDoc {
@@ -22,6 +22,21 @@ export interface RoleDoc {
   description?: string;
   permissions: PermissionSlug[];
   isSystem: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProjectDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  title: string;
+  sourceLang: string;
+  targetLang: string;
+  aspectRatio?: Project['aspectRatio'];
+  status: 'done' | 'processing' | 'failed';
+  progress?: number;
+  durationSec?: number;
+  editorState?: Project['editorState'];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,6 +96,22 @@ export function mapUser(doc: UserDoc, permissions: PermissionSlug[], roleIds: st
     roleIds,
     permissions,
     avatarUrl: doc.avatarUrl,
+    createdAt: toIso(doc.createdAt),
+    updatedAt: toIso(doc.updatedAt),
+  };
+}
+
+export function mapProject(doc: ProjectDoc): Project {
+  return {
+    id: doc._id.toString(),
+    title: doc.title,
+    sourceLang: doc.sourceLang,
+    targetLang: doc.targetLang,
+    aspectRatio: doc.aspectRatio ?? 'original',
+    status: doc.status,
+    progress: doc.progress ?? undefined,
+    durationSec: doc.durationSec ?? undefined,
+    editorState: doc.editorState ?? undefined,
     createdAt: toIso(doc.createdAt),
     updatedAt: toIso(doc.updatedAt),
   };

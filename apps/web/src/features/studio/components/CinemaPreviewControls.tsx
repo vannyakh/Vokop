@@ -9,12 +9,11 @@ interface CinemaPreviewControlsProps {
   onExit: () => void;
 }
 
-export function CinemaPreviewControls({ videoRef, onExit }: CinemaPreviewControlsProps) {
-  const videoUrl = useAppStore((s) => s.videoUrl);
+export function CinemaPreviewControls({ onExit }: CinemaPreviewControlsProps) {
   const currentTime = useAppStore((s) => s.currentTime);
   const duration = useAppStore((s) => s.duration);
   const scrubRef = useRef<HTMLInputElement>(null);
-  const { isPaused, togglePlay, seek } = useVideoPlaybackState(videoRef, videoUrl);
+  const { isPaused, togglePlay, seek } = useVideoPlaybackState();
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 

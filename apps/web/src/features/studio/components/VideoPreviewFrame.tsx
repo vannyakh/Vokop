@@ -39,10 +39,18 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
   const videoHeight = useAppStore((s) => s.videoHeight);
   const canvasTool = useAppStore((s) => s.canvasTool);
   const addTextTemplate = useAppStore((s) => s.addTextTemplate);
-  const setCurrentTime = useAppStore((s) => s.setCurrentTime);
-  const setDuration = useAppStore((s) => s.setDuration);
+  const setMediaDuration = useAppStore((s) => s.setMediaDuration);
   const setVideoDimensions = useAppStore((s) => s.setVideoDimensions);
+  const toggleTimelinePlaying = useAppStore((s) => s.toggleTimelinePlaying);
+  const videoClips = useAppStore((s) => s.videoClips);
+  const currentTime = useAppStore((s) => s.currentTime);
   const videoCssFilter = useAppStore((s) => s.getVideoCssFilter());
+  const hasActiveVideoClip =
+    videoClips.length === 0
+      ? Boolean(videoUrl)
+      : videoClips.some(
+          (clip) => currentTime >= clip.start && currentTime < clip.start + clip.duration,
+        );
 
   const displayRatio = getDisplayRatio(aspectRatio, videoWidth, videoHeight);
   const portrait = displayRatio != null && isPortraitRatio(displayRatio);
@@ -52,9 +60,7 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
       onTogglePlay();
       return;
     }
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) void videoRef.current.play();
-    else videoRef.current.pause();
+    toggleTimelinePlaying();
   };
 
   const isTemplateDrag = (e: DragEvent) => e.dataTransfer.types.includes(TEXT_TEMPLATE_DRAG_MIME);
@@ -130,13 +136,12 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
         <video
           ref={videoRef}
           key={videoUrl ?? undefined}
-          className="studio-video-player"
+          className={cn('studio-video-player', !hasActiveVideoClip && videoUrl && 'studio-video-player--gap')}
           style={videoCssFilter !== 'none' ? { filter: videoCssFilter } : undefined}
           playsInline
           preload="auto"
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
           onLoadedMetadata={(e) => {
-            setDuration(e.currentTarget.duration);
+            setMediaDuration(e.currentTarget.duration);
             setVideoDimensions(e.currentTarget.videoWidth, e.currentTarget.videoHeight);
           }}
           onClick={() => {

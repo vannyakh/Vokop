@@ -1,0 +1,12 @@
+{
+  "appName": "Vokop Admin",
+  "login": "Connexion",
+  "logout": "Déconnexion",
+  "dashboard": "Tableau de bord",
+  "users": "Utilisateurs",
+  "settings": "Paramètres",
+  "save": "Enregistrer",
+  "cancel": "Annuler",
+  "search": "Rechercher",
+  "loading": "Chargement…"
+}

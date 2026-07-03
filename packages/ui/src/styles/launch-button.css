@@ -1,0 +1,90 @@
+/* Custom launch / create-project CTA (Uiverse-inspired, no transform hover). */
+.vokop-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fff;
+  border: 1px solid color-mix(in srgb, #8b7cf6 35%, transparent);
+  border-radius: 1rem;
+  background: linear-gradient(115deg, #0f0c29 0%, #302b63 48%, #24243e 100%);
+  box-shadow:
+    0 12px 28px -14px rgba(48, 43, 99, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.15s ease;
+}
+
+.vokop-launch-btn--md {
+  min-height: 2.85rem;
+  padding: 0.7em 1.25em 0.7em 0.95em;
+  font-size: 0.95rem;
+  border-radius: 0.9rem;
+}
+
+.vokop-launch-btn--lg {
+  min-height: 3.35rem;
+  padding: 0.85em 1.55em 0.85em 1.1em;
+  font-size: 1.05rem;
+  border-radius: 1rem;
+}
+
+.vokop-launch-btn--xl {
+  min-width: min(22rem, 100%);
+  min-height: 4rem;
+  padding: 1em 1.85em 1em 1.25em;
+  font-size: 1.2rem;
+  border-radius: 1.15rem;
+  gap: 0.7rem;
+}
+
+.vokop-launch-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.35em;
+  line-height: 1;
+  color: #f3f0ff;
+  opacity: 0.95;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.vokop-launch-btn__label {
+  line-height: 1.15;
+  transition: opacity 0.15s ease;
+}
+
+.vokop-launch-btn:hover {
+  background: linear-gradient(115deg, #171232 0%, #3a3478 48%, #2d2d4d 100%);
+  border-color: color-mix(in srgb, #a89bff 50%, transparent);
+  box-shadow:
+    0 16px 34px -14px rgba(72, 64, 150, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.vokop-launch-btn:hover .vokop-launch-btn__icon {
+  color: #fff;
+  opacity: 1;
+}
+
+.vokop-launch-btn--active {
+  background: linear-gradient(115deg, #1b1538 0%, #433c8a 48%, #34345a 100%);
+  border-color: color-mix(in srgb, #b7acff 55%, transparent);
+  box-shadow:
+    0 16px 34px -12px rgba(88, 78, 180, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.vokop-launch-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}

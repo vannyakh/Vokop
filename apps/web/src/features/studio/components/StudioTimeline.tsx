@@ -6,6 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
   type MouseEvent as ReactMouseEvent,
+  type DragEvent as ReactDragEvent,
   type RefObject,
 } from 'react';
 import type { TimelineClipModel, TimelineTrackId } from '@/features/studio/lib/timelineTypes';
@@ -33,6 +34,11 @@ import {
 } from '@/features/studio/components/TimelineContextMenu';
 import { Plus } from 'lucide-react';
 import { isEditableTimelineTrack, isOverlayTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
+import {
+  MEDIA_ASSET_DRAG_MIME,
+  parseMediaAssetDrag,
+} from '@/features/studio/lib/mediaLibrary';
+import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
 interface StudioTimelineProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -50,6 +56,7 @@ function formatRulerTick(seconds: number): string {
 
 export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelineProps) {
   const videoUrl = useAppStore((s) => s.videoUrl);
+  const projectId = useAppStore((s) => s.projectId);
   const videoFile = useAppStore((s) => s.videoFile);
   const duration = useAppStore((s) => s.duration);
   const currentTime = useAppStore((s) => s.currentTime);
@@ -75,8 +82,14 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const cutTimelineSelection = useAppStore((s) => s.cutTimelineSelection);
   const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
   const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
+  const addMediaAssetToTimeline = useAppStore((s) => s.addMediaAssetToTimeline);
+  const importMediaFiles = useAppStore((s) => s.importMediaFiles);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const setEditorOpen = useAppStore((s) => s.setEditorOpen);
+  const transcriptReady = useTranscriptReady();
 
   const videoSessionId = useAppStore((s) => s.videoSessionId);
+  const [dropTrackId, setDropTrackId] = useState<string | null>(null);
   const tracks = useTimelineTracks();
   const { thumbnails, loading: filmstripLoading, progress: filmstripProgress, thumbWidth } =
     useVideoFilmstrip(videoFile, duration, videoSessionId);
@@ -104,12 +117,14 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     return ticks;
   }, [duration]);
 
+  const seekTimeline = useAppStore((s) => s.seekTimeline);
+
   const seekTo = useCallback(
     (time: number) => {
-      if (!videoRef.current || !duration) return;
-      videoRef.current.currentTime = Math.min(Math.max(0, time), duration);
+      if (!duration) return;
+      seekTimeline(time);
     },
-    [videoRef, duration],
+    [duration, seekTimeline],
   );
 
   const seekFromClientX = useCallback(
@@ -280,10 +295,19 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     [timeAtClientX],
   );
 
+  const openInspector = useCallback(() => {
+    setActiveTab('inspector');
+    setEditorOpen(true);
+  }, [setActiveTab, setEditorOpen]);
+
   const selectClip = useCallback(
     (trackId: TimelineTrackId, clipId: string, e?: React.MouseEvent) => {
       const item = { trackId, clipId };
       const isMulti = e && (e.shiftKey || e.metaKey || e.ctrlKey);
+      const isCanvasClip = useAppStore
+        .getState()
+        .canvasElements.some((el) => el.id === clipId);
+
       if (isMulti) {
         const already = selectedTimelineClips.some(
           (c) => c.trackId === trackId && c.clipId === clipId,
@@ -293,17 +317,17 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         } else {
           addToTimelineSelection(item);
           setSelectedTimelineClip(item);
-          if (isEditableTimelineTrack(trackId)) selectCanvasElement(clipId);
+          if (isCanvasClip) selectCanvasElement(clipId);
+          else useAppStore.getState().setSelectedCanvasElementId(null);
+          openInspector();
         }
         return;
       }
       setSelectedTimelineClips([item]);
       setSelectedTimelineClip(item);
-      if (isEditableTimelineTrack(trackId)) {
-        selectCanvasElement(clipId);
-      } else {
-        selectCanvasElement(null);
-      }
+      if (isCanvasClip) selectCanvasElement(clipId);
+      else useAppStore.getState().setSelectedCanvasElementId(null);
+      openInspector();
     },
     [
       selectedTimelineClips,
@@ -312,21 +336,69 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       addToTimelineSelection,
       removeFromTimelineSelection,
       selectCanvasElement,
+      openInspector,
     ],
+  );
+
+  const onLaneDragOver = useCallback(
+    (e: ReactDragEvent, trackId: string) => {
+      if (!transcriptReady) return;
+      const hasAsset = e.dataTransfer.types.includes(MEDIA_ASSET_DRAG_MIME);
+      const hasFiles = e.dataTransfer.types.includes('Files');
+      if (!hasAsset && !hasFiles) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setDropTrackId(trackId);
+    },
+    [transcriptReady],
+  );
+
+  const onLaneDrop = useCallback(
+    async (e: ReactDragEvent, trackId: TimelineTrackId) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDropTrackId(null);
+      if (!transcriptReady) return;
+      const atTime = Math.max(0, timeAtClientX(e.clientX));
+
+      const assetRaw = e.dataTransfer.getData(MEDIA_ASSET_DRAG_MIME);
+      if (assetRaw) {
+        const assetId = parseMediaAssetDrag(assetRaw);
+        if (assetId) {
+          addMediaAssetToTimeline(assetId, atTime);
+          return;
+        }
+      }
+
+      if (e.dataTransfer.files?.length) {
+        const files = Array.from(e.dataTransfer.files);
+        await importMediaFiles(files);
+        const assets = useAppStore.getState().mediaAssets;
+        const newest = [...assets].reverse().find((asset) => {
+          if (trackId === 'video') return asset.kind === 'video';
+          if (trackId === 'audio') return asset.kind === 'audio';
+          if (isOverlayTimelineTrack(trackId)) return asset.kind === 'image';
+          return true;
+        });
+        if (newest) addMediaAssetToTimeline(newest.id, atTime);
+      }
+    },
+    [addMediaAssetToTimeline, importMediaFiles, timeAtClientX, transcriptReady],
   );
 
   const canDeleteSelection = isEditableTimelineTrack(selectedTimelineClip?.trackId);
 
   const canSplitSelection =
-    selectedTimelineClip?.trackId === 'text' ||
-    (isOverlayTimelineTrack(selectedTimelineClip?.trackId) &&
-      selectedTimelineClip?.clipId &&
-      !selectedTimelineClip.clipId.startsWith('logo-') &&
-      !selectedTimelineClip.clipId.startsWith('image-'));
+    transcriptReady &&
+    (selectedTimelineClip?.trackId === 'video' ||
+      selectedTimelineClip?.trackId === 'audio' ||
+      selectedTimelineClip?.trackId === 'text' ||
+      (isOverlayTimelineTrack(selectedTimelineClip?.trackId) &&
+        Boolean(selectedTimelineClip?.clipId)));
 
   const hoverTime = hoverX != null ? pxToTime(hoverX, pxPerSec) : null;
 
-  if (!videoUrl) return null;
+  if (!videoUrl && !projectId) return null;
 
   return (
     <div
@@ -439,6 +511,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 className={cn(
                   'studio-timeline-lane',
                   `studio-timeline-lane--${track.type}`,
+                  dropTrackId === track.id && 'studio-timeline-lane--drop-target',
                 )}
                 style={{ height: laneHeight, opacity: muted ? 0.4 : 1 }}
                 onClick={(e) => {
@@ -449,6 +522,13 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                   if ((e.target as HTMLElement).closest('.studio-timeline-clip-block')) return;
                   openContextMenu(e, { trackId: track.id as TimelineTrackId });
                 }}
+                onDragOver={(e) => onLaneDragOver(e, track.id)}
+                onDragLeave={(e) => {
+                  const related = e.relatedTarget as Node | null;
+                  if (related && e.currentTarget.contains(related)) return;
+                  setDropTrackId((id) => (id === track.id ? null : id));
+                }}
+                onDrop={(e) => void onLaneDrop(e, track.id as TimelineTrackId)}
               >
                 {track.clips.map((clip) => {
                   const left = timeToPx(clip.start, pxPerSec);
@@ -469,13 +549,18 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       width={width}
                       height={laneHeight - 8}
                       selected={selected}
+                      canDrag={transcriptReady}
                       filmstripThumbs={track.type === 'video' ? thumbnails : undefined}
                       thumbWidth={thumbWidth}
                       onSelect={(e) => selectClip(track.id as TimelineTrackId, clip.id, e)}
-                      onDelete={() => {
-                        removeTimelineClip(track.id, clip.id);
-                        selectCanvasElement(null);
-                      }}
+                      onDelete={
+                        transcriptReady
+                          ? () => {
+                              removeTimelineClip(track.id, clip.id);
+                              selectCanvasElement(null);
+                            }
+                          : undefined
+                      }
                       onContextMenu={(e) =>
                         openContextMenu(e, {
                           trackId: track.id as TimelineTrackId,

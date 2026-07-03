@@ -68,7 +68,7 @@ export function StudioHeaderCenter() {
             title="Project"
           >
             <span className="studio-header-project-name">{projectName}</span>
-            <ChevronDown size={14} className={cn('studio-header-chevron', projectOpen && 'open')} />
+            <ChevronDown size={12} className={cn('studio-header-chevron', projectOpen && 'open')} />
           </button>
 
           {projectOpen && (
@@ -134,9 +134,9 @@ export function StudioHeaderCenter() {
             className={cn('studio-header-center-btn', ratioOpen && 'active')}
             title="Aspect ratio"
           >
-            <Ratio size={14} className="text-accent shrink-0" />
+            <Ratio size={12} className="text-accent shrink-0" />
             <span>{ratioOption.label}</span>
-            <ChevronDown size={14} className={cn('studio-header-chevron', ratioOpen && 'open')} />
+            <ChevronDown size={12} className={cn('studio-header-chevron', ratioOpen && 'open')} />
           </button>
 
           {ratioOpen && (

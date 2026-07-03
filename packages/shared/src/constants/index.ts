@@ -1,5 +1,4 @@
 export * from './filmstrip.js';
-export * from './i18n.js';
 export * from './aspect-ratios.js';
 export * from './languages.js';
 export * from './voices.js';

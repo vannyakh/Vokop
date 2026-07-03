@@ -8,11 +8,9 @@ import {
   Sparkles,
   Layers,
   SlidersHorizontal,
-  Check,
   Languages,
   Loader2,
   ChevronRight,
-  ImageIcon,
   Stamp,
   BookOpen,
   Volume1,
@@ -21,15 +19,14 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
-import { ASPECT_RATIOS } from '@/features/studio/constants/aspectRatios';
 import { LANGUAGES } from '@/features/translation/constants/languages';
 import { VOICES } from '@/features/translation/constants/voices';
-import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import { Label, Select } from '@vokop/ui';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { AudioMixWaveforms } from '@/features/studio/components/AudioMixWaveforms';
 import { CanvasElementPanel, CanvasFrameAssetsPanel } from '@/features/studio/components/CanvasElementPanel';
 import { PixabayMediaPanel } from '@/features/studio/components/PixabayMediaPanel';
+import { MediaLibraryPanel } from '@/features/studio/components/MediaLibraryPanel';
 import { TextTemplatesPanel } from '@/features/studio/components/TextTemplatesPanel';
 import { StickersPanel } from '@/features/studio/components/StickersPanel';
 import { EditorPresetGrid } from '@/features/studio/components/EditorPresetGrid';
@@ -60,12 +57,6 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
   const activeStudioTool = useAppStore((s) => s.activeStudioTool);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
 
-  const videoFile = useAppStore((s) => s.videoFile);
-  const duration = useAppStore((s) => s.duration);
-  const videoWidth = useAppStore((s) => s.videoWidth);
-  const videoHeight = useAppStore((s) => s.videoHeight);
-  const aspectRatio = useAppStore((s) => s.aspectRatio);
-  const setAspectRatio = useAppStore((s) => s.setAspectRatio);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const originalVolume = useAppStore((s) => s.originalVolume);
@@ -82,8 +73,6 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
   const previewingSpeaker = useAppStore((s) => s.previewingSpeaker);
   const translatedText = useAppStore((s) => s.translatedText);
   const status = useAppStore((s) => s.status);
-  const addCanvasLogo = useAppStore((s) => s.addCanvasLogo);
-  const addCanvasImageOverlay = useAppStore((s) => s.addCanvasImageOverlay);
   const videoAnalysis = useAppStore((s) => s.videoAnalysis);
   const projectEditor = useAppStore((s) => s.projectEditor);
   const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
@@ -143,61 +132,8 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
             {/* ── MEDIA ── */}
             {activeStudioTool === 'media' && (
               <div className="tools-section-stack">
+                <MediaLibraryPanel />
                 <PixabayMediaPanel />
-
-                {/* Local assets */}
-                <StudioPanel title="Local assets" icon={<Film size={12} className="text-accent" />}>
-                  <div className="space-y-2">
-                    <input
-                      id="logo-pick"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) addCanvasLogo(f); e.target.value = ''; }}
-                    />
-                    <input
-                      id="overlay-pick"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) addCanvasImageOverlay(f); e.target.value = ''; }}
-                    />
-                    <button type="button" onClick={() => document.getElementById('logo-pick')?.click()} className="studio-tools-action-btn w-full">
-                      <Stamp size={13} /> Add logo
-                    </button>
-                    <button type="button" onClick={() => document.getElementById('overlay-pick')?.click()} className="studio-tools-action-btn w-full">
-                      <ImageIcon size={13} /> Add image overlay
-                    </button>
-                  </div>
-                  {videoFile && (
-                    <div className="tools-media-meta">
-                      <span className="truncate" title={videoFile.name}>{videoFile.name}</span>
-                      <span className="tools-media-meta-chips">
-                        {videoWidth > 0 && <span>{videoWidth}×{videoHeight}</span>}
-                        {duration > 0 && <span>{formatStudioTimecode(duration)}</span>}
-                        <span>{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</span>
-                      </span>
-                    </div>
-                  )}
-                </StudioPanel>
-
-                {/* Canvas ratio */}
-                <StudioPanel title="Canvas ratio" icon={<Film size={12} className="text-accent" />}>
-                  <div className="studio-tools-ratio-grid">
-                    {ASPECT_RATIOS.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setAspectRatio(option.id)}
-                        className={cn('studio-tools-ratio-chip', aspectRatio === option.id && 'active')}
-                      >
-                        <span className="studio-header-ratio-icon" data-ratio={option.id} />
-                        <span className="studio-tools-ratio-chip-label">{option.label}</span>
-                        {aspectRatio === option.id && <Check size={11} className="text-accent" />}
-                      </button>
-                    ))}
-                  </div>
-                </StudioPanel>
               </div>
             )}
 

@@ -25,7 +25,7 @@ export function StudioHeaderCanvasTools() {
             onClick={() => setCanvasTool(tool.id)}
             className={cn('studio-header-canvas-tool-btn', canvasTool === tool.id && 'active')}
           >
-            <Icon size={15} strokeWidth={2} />
+            <Icon size={13} strokeWidth={2} />
           </button>
         );
       })}

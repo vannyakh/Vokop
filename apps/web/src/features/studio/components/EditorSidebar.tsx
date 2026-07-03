@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { ChevronRight, Languages, Type, Sparkles } from 'lucide-react';
+import { ChevronRight, Languages, Type, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
@@ -7,6 +7,7 @@ import { useSegments } from '@/features/translation/hooks/useSegments';
 import { IconButton } from '@vokop/ui';
 import { SegmentList } from '@/features/studio/components/SegmentList';
 import { AnalysisPanel } from '@/features/studio/components/AnalysisPanel';
+import { ClipInspectorPanel } from '@/features/studio/components/ClipInspectorPanel';
 import type { EditorTab } from '@/types';
 
 interface EditorSidebarProps {
@@ -16,6 +17,7 @@ interface EditorSidebarProps {
 }
 
 const TABS: { id: EditorTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'inspector', label: 'Inspector', icon: <SlidersHorizontal size={13} /> },
   { id: 'translate', label: 'Translate', icon: <Languages size={13} /> },
   { id: 'transcript', label: 'Transcript', icon: <Type size={13} /> },
   { id: 'analysis', label: 'Analysis', icon: <Sparkles size={13} /> },
@@ -28,9 +30,11 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const updateSegment = useAppStore((s) => s.updateSegment);
   const videoAnalysis = useAppStore((s) => s.videoAnalysis);
+  const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
   const { transcriptSegments, translationSegments, activeSegmentIndex } = useSegments();
 
   const tabCounts: Record<EditorTab, number | null> = {
+    inspector: selectedTimelineClip ? 1 : null,
     translate: translationSegments.length || null,
     transcript: transcriptSegments.length || null,
     analysis: videoAnalysis?.highlights.length ?? null,
@@ -55,7 +59,7 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
                 className={cn('studio-tab', activeTab === tab.id && 'active')}
               >
                 {tab.icon}
-                <span className="hidden lg:inline">{tab.label}</span>
+                <span className="hidden xl:inline">{tab.label}</span>
                 {tabCounts[tab.id] != null && tabCounts[tab.id]! > 0 && (
                   <span className="studio-tab-count">{tabCounts[tab.id]}</span>
                 )}
@@ -67,6 +71,7 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
           </div>
 
           <div className="studio-sidebar-body studio-scrollbar">
+            {activeTab === 'inspector' && <ClipInspectorPanel />}
             {activeTab === 'translate' && (
               <SegmentList
                 segments={translationSegments}

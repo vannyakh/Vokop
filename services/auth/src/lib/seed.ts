@@ -2,11 +2,13 @@ import { DEFAULT_ADMIN_MENU_SEEDS, DEFAULT_ROLE_SEEDS, PERMISSIONS } from '@voko
 import { AUTH_CONFIG } from '../config.js';
 import { hashPassword } from '../lib/password.js';
 import { createMenu, listMenus, updateMenu } from '../db/adminMenus.js';
+import { ensureProjectIndexes } from '../db/projects.js';
 import { createRole, findRoleBySlug, listRoles } from '../db/roles.js';
 import { createUser, ensureAuthIndexes, findUserByEmail } from '../db/users.js';
 
 export async function seedAuthData(): Promise<void> {
   await ensureAuthIndexes();
+  await ensureProjectIndexes();
 
   const existingRoles = await listRoles();
   if (existingRoles.length === 0) {

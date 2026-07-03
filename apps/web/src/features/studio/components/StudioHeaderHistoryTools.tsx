@@ -6,8 +6,8 @@ import { useAppStore } from '@/features/project';
 export function StudioHeaderHistoryTools() {
   const undoCanvas = useAppStore((s) => s.undoCanvas);
   const redoCanvas = useAppStore((s) => s.redoCanvas);
-  const canUndoCanvas = useAppStore((s) => s.canvasUndoStack.length > 0);
-  const canRedoCanvas = useAppStore((s) => s.canvasRedoStack.length > 0);
+  const canUndoCanvas = useAppStore((s) => s.projectUndoStack.length > 0);
+  const canRedoCanvas = useAppStore((s) => s.projectRedoStack.length > 0);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -39,7 +39,7 @@ export function StudioHeaderHistoryTools() {
         onClick={undoCanvas}
         className={cn('studio-header-canvas-tool-btn', !canUndoCanvas && 'disabled')}
       >
-        <Undo2 size={15} strokeWidth={2} />
+        <Undo2 size={13} strokeWidth={2} />
       </button>
       <button
         type="button"
@@ -48,7 +48,7 @@ export function StudioHeaderHistoryTools() {
         onClick={redoCanvas}
         className={cn('studio-header-canvas-tool-btn', !canRedoCanvas && 'disabled')}
       >
-        <Redo2 size={15} strokeWidth={2} />
+        <Redo2 size={13} strokeWidth={2} />
       </button>
     </div>
   );

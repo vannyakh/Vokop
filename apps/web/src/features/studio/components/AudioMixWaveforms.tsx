@@ -22,11 +22,12 @@ export function AudioMixWaveforms({ videoRef }: AudioMixWaveformsProps) {
     return () => URL.revokeObjectURL(url);
   }, [audioBase64]);
 
+  const seekTimeline = useAppStore((s) => s.seekTimeline);
   const seekVideo = useCallback(
     (time: number) => {
-      if (videoRef.current) videoRef.current.currentTime = time;
+      seekTimeline(time);
     },
-    [videoRef],
+    [seekTimeline],
   );
 
   const originalWave = useWaveSurfer({

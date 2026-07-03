@@ -5,32 +5,43 @@ alwaysApply: true
 
 # Vokop Project
 
-**Vokop** is a CapCut-style video editing studio: upload video, edit on a timeline/canvas, translate/voiceover with AI, apply filters/transitions, and export.
+**Vokop** is a CapCut-style video editing studio: upload video, edit on a timeline/canvas, translate/voiceover with AI, generate AI content (ASR/subtitles/clip assist), apply filters/transitions, and export.
 
 ## Monorepo (pnpm workspaces)
 
 | Path | Role |
 |------|------|
-| `apps/web` | React 19 + Vite UI (port 3000) |
+| `apps/web` | React 19 + Vite studio UI (port 3000) — own CapCut-style UX |
+| `apps/admin` | Admin console (port 3001) |
 | `services/gateway` | API entry, proxies `/api/v1/*` (port 4000) |
 | `services/video-tools` | FFmpeg, sessions, jobs, editor presets (port 4001) |
+| `services/auth` | Auth, RBAC, projects (port 4002) |
+| `services/ai-content` | Planned FunClip-inspired AI generate-content (port 4003) |
 | `packages/shared` | Config, constants, types, preferences provider |
 | `packages/api` | Zod schemas, routes, typed `ApiClient` |
-| `packages/ui` | Shared React components (`Button`, `Select`, …) |
+| `packages/ui` | Shared React components (`Button`, `LaunchButton`, …) |
+| `packages/i18n` | Shared locale config; per-app JSON locales |
 | `packages/db` | MongoDB + Redis helpers |
+
+## Reference projects (architecture only)
+
+| Source | Use in Vokop |
+|--------|----------------|
+| [Omniclip](https://github.com/omni-media/omniclip) | Editor **frontend core** patterns (timeline/clips, trim/split, undo/redo). Keep **own UI/UX**. |
+| [FunClip](https://github.com/modelscope/FunClip) | **AI content service** (ASR, SRT, LLM clip assist) as `services/ai-content`. No Gradio UI. |
 
 ## Commands
 
 ```bash
 pnpm db:up && pnpm dev    # Mongo/Redis + all services
-pnpm stop                 # free ports 3000–3001, 4000–4001
+pnpm stop                 # free ports 3000–3001, 4000–4003
 pnpm build                # build all packages
 ```
 
 ## Conventions
 
 - **Shared contracts** live in `@vokop/api` (schemas) and `@vokop/shared` (domain types/constants).
-- **UI components** import from `@vokop/ui`; do not duplicate in `apps/web`.
+- **UI components** prefer `@vokop/ui` for reusable primitives. Use `@vokop/ui/antd` for Ant Design and `@vokop/ui/shadcn` for shadcn/Radix primitives — do not depend on `antd` directly in apps. Keep app-specific customization in the owning app component and promote stable shared pieces to `packages/ui`.
 - **New API routes**: add Zod schema → `packages/api` client → proxy in `services/gateway` → handler in service.
-- **Video session**: upload once via `POST /api/v1/video/session`; reuse `sessionId` for filmstrip, editor apply, preview.
+- **Video session**: upload once via `POST /api/v1/video/session`; reuse `sessionId` for filmstrip, editor apply, preview, and AI jobs.
 - Keep diffs minimal; match existing naming and import style (`@/` in web app).

@@ -6,7 +6,7 @@ export type ProcessingStatus =
   | 'analyzing'
   | 'error';
 
-export type EditorTab = 'translate' | 'transcript' | 'analysis';
+export type EditorTab = 'inspector' | 'translate' | 'transcript' | 'analysis';
 
 export type StudioToolId =
   | 'media'
