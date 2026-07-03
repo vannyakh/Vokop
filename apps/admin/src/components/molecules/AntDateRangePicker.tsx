@@ -21,26 +21,26 @@ export const AntDateRangePicker: React.FC<AntDateRangePickerProps> = ({
   id = 'ant-date-range-picker',
 }) => {
   // Preset ranges to display
-  const presets = [
+  const presets: { label: string; value: [Dayjs, Dayjs] }[] = [
     {
       label: 'Last 7 Days',
-      value: [dayjs().subtract(6, 'day'), dayjs()] as const,
+      value: [dayjs().subtract(6, 'day'), dayjs()],
     },
     {
       label: 'Last 14 Days',
-      value: [dayjs().subtract(13, 'day'), dayjs()] as const,
+      value: [dayjs().subtract(13, 'day'), dayjs()],
     },
     {
       label: 'Last 30 Days',
-      value: [dayjs().subtract(29, 'day'), dayjs()] as const,
+      value: [dayjs().subtract(29, 'day'), dayjs()],
     },
     {
       label: 'Last 90 Days',
-      value: [dayjs().subtract(89, 'day'), dayjs()] as const,
+      value: [dayjs().subtract(89, 'day'), dayjs()],
     },
     {
       label: 'This Month',
-      value: [dayjs().startOf('month'), dayjs().endOf('month')] as const,
+      value: [dayjs().startOf('month'), dayjs().endOf('month')],
     },
   ];
 

@@ -8,7 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from 'react';
-import type { TimelineClipModel } from '@/features/studio/lib/timelineTypes';
+import type { TimelineClipModel, TimelineTrackId } from '@/features/studio/lib/timelineTypes';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import {

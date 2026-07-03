@@ -5,11 +5,10 @@ import { createBrowserApiConfig, type ApiConfig } from './config.js';
 import { apiRequest, createHttpClient } from './http.js';
 import { routes } from './routes.js';
 import {
-  adminMenuSchema,
+  adminMenuResponseSchema,
   adminMenusResponseSchema,
   applyEditorEditResponseSchema,
   authSessionResponseSchema,
-  authUserSchema,
   emailLookupResponseSchema,
   editorCatalogResponseSchema,
   editorPreviewResponseSchema,
@@ -18,10 +17,11 @@ import {
   healthResponseSchema,
   mediaStatusResponseSchema,
   meResponseSchema,
+  okResponseSchema,
   permissionsListResponseSchema,
   pixabayImageSearchResponseSchema,
   pixabayVideoSearchResponseSchema,
-  roleSchema,
+  roleResponseSchema,
   rolesListResponseSchema,
   startFilmstripJobResponseSchema,
   textEffectPreviewsResponseSchema,
@@ -36,17 +36,12 @@ import {
 import type {
   ApplyEditorEditResponse,
   AuthSessionResponse,
-  AuthUser,
-  AdminMenu,
-  Role,
   EditorCatalogResponse,
   EditorPreviewResponse,
   FilmstripResponse,
   GiphySticker,
   HealthResponse,
   MediaStatusResponse,
-  PixabayImage,
-  PixabayVideo,
   TextEffectPreviewsResponse,
   VideoJobResponse,
   VideoProbeResponse,
@@ -72,30 +67,30 @@ export class ApiClient {
     this.http = options.http ?? createHttpClient(options);
   }
 
-  private get<T extends ZodTypeAny>(
-    schema: T,
+  private get<S extends ZodTypeAny>(
+    schema: S,
     url: string,
     message: string,
     params?: Record<string, string | number>,
-  ): Promise<z.infer<T>> {
+  ): Promise<z.output<S>> {
     return apiRequest(this.http, schema, { method: 'GET', url, params }, message);
   }
 
-  private postJson<T extends ZodTypeAny>(
-    schema: T,
+  private postJson<S extends ZodTypeAny>(
+    schema: S,
     url: string,
     data: unknown,
     message: string,
-  ): Promise<z.infer<T>> {
+  ): Promise<z.output<S>> {
     return apiRequest(this.http, schema, { method: 'POST', url, data }, message);
   }
 
-  private postForm<T extends ZodTypeAny>(
-    schema: T,
+  private postForm<S extends ZodTypeAny>(
+    schema: S,
     url: string,
     form: FormData,
     message: string,
-  ): Promise<z.infer<T>> {
+  ): Promise<z.output<S>> {
     return apiRequest(this.http, schema, { method: 'POST', url, data: form }, message);
   }
 
@@ -137,7 +132,7 @@ export class ApiClient {
     );
   }
 
-  async startFilmstripJob(sessionId: string, duration: number): Promise<{ jobId: string }> {
+  async startFilmstripJob(sessionId: string, duration: number): Promise<z.infer<typeof startFilmstripJobResponseSchema>> {
     return this.postJson(
       startFilmstripJobResponseSchema,
       routes.video.sessionFilmstripJob(sessionId),
@@ -219,7 +214,7 @@ export class ApiClient {
     query: string,
     page = 1,
     perPage = 20,
-  ): Promise<{ total: number; totalHits: number; hits: PixabayImage[] }> {
+  ): Promise<z.infer<typeof pixabayImageSearchResponseSchema>> {
     return this.get(
       pixabayImageSearchResponseSchema,
       routes.media.pixabayImages,
@@ -232,7 +227,7 @@ export class ApiClient {
     query: string,
     page = 1,
     perPage = 20,
-  ): Promise<{ total: number; totalHits: number; hits: PixabayVideo[] }> {
+  ): Promise<z.infer<typeof pixabayVideoSearchResponseSchema>> {
     return this.get(
       pixabayVideoSearchResponseSchema,
       routes.media.pixabayVideos,
@@ -273,7 +268,7 @@ export class ApiClient {
     return this.postJson(authSessionResponseSchema, routes.auth.login, { email, password }, 'Login failed');
   }
 
-  async lookupEmail(email: string): Promise<{ exists: boolean }> {
+  async lookupEmail(email: string): Promise<z.infer<typeof emailLookupResponseSchema>> {
     return this.postJson(
       emailLookupResponseSchema,
       routes.auth.lookup,
@@ -300,74 +295,74 @@ export class ApiClient {
     );
   }
 
-  async logout(refreshToken: string): Promise<{ ok: true }> {
+  async logout(refreshToken: string): Promise<z.infer<typeof okResponseSchema>> {
     return this.postJson(
-      z.object({ ok: z.literal(true) }),
+      okResponseSchema,
       routes.auth.logout,
       { refreshToken },
       'Logout failed',
     );
   }
 
-  async getMe(): Promise<{ user: AuthUser }> {
+  async getMe(): Promise<z.infer<typeof meResponseSchema>> {
     return this.get(meResponseSchema, routes.auth.me, 'Failed to load profile');
   }
 
-  async getAdminMenus(): Promise<{ menus: AdminMenu[] }> {
+  async getAdminMenus(): Promise<z.infer<typeof adminMenusResponseSchema>> {
     return this.get(adminMenusResponseSchema, routes.admin.menus, 'Failed to load admin menus');
   }
 
-  async listRoles(): Promise<{ roles: Role[] }> {
+  async listRoles(): Promise<z.infer<typeof rolesListResponseSchema>> {
     return this.get(rolesListResponseSchema, routes.admin.roles, 'Failed to load roles');
   }
 
-  async listPermissions(): Promise<{ permissions: { slug: string; label: string; group: string }[] }> {
+  async listPermissions(): Promise<z.infer<typeof permissionsListResponseSchema>> {
     return this.get(permissionsListResponseSchema, routes.admin.permissions, 'Failed to load permissions');
   }
 
-  async listUsers(): Promise<{ users: AuthUser[] }> {
+  async listUsers(): Promise<z.infer<typeof usersListResponseSchema>> {
     return this.get(usersListResponseSchema, routes.admin.users, 'Failed to load users');
   }
 
-  async createRole(input: z.infer<typeof upsertRoleRequestSchema>): Promise<{ role: Role }> {
+  async createRole(input: z.infer<typeof upsertRoleRequestSchema>): Promise<z.infer<typeof roleResponseSchema>> {
     return this.postJson(
-      z.object({ role: roleSchema }),
+      roleResponseSchema,
       routes.admin.roles,
       input,
       'Failed to create role',
     );
   }
 
-  async updateRole(id: string, input: Partial<z.infer<typeof upsertRoleRequestSchema>>): Promise<{ role: Role }> {
+  async updateRole(id: string, input: Partial<z.infer<typeof upsertRoleRequestSchema>>): Promise<z.infer<typeof roleResponseSchema>> {
     return apiRequest(
       this.http,
-      z.object({ role: roleSchema }),
+      roleResponseSchema,
       { method: 'PATCH', url: routes.admin.role(id), data: input },
       'Failed to update role',
     );
   }
 
-  async deleteRole(id: string): Promise<{ ok: true }> {
+  async deleteRole(id: string): Promise<z.infer<typeof okResponseSchema>> {
     return apiRequest(
       this.http,
-      z.object({ ok: z.literal(true) }),
+      okResponseSchema,
       { method: 'DELETE', url: routes.admin.role(id) },
       'Failed to delete role',
     );
   }
 
-  async updateUser(id: string, input: z.infer<typeof updateUserRolesRequestSchema>): Promise<{ user: AuthUser }> {
+  async updateUser(id: string, input: z.infer<typeof updateUserRolesRequestSchema>): Promise<z.infer<typeof meResponseSchema>> {
     return apiRequest(
       this.http,
-      z.object({ user: authUserSchema }),
+      meResponseSchema,
       { method: 'PATCH', url: routes.admin.user(id), data: input },
       'Failed to update user',
     );
   }
 
-  async createAdminMenu(input: z.infer<typeof upsertAdminMenuRequestSchema>): Promise<{ menu: AdminMenu }> {
+  async createAdminMenu(input: z.infer<typeof upsertAdminMenuRequestSchema>): Promise<z.infer<typeof adminMenuResponseSchema>> {
     return this.postJson(
-      z.object({ menu: adminMenuSchema }),
+      adminMenuResponseSchema,
       routes.admin.menus,
       input,
       'Failed to create menu',
@@ -377,19 +372,19 @@ export class ApiClient {
   async updateAdminMenu(
     id: string,
     input: Partial<z.infer<typeof upsertAdminMenuRequestSchema>>,
-  ): Promise<{ menu: AdminMenu }> {
+  ): Promise<z.infer<typeof adminMenuResponseSchema>> {
     return apiRequest(
       this.http,
-      z.object({ menu: adminMenuSchema }),
+      adminMenuResponseSchema,
       { method: 'PATCH', url: `${routes.admin.menus}/${id}`, data: input },
       'Failed to update menu',
     );
   }
 
-  async deleteAdminMenu(id: string): Promise<{ ok: true }> {
+  async deleteAdminMenu(id: string): Promise<z.infer<typeof okResponseSchema>> {
     return apiRequest(
       this.http,
-      z.object({ ok: z.literal(true) }),
+      okResponseSchema,
       { method: 'DELETE', url: `${routes.admin.menus}/${id}` },
       'Failed to delete menu',
     );

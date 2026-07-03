@@ -19,6 +19,8 @@ export {
   parseJson,
   toApiRequestError,
 } from './http.js';
+export { isAxiosError } from 'axios';
+export type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 export { API_PREFIX, routes } from './routes.js';
 export { toApiResponse } from './server.js';
 export * from './schemas/index.js';

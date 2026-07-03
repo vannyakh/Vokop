@@ -12,6 +12,7 @@ interface NotificationContextType {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   deleteNotification: (id: string) => void;
+  addNotification: (title: string, desc: string, type?: Notification['type']) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -40,6 +41,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const addNotification = (title: string, desc: string, type: Notification['type'] = 'system') => {
+    setNotifications((prev) => [
+      {
+        id: `notif-${Date.now()}`,
+        title,
+        desc,
+        time: 'Just now',
+        type,
+        unread: true,
+        dateGroup: 'Today',
+      },
+      ...prev,
+    ]);
+  };
+
   return (
     <NotificationContext.Provider
       value={{
@@ -52,6 +68,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         markAsRead,
         markAllAsRead,
         deleteNotification,
+        addNotification,
       }}
     >
       {children}

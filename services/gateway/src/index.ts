@@ -6,20 +6,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { checkDatabaseHealth, connectDatabases, setupGracefulShutdown } from '@vokop/db';
 import { toApiResponse, gatewayHealthResponseSchema } from '@vokop/api';
+import { DEFAULT_DEV_URLS, DEV_PORTS } from '@vokop/shared';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-const PORT = Number(process.env.GATEWAY_PORT ?? 4000);
-const VIDEO_TOOLS_URL = process.env.VIDEO_TOOLS_URL ?? 'http://localhost:4001';
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL ?? 'http://localhost:4002';
-const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
+const PORT = Number(process.env.GATEWAY_PORT ?? DEV_PORTS.gateway);
+const VIDEO_TOOLS_URL = process.env.VIDEO_TOOLS_URL ?? DEFAULT_DEV_URLS.videoTools;
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL ?? DEFAULT_DEV_URLS.auth;
+const WEB_ORIGIN = process.env.WEB_ORIGIN ?? DEFAULT_DEV_URLS.web;
 
 const app = express();
 
 app.use(
   cors({
-    origin: WEB_ORIGIN,
+    origin: [WEB_ORIGIN, process.env.ADMIN_ORIGIN ?? DEFAULT_DEV_URLS.admin].filter(Boolean),
     credentials: true,
   }),
 );

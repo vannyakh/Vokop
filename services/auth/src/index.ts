@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { checkDatabaseHealth, connectDatabases, setupGracefulShutdown } from '@vokop/db';
 import { healthResponseSchema, toApiResponse } from '@vokop/api';
+import { DEV_PORTS } from '@vokop/shared';
 import { seedAuthData } from './lib/seed.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAdminRouter } from './routes/admin.js';
@@ -11,7 +12,7 @@ import { createAdminRouter } from './routes/admin.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-const PORT = Number(process.env.AUTH_PORT ?? 4002);
+const PORT = Number(process.env.AUTH_PORT ?? DEV_PORTS.auth);
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));

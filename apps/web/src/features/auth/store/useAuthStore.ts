@@ -20,6 +20,8 @@ const emptyState = {
   isLoggedIn: false,
 };
 
+type PersistedAuth = Pick<AuthState, 'user' | 'accessToken' | 'refreshToken' | 'isLoggedIn'>;
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -37,9 +39,11 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'vokop-auth',
       version: 3,
-      migrate: (persisted) => {
-        const state = persisted as Partial<AuthState> | undefined;
-        if (!state?.isLoggedIn) return { ...emptyState, ...state };
+      migrate: (persisted): PersistedAuth => {
+        const state = persisted as Partial<PersistedAuth> | undefined;
+        if (!state?.isLoggedIn) {
+          return { ...emptyState, ...state, user: state?.user ?? null };
+        }
 
         const validUser = isPersistedAuthUser(state.user);
         const hasTokens = Boolean(state.accessToken && state.refreshToken);
@@ -50,9 +54,9 @@ export const useAuthStore = create<AuthState>()(
         }
 
         return {
-          ...emptyState,
-          ...state,
-          user: state.user,
+          user: state.user ?? null,
+          accessToken: state.accessToken ?? null,
+          refreshToken: state.refreshToken ?? null,
           isLoggedIn: true,
         };
       },

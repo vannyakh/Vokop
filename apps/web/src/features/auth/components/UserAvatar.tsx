@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuthStore, userHasPermission } from '@/features/auth';
 import { useTranslation } from '@/features/settings';
 import { LogOut, User, Shield } from 'lucide-react';
-import { ROUTES } from '@/routes/paths';
+import { getAdminAppUrl } from '@/lib/adminUrl';
 import { api } from '@/lib/api';
 
 interface UserAvatarProps {
@@ -74,14 +73,16 @@ export function UserAvatar({ onLoginClick }: UserAvatarProps) {
             <p className="text-[10px] text-faint truncate font-mono">{user?.email}</p>
           </div>
           {userHasPermission(user, 'admin.access') && (
-            <Link
-              to={ROUTES.admin}
+            <a
+              href={getAdminAppUrl()}
+              target="_blank"
+              rel="noreferrer"
               onClick={() => setMenuOpen(false)}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hi)]"
             >
               <Shield size={13} />
               Admin
-            </Link>
+            </a>
           )}
           <button
             type="button"

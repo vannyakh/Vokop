@@ -315,13 +315,7 @@ export const initialPayouts: Payout[] = [
 ];
 
 // 7. Tabs
-export const initialTabs: Tab[] = [
-  { id: 'dashboard', label: 'Dashboard', type: 'dashboard' },
-  { id: 'catalog', label: 'Catalog — Game keys', type: 'catalog' },
-  { id: 'orders', label: 'Orders', type: 'orders' },
-  { id: 'wallet', label: 'Wallet & Payouts', type: 'wallet' },
-  { id: 'uishowcase', label: 'UI Libraries', type: 'uishowcase' }
-];
+export const initialTabs: Tab[] = [{ id: 'dashboard', label: 'Dashboard', type: 'dashboard' }];
 
 // 8. Notifications
 export const initialNotifications: Notification[] = [

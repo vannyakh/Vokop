@@ -1,7 +1,5 @@
 import React, { useState, useRef } from 'react';
 import {
-  ConfigProvider,
-  theme as antdTheme,
   Table,
   Tag as AntdTag,
   Segmented,
@@ -31,19 +29,16 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-// Import shadcn/ui components
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import {
+  CardFooter,
+  Button,
+  Switch,
+  Badge,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -51,8 +46,9 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-  DialogClose
-} from '@/components/ui/dialog';
+  DialogClose,
+} from '@vokop/ui/shadcn';
+import { AntdProvider } from '@vokop/ui/antd';
 
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -168,7 +164,7 @@ export const UIShowcasePage: React.FC = () => {
     addNotification(
       'System Configuration',
       `Registered webhook webhook for trigger event: ${webhookEvent}`,
-      'info'
+      'system'
     );
     setWebhookUrl('');
   };
@@ -186,24 +182,8 @@ export const UIShowcasePage: React.FC = () => {
     messageApi.info('Simulation terminated. Restoring default parameters.');
   };
 
-  // Antd custom design tokens mapped to active system theme
-  const getAntdThemeConfig = () => {
-    const isDark = theme === 'dark' || theme === 'dim';
-    return {
-      algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
-      token: {
-        colorPrimary: theme === 'light' ? '#4f46e5' : theme === 'dim' ? '#818cf8' : '#6366f1',
-        borderRadius: 12,
-        colorBgContainer: isDark ? 'rgba(255, 255, 255, 0.03)' : '#ffffff',
-        colorBorder: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
-        colorText: isDark ? 'rgba(255, 255, 255, 0.9)' : '#0f172a',
-        colorTextDescription: isDark ? 'rgba(255, 255, 255, 0.5)' : '#475569',
-      }
-    };
-  };
-
   return (
-    <ConfigProvider theme={getAntdThemeConfig()}>
+    <AntdProvider theme={theme}>
       {messageContextHolder}
       
       <div className="space-y-6">
@@ -548,6 +528,6 @@ export const UIShowcasePage: React.FC = () => {
           steps={tourSteps}
         />
       </div>
-    </ConfigProvider>
+    </AntdProvider>
   );
 };

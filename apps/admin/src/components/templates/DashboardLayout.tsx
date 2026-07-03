@@ -29,7 +29,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, id }
         <Tabbar />
 
         {/* Stage Viewport */}
-        <main className="flex-1 flex flex-col min-h-0 p-5 overflow-hidden relative">
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 p-5 overflow-auto relative">
           {children}
 
           {/* Interactive view hot-reload glass spinner simulation */}

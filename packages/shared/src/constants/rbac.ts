@@ -50,7 +50,7 @@ export const DEFAULT_ADMIN_MENU_SEEDS: Omit<
 >[] = [
   {
     label: 'Dashboard',
-    path: '/admin',
+    path: '/',
     icon: 'LayoutDashboard',
     parentId: null,
     order: 0,
@@ -59,7 +59,7 @@ export const DEFAULT_ADMIN_MENU_SEEDS: Omit<
   },
   {
     label: 'Users',
-    path: '/admin/users',
+    path: '/users',
     icon: 'Users',
     parentId: null,
     order: 10,
@@ -68,7 +68,7 @@ export const DEFAULT_ADMIN_MENU_SEEDS: Omit<
   },
   {
     label: 'RBAC',
-    path: '/admin/rbac',
+    path: '/rbac',
     icon: 'Shield',
     parentId: null,
     order: 20,
@@ -77,7 +77,7 @@ export const DEFAULT_ADMIN_MENU_SEEDS: Omit<
   },
   {
     label: 'Admin menus',
-    path: '/admin/menus',
+    path: '/menus',
     icon: 'Menu',
     parentId: null,
     order: 30,

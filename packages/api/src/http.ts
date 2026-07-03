@@ -36,7 +36,7 @@ export function createHttpClient(config: ApiConfig = {}): AxiosInstance {
   return instance;
 }
 
-export function parseData<T extends ZodTypeAny>(schema: T, data: unknown): z.infer<T> {
+export function parseData<S extends ZodTypeAny>(schema: S, data: unknown): z.output<S> {
   return schema.parse(data);
 }
 
@@ -61,12 +61,12 @@ export function toApiRequestError(err: unknown, fallbackMessage: string): ApiReq
   return new ApiRequestError(fallbackMessage, 0);
 }
 
-export async function apiRequest<T extends ZodTypeAny>(
+export async function apiRequest<S extends ZodTypeAny>(
   http: AxiosInstance,
-  schema: T,
+  schema: S,
   config: AxiosRequestConfig,
   fallbackMessage: string,
-): Promise<z.infer<T>> {
+): Promise<z.output<S>> {
   try {
     const { data } = await http.request(config);
     return parseData(schema, data);

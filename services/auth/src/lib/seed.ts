@@ -1,7 +1,7 @@
 import { DEFAULT_ADMIN_MENU_SEEDS, DEFAULT_ROLE_SEEDS, PERMISSIONS } from '@vokop/shared';
 import { AUTH_CONFIG } from '../config.js';
 import { hashPassword } from '../lib/password.js';
-import { createMenu, listMenus } from '../db/adminMenus.js';
+import { createMenu, listMenus, updateMenu } from '../db/adminMenus.js';
 import { createRole, findRoleBySlug, listRoles } from '../db/roles.js';
 import { createUser, ensureAuthIndexes, findUserByEmail } from '../db/users.js';
 
@@ -36,6 +36,20 @@ export async function seedAuthData(): Promise<void> {
       });
     }
     console.log('[auth] seeded admin menus');
+  } else {
+    const legacyPaths: Record<string, string> = {
+      '/admin': '/',
+      '/admin/users': '/users',
+      '/admin/rbac': '/rbac',
+      '/admin/menus': '/menus',
+    };
+
+    for (const menu of existingMenus) {
+      const nextPath = legacyPaths[menu.path];
+      if (nextPath) {
+        await updateMenu(menu._id.toString(), { path: nextPath });
+      }
+    }
   }
 
   const adminRole = await findRoleBySlug('super_admin');

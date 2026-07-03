@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { Tab } from '../types';
 import { initialTabs } from '../constants/mockData';
+import { useAdminConfig } from './AdminConfigContext';
 
 interface TabContextType {
   tabs: Tab[];
@@ -22,8 +23,9 @@ interface TabContextType {
 const TabContext = createContext<TabContextType | undefined>(undefined);
 
 export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tabs, setTabs] = useState<Tab[]>(initialTabs);
-  const [activeTabId, setActiveTabId] = useState<string>('dashboard');
+  const { mode } = useAdminConfig();
+  const [tabs, setTabs] = useState<Tab[]>(mode === 'router' ? [] : initialTabs);
+  const [activeTabId, setActiveTabId] = useState<string>(mode === 'router' ? '' : 'dashboard');
   const [newTabCounter, setNewTabCounter] = useState<number>(1);
   const [isMaximized, setIsMaximized] = useState(false);
   const [isReloading, setIsReloading] = useState(false);

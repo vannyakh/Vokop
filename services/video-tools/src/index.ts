@@ -20,6 +20,7 @@ import {
   FILMSTRIP_THUMB_HEIGHT,
   FILMSTRIP_THUMB_WIDTH,
   getFilmstripFrameCount,
+  DEV_PORTS,
 } from '@vokop/shared';
 import { extensionForFilename, generateFilmstrip, probeVideo } from './ffmpeg.js';
 import {
@@ -41,7 +42,7 @@ import { createMediaRouter } from './media/routes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-const PORT = Number(process.env.VIDEO_TOOLS_PORT ?? 4001);
+const PORT = Number(process.env.VIDEO_TOOLS_PORT ?? DEV_PORTS.videoTools);
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB ?? 512);
 const CACHE_TTL_SEC = Number(process.env.CACHE_TTL_SEC ?? 3600);
 

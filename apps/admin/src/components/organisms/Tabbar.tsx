@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,8 @@ import {
   Check,
 } from 'lucide-react';
 import { useTabs } from '../../context/TabContext';
+import { useAdminConfig } from '../../context/AdminConfigContext';
+import { activateRouterTab } from '../../shell/RouterNavBridge';
 import { TabItem } from '../molecules/TabItem';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -25,6 +28,8 @@ interface TabbarProps {
 
 export const Tabbar: React.FC<TabbarProps> = ({ id }) => {
   const { theme } = useTheme();
+  const { mode, nav } = useAdminConfig();
+  const navigate = useNavigate();
   const isLight = theme === 'light';
   const {
     tabs,
@@ -208,7 +213,12 @@ export const Tabbar: React.FC<TabbarProps> = ({ id }) => {
               key={tab.id}
               tab={tab}
               isActive={activeTabId === tab.id}
-              onActivate={() => setActiveTabId(tab.id)}
+              onActivate={() => {
+                setActiveTabId(tab.id);
+                if (mode === 'router') {
+                  navigate(activateRouterTab(tab.id, nav));
+                }
+              }}
               onClose={(e) => {
                 e.stopPropagation();
                 closeTab(tab.id);

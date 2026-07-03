@@ -1,30 +1,15 @@
 import React, { useState } from 'react';
 import logoImg from '../../assets/logo.svg';
 import {
-  LayoutDashboard,
-  ShieldCheck,
-  Tag,
-  Package,
-  CheckSquare,
-  AlertTriangle,
-  Wallet,
-  Receipt,
-  MessageSquare,
-  Star,
-  Store,
-  Palette,
-  Key,
-  Users,
-  History,
-  Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   HelpCircle,
-  Database,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useTabs } from '../../context/TabContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useAdminConfig } from '../../context/AdminConfigContext';
 import { Badge } from '../atoms/Badge';
 
 interface SidebarProps {
@@ -33,9 +18,11 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [openGroup, setOpenGroup] = useState<string | null>('listings');
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const { openTab, activeTabId } = useTabs();
   const { setIsOpen: setSettingsOpen, setActivePanel } = useSettings();
+  const { brand, nav: menuItems, mode, webAppUrl } = useAdminConfig();
+  const navigate = useNavigate();
 
   // Floating states for collapsed mode
   const [hoveredItem, setHoveredItem] = useState<{
@@ -56,142 +43,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
     setOpenGroup(openGroup === groupName ? null : groupName);
   };
 
-  const menuItems = [
-    {
-      category: 'Overview',
-      items: [
-        {
-          id: 'dashboard',
-          label: 'Dashboard',
-          icon: <LayoutDashboard className="w-4 h-4" />,
-          type: 'dashboard',
-        },
-        {
-          id: 'verification',
-          label: 'Verification',
-          icon: <ShieldCheck className="w-4 h-4" />,
-          type: 'verification',
-          badge: 'KYC',
-        },
-      ],
-    },
-    {
-      category: 'Selling',
-      items: [
-        {
-          id: 'listings',
-          label: 'Listings',
-          icon: <Tag className="w-4 h-4" />,
-          isGroup: true,
-          subItems: [
-            { label: 'Game keys', tabId: 'catalog', type: 'catalog' },
-            { label: 'Gift cards', tabId: 'giftcards', type: 'catalog' },
-            { label: 'Top-up & recharge', tabId: 'recharge', type: 'catalog' },
-            { label: 'Bulk upload', tabId: 'bulkupload', type: 'catalog' },
-          ],
-        },
-        {
-          id: 'stock',
-          label: 'Stock & Delivery',
-          icon: <Package className="w-4 h-4" />,
-          type: 'stock',
-        },
-        {
-          id: 'orders',
-          label: 'Orders',
-          icon: <CheckSquare className="w-4 h-4" />,
-          badge: '12',
-          isGroup: true,
-          subItems: [
-            { label: 'All orders', tabId: 'orders', type: 'orders' },
-            { label: 'Awaiting delivery', tabId: 'awaiting', type: 'orders' },
-            { label: 'Completed', tabId: 'completed', type: 'orders' },
-            { label: 'Refunds', tabId: 'refunds', type: 'orders' },
-          ],
-        },
-        {
-          id: 'disputes',
-          label: 'Disputes',
-          icon: <AlertTriangle className="w-4 h-4" />,
-          type: 'disputes',
-          badge: '3',
-        },
-      ],
-    },
-    {
-      category: 'Finance',
-      items: [
-        {
-          id: 'wallet-group',
-          label: 'Wallet & Payouts',
-          icon: <Wallet className="w-4 h-4" />,
-          isGroup: true,
-          subItems: [
-            { label: 'Balance', tabId: 'wallet', type: 'wallet' },
-            { label: 'Withdraw', tabId: 'withdraw', type: 'wallet' },
-            { label: 'Payout history', tabId: 'payouts', type: 'wallet' },
-          ],
-        },
-        {
-          id: 'transactions',
-          label: 'Transactions',
-          icon: <Receipt className="w-4 h-4" />,
-          type: 'transactions',
-        },
-      ],
-    },
-    {
-      category: 'Customers',
-      items: [
-        {
-          id: 'messages',
-          label: 'Messages',
-          icon: <MessageSquare className="w-4 h-4" />,
-          type: 'messages',
-          badge: '5',
-        },
-        {
-          id: 'reviews',
-          label: 'Reviews',
-          icon: <Star className="w-4 h-4" />,
-          type: 'reviews',
-        },
-      ],
-    },
-    {
-      category: 'Storefront',
-      items: [
-        { id: 'profile', label: 'Shop Profile', icon: <Store className="w-4 h-4" />, type: 'profile' },
-        { id: 'cms', label: 'Storefront CMS', icon: <Palette className="w-4 h-4" />, type: 'cms' },
-      ],
-    },
-    {
-      category: 'Developer',
-      items: [
-        { id: 'api', label: 'API Keys', icon: <Key className="w-4 h-4" />, type: 'api' },
-        { id: 'uishowcase', label: 'UI Libraries', icon: <Palette className="w-4 h-4" />, type: 'uishowcase' },
-      ],
-    },
-    {
-      category: 'Access Control',
-      items: [
-        { id: 'roles', label: 'Roles & Permissions', icon: <Users className="w-4 h-4" />, type: 'catalog' },
-        { id: 'activity', label: 'Activity Log', icon: <History className="w-4 h-4" />, type: 'activity' },
-        { id: 'settings', label: 'Settings', icon: <SettingsIcon className="w-4 h-4" />, type: 'settings' },
-      ],
-    },
-  ];
+  const brandLogo = brand.logoSrc ?? logoImg;
 
-  const handleItemClick = (item: any) => {
+  const goToPath = (path?: string) => {
+    if (path) navigate(path);
+  };
+
+  const handleItemClick = (item: (typeof menuItems)[number]['items'][number]) => {
     if (item.id === 'settings') {
       setActivePanel('general');
       setSettingsOpen(true);
-    } else {
-      openTab(item.id, item.label, item.type);
+      return;
     }
+
+    if (mode === 'router' && item.path) {
+      goToPath(item.path);
+      return;
+    }
+
+    openTab(item.id, item.label, item.type);
   };
 
-  const handleSubItemClick = (sub: any, groupLabel: string) => {
+  const handleSubItemClick = (
+    sub: NonNullable<(typeof menuItems)[number]['items'][number]['subItems']>[number],
+    groupLabel: string,
+  ) => {
+    if (mode === 'router' && sub.path) {
+      goToPath(sub.path);
+      return;
+    }
+
     openTab(sub.tabId, `${groupLabel} — ${sub.label}`, sub.type);
   };
 
@@ -226,8 +107,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
       <div className="relative flex items-center gap-2.5 h-16 px-[18px] border-b border-white/8 flex-shrink-0">
         <div className="w-[34px] h-[34px] rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
           <img
-            src={logoImg}
-            alt="VOK2Z Brand Logo"
+            src={brandLogo}
+            alt={brand.logoAlt ?? 'Admin logo'}
             className="w-full h-full object-contain"
             referrerPolicy="no-referrer"
           />
@@ -237,7 +118,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
             isCollapsed ? 'opacity-0 w-0' : 'opacity-100'
           }`}
         >
-          VOK<span className="text-[var(--gold)]">2Z</span>
+          {brand.name}
+          {brand.highlight ? (
+            <span className="text-[var(--gold)]"> {brand.highlight}</span>
+          ) : null}
         </div>
 
         {/* Collapse Button */}
@@ -388,6 +272,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
 
       {/* Footer Support Links */}
       <div className={`border-t border-white/8 flex-shrink-0 transition-all duration-200 ${isCollapsed ? 'p-1.5 space-y-0.5' : 'p-3 space-y-1'}`}>
+        {webAppUrl ? (
+          <a
+            href={webAppUrl}
+            className={`flex items-center gap-3 p-2 rounded-[10px] text-[13px] text-[var(--text-mid)] transition-all duration-150 cursor-pointer ${
+              isCollapsed
+                ? 'justify-center p-1.5 hover:bg-transparent hover:text-white'
+                : 'hover:bg-white/4 hover:text-[var(--text)]'
+            }`}
+          >
+            <div className="w-7.5 h-7.5 rounded-lg flex items-center justify-center text-[var(--text-dim)] flex-shrink-0">
+              <ExternalLink className="w-4 h-4" />
+            </div>
+            {!isCollapsed && <span className="flex-1 truncate">Back to Vokop</span>}
+          </a>
+        ) : null}
         <a
           href="#"
           onClick={(e) => e.preventDefault()}

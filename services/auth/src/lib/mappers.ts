@@ -1,4 +1,5 @@
 import type { ObjectId } from 'mongodb';
+import type { AdminMenuTreeItem } from '@vokop/api';
 import type { AdminMenuItem, AuthUser, PermissionSlug, RoleDefinition, UserKind, UserStatus } from '@vokop/shared';
 
 export interface UserDoc {
@@ -85,9 +86,11 @@ export function mapUser(doc: UserDoc, permissions: PermissionSlug[], roleIds: st
   };
 }
 
-export function buildMenuTree(items: AdminMenuItem[]): Array<AdminMenuItem & { children: unknown[] }> {
-  const byId = new Map(items.map((item) => [item.id, { ...item, children: [] as unknown[] }]));
-  const roots: Array<AdminMenuItem & { children: unknown[] }> = [];
+export function buildMenuTree(items: AdminMenuItem[]): AdminMenuTreeItem[] {
+  const byId = new Map<string, AdminMenuTreeItem>(
+    items.map((item) => [item.id, { ...item, children: [] }]),
+  );
+  const roots: AdminMenuTreeItem[] = [];
 
   for (const item of byId.values()) {
     if (item.parentId && byId.has(item.parentId)) {
@@ -97,9 +100,9 @@ export function buildMenuTree(items: AdminMenuItem[]): Array<AdminMenuItem & { c
     }
   }
 
-  const sortRec = (nodes: Array<AdminMenuItem & { children: unknown[] }>) => {
+  const sortRec = (nodes: AdminMenuTreeItem[]) => {
     nodes.sort((a, b) => a.order - b.order);
-    for (const node of nodes) sortRec(node.children as Array<AdminMenuItem & { children: unknown[] }>);
+    for (const node of nodes) sortRec(node.children);
   };
   sortRec(roots);
   return roots;

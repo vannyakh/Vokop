@@ -1,0 +1,11 @@
+{
+  "name": "@vokop/tsconfig",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "react-app.json",
+    "react-library.json",
+    "node-service.json"
+  ]
+}

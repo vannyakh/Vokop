@@ -2,9 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, User, Settings as SettingsIcon, ShieldCheck, HelpCircle, LogOut } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useAdminSession } from '../../context/AdminSessionContext';
 
 interface UserPillProps {
   id?: string;
+}
+
+function initialsFromName(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 export const UserPill: React.FC<UserPillProps> = ({ id }) => {
@@ -12,6 +22,11 @@ export const UserPill: React.FC<UserPillProps> = ({ id }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { setIsOpen: setSettingsOpen, setActivePanel } = useSettings();
   const { theme } = useTheme();
+  const { user, onLogout } = useAdminSession();
+
+  const displayName = user?.name ?? 'Admin';
+  const displayEmail = user?.email ?? 'admin@vokop.app';
+  const initials = user?.initials ?? initialsFromName(displayName);
 
   const handleOpenSettings = (panel: string) => {
     setActivePanel(panel);
@@ -68,9 +83,9 @@ export const UserPill: React.FC<UserPillProps> = ({ id }) => {
         className={buttonClass}
       >
         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--indigo)] to-[#8b5cf6] flex items-center justify-center font-bold text-xs text-white">
-          L
+          {initials}
         </div>
-        <span className="text-[13px] font-semibold text-[var(--text)]">Luki</span>
+        <span className="text-[13px] font-semibold text-[var(--text)] max-w-[96px] truncate">{displayName}</span>
         <ChevronDown
           className={`w-3.5 h-3.5 text-[var(--text-dim)] transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
@@ -88,11 +103,11 @@ export const UserPill: React.FC<UserPillProps> = ({ id }) => {
         {/* Dropdown Header */}
         <div className={headerDividerClass}>
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--indigo)] to-[#8b5cf6] flex items-center justify-center font-bold text-sm text-white shadow-[0_0_0_2px_rgba(99,102,241,0.3)]">
-            L
+            {initials}
           </div>
           <div className="min-w-0">
-            <div className="text-[13.5px] font-semibold text-[var(--text)] truncate">Luki</div>
-            <div className="text-[11.5px] text-[var(--text-dim)] mt-0.5 truncate">luki@vok2z.com</div>
+            <div className="text-[13.5px] font-semibold text-[var(--text)] truncate">{displayName}</div>
+            <div className="text-[11.5px] text-[var(--text-dim)] mt-0.5 truncate">{displayEmail}</div>
           </div>
         </div>
 
@@ -136,7 +151,7 @@ export const UserPill: React.FC<UserPillProps> = ({ id }) => {
         <button
           onClick={() => {
             setIsOpen(false);
-            alert('Logging out of seller session...');
+            onLogout?.();
           }}
           className={logoutItemClass}
         >

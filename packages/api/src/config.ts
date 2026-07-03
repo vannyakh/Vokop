@@ -1,8 +1,12 @@
+/// <reference types="node" />
+
+import { DEFAULT_DEV_URLS } from '@vokop/shared/config/ports';
+
 /** Shared HTTP defaults for browser + Node consumers of `@vokop/api`. */
 export const API_DEFAULTS = {
   /** Empty string = same-origin / Vite dev proxy (`/api/v1/...`). */
   browserBaseUrl: '',
-  serverBaseUrl: 'http://localhost:4000',
+  serverBaseUrl: DEFAULT_DEV_URLS.gateway,
   timeoutMs: 30_000,
 } as const;
 

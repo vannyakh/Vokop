@@ -4,6 +4,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useSearchModal } from '../../context/SearchModalContext';
+import { useAdminConfig } from '../../context/AdminConfigContext';
+import { useTabs } from '../../context/TabContext';
 import { Breadcrumbs } from '../molecules/Breadcrumbs';
 import { UserPill } from '../molecules/UserPill';
 
@@ -16,12 +18,19 @@ export const Topbar: React.FC<TopbarProps> = ({ id }) => {
   const { unreadCount, isOpen: isNotifOpen, setIsOpen: setNotifOpen } = useNotifications();
   const { setIsOpen: setSettingsOpen } = useSettings();
   const { toggleSearch } = useSearchModal();
+  const { mode, brand } = useAdminConfig();
+  const { tabs, activeTabId } = useTabs();
 
-  const defaultBreadcrumbs = [
-    { label: 'Selling' },
-    { label: 'Listings' },
-    { label: 'Game keys', current: true },
-  ];
+  const activeLabel = tabs.find((tab) => tab.id === activeTabId)?.label ?? 'Dashboard';
+
+  const breadcrumbItems =
+    mode === 'router'
+      ? [{ label: brand.name }, { label: activeLabel, current: true }]
+      : [
+          { label: 'Selling' },
+          { label: 'Listings' },
+          { label: 'Game keys', current: true },
+        ];
 
   const renderThemeIcon = () => {
     const iconClass = 'w-[16px] h-[16px] transition-transform duration-300';
@@ -87,7 +96,7 @@ export const Topbar: React.FC<TopbarProps> = ({ id }) => {
     >
       {/* Left side: Breadcrumbs & Global Search Indicator */}
       <div className="flex items-center gap-4">
-        <Breadcrumbs items={defaultBreadcrumbs} />
+        <Breadcrumbs items={breadcrumbItems} />
       </div>
 
       {/* Right side: Actions */}
@@ -118,7 +127,7 @@ export const Topbar: React.FC<TopbarProps> = ({ id }) => {
         <button
           onClick={() => setNotifOpen(!isNotifOpen)}
           title="Notifications"
-          className={notificationClass}
+          className={`relative ${notificationClass}`}
         >
           <Bell className="w-[16px] h-[16px]" />
           {unreadCount > 0 && (

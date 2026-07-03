@@ -4,19 +4,26 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm -F @vokop/web -F @vokop/gateway -F @vokop/video-tools -F @vokop/auth --parallel dev",
-    "stop": "for p in 3000 3001 4000 4001 4002; do lsof -ti tcp:$p | xargs kill -9 2>/dev/null; done; echo 'Stopped dev servers'",
+    "dev": "turbo run dev --parallel --filter=@vokop/web --filter=@vokop/admin --filter=@vokop/gateway --filter=@vokop/auth --filter=@vokop/video-tools",
+    "dev:web": "turbo run dev --parallel --filter=@vokop/web --filter=@vokop/gateway --filter=@vokop/auth --filter=@vokop/video-tools",
+    "dev:admin": "turbo run dev --parallel --filter=@vokop/admin --filter=@vokop/gateway --filter=@vokop/auth",
+    "dev:services": "turbo run dev --parallel --filter=@vokop/gateway --filter=@vokop/auth --filter=@vokop/video-tools",
+    "dev:gateway": "turbo run dev --filter=@vokop/gateway",
+    "dev:video": "turbo run dev --filter=@vokop/video-tools",
+    "dev:auth": "turbo run dev --filter=@vokop/auth",
+    "stop": "node scripts/stop-dev.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f",
-    "dev:web": "pnpm --filter @vokop/web dev",
-    "dev:gateway": "pnpm --filter @vokop/gateway dev",
-    "dev:video": "pnpm --filter @vokop/video-tools dev",
-    "dev:auth": "pnpm --filter @vokop/auth dev",
-    "build": "pnpm run -r build",
-    "build:web": "pnpm --filter @vokop/web build",
-    "lint": "pnpm run -r lint",
-    "clean": "pnpm run -r clean"
+    "build": "turbo run build",
+    "build:web": "turbo run build --filter=@vokop/web",
+    "build:admin": "turbo run build --filter=@vokop/admin",
+    "build:services": "turbo run build --filter=@vokop/gateway --filter=@vokop/auth --filter=@vokop/video-tools",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4"
   },
   "engines": {
     "node": ">=20"

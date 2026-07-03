@@ -95,21 +95,19 @@ export const adminMenuSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const adminMenuTreeItemSchema: z.ZodType<{
-  id: string;
-  label: string;
-  path: string;
-  icon?: string;
-  parentId: string | null;
-  order: number;
-  permission: z.infer<typeof permissionSlugSchema> | null;
-  visible: boolean;
-  createdAt: string;
-  updatedAt: string;
-  children: unknown[];
-}> = adminMenuSchema.extend({
-  children: z.array(z.lazy(() => adminMenuTreeItemSchema)),
-});
+export type AdminMenuTreeItem = z.infer<typeof adminMenuSchema> & {
+  children: AdminMenuTreeItem[];
+};
+
+export const adminMenuTreeItemSchema: z.ZodType<AdminMenuTreeItem> = adminMenuSchema.extend({
+  children: z.lazy(() => z.array(adminMenuTreeItemSchema)),
+}) as z.ZodType<AdminMenuTreeItem>;
+
+export const okResponseSchema = z.object({ ok: z.literal(true) });
+
+export const roleResponseSchema = z.object({ role: roleSchema });
+
+export const adminMenuResponseSchema = z.object({ menu: adminMenuSchema });
 
 export const rolesListResponseSchema = z.object({
   roles: z.array(roleSchema),
