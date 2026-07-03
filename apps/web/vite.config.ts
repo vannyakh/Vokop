@@ -13,6 +13,12 @@ export default createReactAppViteConfig({
     'process.env.GEMINI_API_KEY': 'GEMINI_API_KEY',
   },
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@omnimedia/omnitool'],
+    // ffmpeg wasm must stay external; pixi/eventemitter3 need prebundle for CJS default interop
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+    include: [
+      'eventemitter3',
+      'pixi.js',
+      '@omnimedia/omnitool',
+    ],
   },
 });

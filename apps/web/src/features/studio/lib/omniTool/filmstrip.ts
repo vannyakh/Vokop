@@ -1,4 +1,3 @@
-import { Filmstrip } from '@omnimedia/omnitool';
 import {
   FILMSTRIP_THUMB_HEIGHT,
   FILMSTRIP_THUMB_WIDTH,
@@ -15,6 +14,8 @@ export async function extractFilmstripWithOmnitool(
   signal?: AbortSignal,
 ): Promise<string[]> {
   if (!file || !duration || !Number.isFinite(duration) || duration <= 0) return [];
+
+  const { Filmstrip } = await import('@omnimedia/omnitool');
 
   const frameCount = getFilmstripFrameCount(duration);
   const frequency = Math.max(0.25, duration / Math.max(1, frameCount - 1));
@@ -71,7 +72,6 @@ export async function extractFilmstripWithOmnitool(
       },
     })
       .then((filmstrip) => {
-        // Trigger full-range generation.
         filmstrip.range = [0, duration];
       })
       .catch((err) => {
