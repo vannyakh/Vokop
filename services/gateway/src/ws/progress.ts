@@ -2,9 +2,14 @@
  * Redis pub/sub subscriber for job progress events.
  * Subscribes to the "job:progress" channel published by video-tools workers
  * and forwards each message to the matching WebSocket room.
+ *
+ * Uses getRedis().duplicate() from @vokop/db to create a dedicated pub/sub
+ * subscriber client — avoids adding a direct 'redis' dependency to the gateway.
+ * duplicate() shares the same config but is a separate connection, which is
+ * required because a subscribed client can only issue subscribe/unsubscribe commands.
  */
 
-import { createClient } from 'redis';
+import { getRedis } from '@vokop/db';
 import { broadcastJobProgress } from './server.js';
 
 const JOB_PROGRESS_CHANNEL = 'job:progress';
@@ -18,15 +23,11 @@ export interface JobProgressEvent {
   error?: string;
 }
 
-let _subscriber: ReturnType<typeof createClient> | null = null;
+let _subscriber: ReturnType<typeof getRedis> | null = null;
 
-/**
- * Start a dedicated Redis subscriber connection and listen for progress events.
- * Uses a separate client from the main @vokop/db connection to avoid
- * blocking the main event loop while subscribed.
- */
-export async function startProgressSubscriber(redisUrl: string): Promise<void> {
-  _subscriber = createClient({ url: redisUrl });
+export async function startProgressSubscriber(_redisUrl: string): Promise<void> {
+  // Duplicate the already-connected @vokop/db client for pub/sub use.
+  _subscriber = getRedis().duplicate();
 
   _subscriber.on('error', (err: Error) => {
     console.error('[ws-progress] Redis subscriber error:', err.message);
