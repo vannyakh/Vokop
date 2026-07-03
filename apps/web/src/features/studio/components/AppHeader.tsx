@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import { useProjectNavigation } from '@/features/project/hooks/useProjectNavigation';
-import { BrandLogo } from '@/components/layout/FloatGroup';
+import { VokopLogo } from '@/components/brand/VokopLogo';
 import { Badge, Button, IconButton } from '@vokop/ui';
 import { formatAppVersion } from '@/constants/version';
 import { StudioHeaderCenter } from '@/features/studio/components/StudioHeaderCenter';
@@ -34,11 +34,11 @@ export function AppHeader({ onExport }: AppHeaderProps) {
   return (
     <header className="studio-header">
       <div className="studio-header-brand">
-        <BrandLogo round className="w-9 h-9" />
+        <VokopLogo className="h-7 sm:h-8" />
         <div className="hidden sm:block min-w-0">
           <div className="flex items-baseline gap-2">
             <p className="font-display text-sm font-semibold tracking-tight leading-none" style={{ color: 'var(--text)' }}>
-              Vokop Studio
+              Studio
             </p>
             <span className="font-mono text-[10px] text-faint opacity-55">{formatAppVersion()}</span>
           </div>

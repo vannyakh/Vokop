@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import logoImg from '../../assets/logo.svg';
+import { VokopLogo } from '@/components/brand/VokopLogo';
 import {
   ChevronLeft,
   ChevronRight,
@@ -43,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
     setOpenGroup(openGroup === groupName ? null : groupName);
   };
 
-  const brandLogo = brand.logoSrc ?? logoImg;
+  const brandLogo = brand.logoSrc;
 
   const goToPath = (path?: string) => {
     if (path) navigate(path);
@@ -104,24 +104,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ id }) => {
       }}
     >
       {/* Brand Header */}
-      <div className="relative flex items-center gap-2.5 h-16 px-[18px] border-b border-white/8 flex-shrink-0">
-        <div className="w-[34px] h-[34px] rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-          <img
-            src={brandLogo}
-            alt={brand.logoAlt ?? 'Admin logo'}
-            className="w-full h-full object-contain"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-        <div
-          className={`text-base font-bold tracking-wide text-[var(--text)] whitespace-nowrap overflow-hidden transition-opacity duration-200 ${
-            isCollapsed ? 'opacity-0 w-0' : 'opacity-100'
-          }`}
-        >
-          {brand.name}
-          {brand.highlight ? (
-            <span className="text-[var(--gold)]"> {brand.highlight}</span>
-          ) : null}
+      <div className="relative flex items-center gap-2 h-16 px-[18px] border-b border-white/8 flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+          {brandLogo ? (
+            <>
+              <img
+                src={brandLogo}
+                alt={brand.logoAlt ?? 'Admin logo'}
+                className="h-8 w-auto max-w-full object-contain shrink-0"
+                referrerPolicy="no-referrer"
+              />
+              <div
+                className={`text-base font-bold tracking-wide text-[var(--text)] whitespace-nowrap overflow-hidden transition-opacity duration-200 ${
+                  isCollapsed ? 'opacity-0 w-0' : 'opacity-100'
+                }`}
+              >
+                {brand.name}
+                {brand.highlight ? (
+                  <span className="text-[var(--gold)]"> {brand.highlight}</span>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <>
+              <VokopLogo className="h-8 shrink-0" alt={brand.logoAlt ?? 'Vokop Admin'} />
+              {brand.highlight ? (
+                <span
+                  className={`text-sm font-bold text-[var(--gold)] whitespace-nowrap transition-opacity duration-200 ${
+                    isCollapsed ? 'opacity-0 w-0' : 'opacity-100'
+                  }`}
+                >
+                  {brand.highlight}
+                </span>
+              ) : null}
+            </>
+          )}
         </div>
 
         {/* Collapse Button */}

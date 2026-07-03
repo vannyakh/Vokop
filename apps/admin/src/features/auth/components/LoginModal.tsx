@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ChevronLeft, Loader2, MonitorPlay, X } from 'lucide-react';
+import { ChevronLeft, Loader2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { VokopLogo } from '@/components/brand/VokopLogo';
 import { useAuthStore, userHasPermission } from '@/features/auth';
 import { api } from '@/lib/api';
 
@@ -162,8 +163,8 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
             <X size={18} />
           </button>
 
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--indigo)] text-white">
-            <MonitorPlay size={24} />
+          <div className="mx-auto mb-5 flex items-center justify-center">
+            <VokopLogo className="h-12" alt="Vokop Admin" />
           </div>
 
           <div className="mb-6 text-center">

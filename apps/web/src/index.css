@@ -718,9 +718,9 @@ button:disabled,
 
 /* ── Upload hero & dropzone ── */
 .upload-hero-mark {
-  background: linear-gradient(155deg, var(--accent), #c97a1e);
-  color: var(--accent-ink);
-  box-shadow: 0 12px 30px -10px rgba(232, 163, 61, 0.55);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
 }
 
 .upload-hero-title {
@@ -5503,20 +5503,35 @@ body.studio-panel-split-dragging * {
   box-shadow: var(--shadow-soft);
 }
 
-.studio-brand-logo {
+.studio-user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
   background: linear-gradient(155deg, var(--accent), #c97a1e);
   color: var(--accent-ink);
-  border-radius: 11px;
   box-shadow: 0 4px 14px -4px rgba(232, 163, 61, 0.45);
+  cursor: pointer;
+}
+
+.studio-user-avatar:hover {
+  box-shadow: 0 6px 18px -4px rgba(232, 163, 61, 0.55);
+}
+
+.studio-brand-logo {
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .studio-brand-logo--round {
-  border-radius: 50%;
-  box-shadow: 0 4px 16px -4px rgba(232, 163, 61, 0.5);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .studio-brand-logo:hover {
-  box-shadow: 0 6px 18px -4px rgba(232, 163, 61, 0.55);
+  box-shadow: none;
 }
 
 .studio-float-action {

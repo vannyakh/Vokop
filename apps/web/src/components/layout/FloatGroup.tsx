@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { MonitorPlay } from 'lucide-react';
+import { VokopLogo } from '@/components/brand/VokopLogo';
 
 interface FloatGroupProps {
   children: React.ReactNode;
@@ -24,10 +24,11 @@ export function FloatGroup({ children, className, theme = 'light' }: FloatGroupP
 interface BrandLogoProps {
   onClick?: () => void;
   className?: string;
+  /** @deprecated Round icon style is unused with image logos. */
   round?: boolean;
 }
 
-export function BrandLogo({ onClick, className, round = false }: BrandLogoProps) {
+export function BrandLogo({ onClick, className }: BrandLogoProps) {
   const Tag = onClick ? 'button' : 'div';
 
   return (
@@ -35,13 +36,12 @@ export function BrandLogo({ onClick, className, round = false }: BrandLogoProps)
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'studio-brand-logo shrink-0 flex items-center justify-center',
-        round && 'studio-brand-logo--round',
+        'studio-brand-logo shrink-0 flex items-center',
         onClick && 'cursor-pointer transition-opacity hover:opacity-90 active:opacity-80',
-        className ?? 'w-9 h-9',
+        className,
       )}
     >
-      <MonitorPlay className="w-[45%] h-[45%]" strokeWidth={2} />
+      <VokopLogo className="h-full w-auto" />
     </Tag>
   );
 }

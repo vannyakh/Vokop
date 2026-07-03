@@ -1,12 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, Languages, Sparkles } from 'lucide-react';
+import { Upload, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { useVideoUpload } from '@/features/upload/hooks/useVideoUpload';
 import { useAuthStore } from '@/features/auth';
 import { useSettingsStore, useTranslation } from '@/features/settings';
-import { BrandLogo, FloatGroup } from '@/components/layout/FloatGroup';
+import { FloatGroup } from '@/components/layout/FloatGroup';
+import hLogoDark from '@/assets/images/h-logo-dark.png';
+import hLogoLight from '@/assets/images/h-logo-light.png';
 import { HomeBackground } from '@/components/layout/HomeBackground';
 import { UploadTopActions } from '@/features/upload/components/UploadTopActions';
 import { LoginModal } from '@/features/auth/components/LoginModal';
@@ -86,6 +88,7 @@ export function UploadDropzone() {
   };
 
   const floatTheme = colorTheme === 'dark' ? 'dark' : 'light';
+  const horizontalLogoSrc = colorTheme === 'light' ? hLogoLight : hLogoDark;
 
   return (
     <div className="landing-page relative min-h-screen overflow-x-hidden">
@@ -95,13 +98,17 @@ export function UploadDropzone() {
         theme={floatTheme}
         className="pointer-events-auto fixed top-5 left-5 sm:left-8 z-40 pl-2 pr-4 py-1.5 gap-3"
       >
-        <BrandLogo round className="w-10 h-10 sm:w-11 sm:h-11" />
-        <div className="float-brand-text pr-1">
-          <div className="float-brand-title-row">
-            <p className="float-brand-name font-display">Vokop</p>
-            <span className="float-brand-version font-mono">{formatAppVersion()}</span>
-          </div>
-        </div>
+        <img
+          src={horizontalLogoSrc}
+          alt="Vokop"
+          width={2489}
+          height={347}
+          className="block h-auto w-40 sm:w-44 max-w-[calc(100vw-8rem)] select-none"
+          draggable={false}
+        />
+        {/* <div className="float-brand-text pr-1">
+          <span className="float-brand-version font-mono">{formatAppVersion()}</span>
+        </div> */}
       </FloatGroup>
 
       <div className="fixed top-5 right-5 sm:right-8 z-40 pointer-events-auto">
@@ -120,11 +127,16 @@ export function UploadDropzone() {
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.05, duration: 0.4 }}
-              className="inline-flex"
+              className="inline-flex justify-center w-full"
             >
-              <div className="upload-hero-mark w-24 h-24 sm:w-28 sm:h-28 rounded-[28px] sm:rounded-[32px] flex items-center justify-center rotate-3">
-                <Languages size={52} strokeWidth={1.75} />
-              </div>
+              <img
+                src={horizontalLogoSrc}
+                alt="Vokop"
+                width={2489}
+                height={347}
+                className="block h-auto w-full max-w-xl sm:max-w-2xl mx-auto select-none"
+                draggable={false}
+              />
             </motion.div>
 
             <div className="space-y-4 sm:space-y-5">

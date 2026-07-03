@@ -59,7 +59,7 @@ export function UserAvatar({ onLoginClick }: UserAvatarProps) {
         type="button"
         onClick={() => setMenuOpen((o) => !o)}
         title={user?.name ?? 'Account'}
-        className="studio-brand-logo w-10 h-10 text-xs font-bold transition-opacity hover:opacity-90 active:opacity-80 rounded-full border border-[color:var(--border)]"
+        className="studio-user-avatar w-10 h-10 text-xs font-bold transition-opacity hover:opacity-90 active:opacity-80 border border-[color:var(--border)]"
       >
         {initials}
       </button>
