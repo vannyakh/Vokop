@@ -1,18 +1,8 @@
-import {
-  Film,
-  Type,
-  Music2,
-  Layers,
-  Volume2,
-  VolumeX,
-  Scissors,
-  Trash2,
-  Clock,
-} from 'lucide-react';
+import { Film, Type, Music2, Layers, Clock } from 'lucide-react';
 import { useAppStore } from '@/features/project';
-import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { CanvasElementPanel } from '@/features/studio/components/CanvasElementPanel';
-import { Label, Slider } from '@vokop/ui';
+import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
+import { Label, Slider, StudioIcon } from '@vokop/ui';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import { isOverlayTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
 import { parseSegments } from '@/lib/utils/transcript';
@@ -58,113 +48,91 @@ function MediaClipInspector({
   const Icon = trackId === 'video' ? Film : Music2;
 
   return (
-    <div className="tools-section-stack">
-      <StudioPanel
-        title={trackId === 'video' ? 'Video clip' : 'Audio clip'}
-        icon={<Icon size={12} className="text-accent" />}
-      >
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Name</Label>
-            <input
-              className="clip-inspector-input"
-              value={clip.name}
-              onChange={(e) => updateMediaClip(clip.id, { name: e.target.value })}
-            />
-          </div>
-
-          <div className="clip-inspector-grid">
-            <Field label="Start" value={formatStudioTimecode(clip.start)} />
-            <Field label="End" value={formatStudioTimecode(end)} />
-            <Field label="Duration" value={formatStudioTimecode(clip.duration)} />
-            <Field label="In point" value={formatStudioTimecode(clip.sourceStart)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Timeline start (s)</Label>
-            <input
-              type="number"
-              min={0}
-              step={0.1}
-              className="clip-inspector-input"
-              value={Number(clip.start.toFixed(2))}
-              onChange={(e) =>
-                updateMediaClip(clip.id, { start: Math.max(0, Number(e.target.value) || 0) })
-              }
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Duration (s)</Label>
-            <input
-              type="number"
-              min={0.4}
-              step={0.1}
-              className="clip-inspector-input"
-              value={Number(clip.duration.toFixed(2))}
-              onChange={(e) =>
-                updateMediaClip(clip.id, {
-                  duration: Math.max(0.4, Number(e.target.value) || 0.4),
-                })
-              }
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Source in-point (s)</Label>
-            <input
-              type="number"
-              min={0}
-              step={0.1}
-              className="clip-inspector-input"
-              value={Number(clip.sourceStart.toFixed(2))}
-              onChange={(e) =>
-                updateMediaClip(clip.id, {
-                  sourceStart: Math.max(0, Number(e.target.value) || 0),
-                })
-              }
-            />
-          </div>
-
-          <button
-            type="button"
-            className="studio-tools-action-btn w-full"
-            onClick={() => toggleTimelineTrackMuted(trackId)}
-          >
-            {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-            {muted ? 'Unmute track' : 'Mute track'}
-          </button>
-
-          <div className="clip-inspector-actions">
-            <button type="button" className="studio-tools-action-btn" onClick={splitTimelineAtPlayhead}>
-              <Scissors size={13} />
-              Split
-            </button>
-            <button
-              type="button"
-              className="studio-tools-action-btn studio-tools-action-btn--danger"
-              onClick={() => removeTimelineClip(trackId, clip.id)}
-            >
-              <Trash2 size={13} />
-              Delete
-            </button>
-          </div>
+    <InspectorDock
+      title={trackId === 'video' ? 'Video clip' : 'Audio clip'}
+      icon={<Icon size={12} className="text-accent" />}
+    >
+      <InspectorSection id="clip-info" title="Clip" summary={clip.name} defaultOpen>
+        <div className="space-y-1.5">
+          <Label>Name</Label>
+          <input
+            className="clip-inspector-input"
+            value={clip.name}
+            onChange={(e) => updateMediaClip(clip.id, { name: e.target.value })}
+          />
         </div>
-      </StudioPanel>
+        <div className="clip-inspector-grid">
+          <Field label="Start" value={formatStudioTimecode(clip.start)} />
+          <Field label="End" value={formatStudioTimecode(end)} />
+          <Field label="Duration" value={formatStudioTimecode(clip.duration)} />
+          <Field label="In point" value={formatStudioTimecode(clip.sourceStart)} />
+        </div>
+      </InspectorSection>
+
+      <InspectorSection
+        id="clip-timing"
+        title="Timing"
+        summary={formatStudioTimecode(clip.duration)}
+        defaultOpen
+      >
+        <div className="space-y-1.5">
+          <Label>Timeline start (s)</Label>
+          <input
+            type="number"
+            min={0}
+            step={0.1}
+            className="clip-inspector-input"
+            value={Number(clip.start.toFixed(2))}
+            onChange={(e) =>
+              updateMediaClip(clip.id, { start: Math.max(0, Number(e.target.value) || 0) })
+            }
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Duration (s)</Label>
+          <input
+            type="number"
+            min={0.4}
+            step={0.1}
+            className="clip-inspector-input"
+            value={Number(clip.duration.toFixed(2))}
+            onChange={(e) =>
+              updateMediaClip(clip.id, {
+                duration: Math.max(0.4, Number(e.target.value) || 0.4),
+              })
+            }
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Source in-point (s)</Label>
+          <input
+            type="number"
+            min={0}
+            step={0.1}
+            className="clip-inspector-input"
+            value={Number(clip.sourceStart.toFixed(2))}
+            onChange={(e) =>
+              updateMediaClip(clip.id, {
+                sourceStart: Math.max(0, Number(e.target.value) || 0),
+              })
+            }
+          />
+        </div>
+      </InspectorSection>
 
       {trackId === 'video' && (
-        <StudioPanel title="Video settings" icon={<Film size={12} className="text-accent" />}>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Original volume</Label>
-              <Slider
-                min={0}
-                max={1}
-                step={0.01}
-                value={originalVolume}
-                onChange={(e) => setOriginalVolume(Number(e.target.value))}
-              />
-            </div>
+        <InspectorSection id="clip-video" title="Video settings" defaultOpen={false}>
+          <div className="space-y-1.5">
+            <Label>Original volume</Label>
+            <Slider
+              min={0}
+              max={1}
+              step={0.01}
+              value={originalVolume}
+              onChange={(e) => setOriginalVolume(Number(e.target.value))}
+            />
+          </div>
+          <div className="clip-inspector-grid">
             <Field
               label="Filter"
               value={projectEditor.videoFilterId ?? (getVideoCssFilter() === 'none' ? 'None' : 'Custom')}
@@ -178,11 +146,11 @@ function MediaClipInspector({
               value={projectEditor.clipEdits[clip.id]?.transitionOutId ?? 'None'}
             />
           </div>
-        </StudioPanel>
+        </InspectorSection>
       )}
 
       {trackId === 'audio' && (
-        <StudioPanel title="Audio settings" icon={<Music2 size={12} className="text-accent" />}>
+        <InspectorSection id="clip-audio" title="Audio settings" defaultOpen={false}>
           <div className="space-y-1.5">
             <Label>Voice volume</Label>
             <Slider
@@ -193,9 +161,34 @@ function MediaClipInspector({
               onChange={(e) => setVoiceVolume(Number(e.target.value))}
             />
           </div>
-        </StudioPanel>
+        </InspectorSection>
       )}
-    </div>
+
+      <InspectorSection id="clip-actions" title="Actions" defaultOpen={false}>
+        <button
+          type="button"
+          className="studio-tools-action-btn w-full"
+          onClick={() => toggleTimelineTrackMuted(trackId)}
+        >
+          {muted ? <StudioIcon name="volumeSlash" size={13} /> : <StudioIcon name="volume" size={13} />}
+          {muted ? 'Unmute track' : 'Mute track'}
+        </button>
+        <div className="clip-inspector-actions">
+          <button type="button" className="studio-tools-action-btn" onClick={splitTimelineAtPlayhead}>
+            <StudioIcon name="scissors" size={13} />
+            Split
+          </button>
+          <button
+            type="button"
+            className="studio-tools-action-btn studio-tools-action-btn--danger"
+            onClick={() => removeTimelineClip(trackId, clip.id)}
+          >
+            <StudioIcon name="bin" size={13} />
+            Delete
+          </button>
+        </div>
+      </InspectorSection>
+    </InspectorDock>
   );
 }
 
@@ -225,17 +218,16 @@ function SegmentInspector({
   const duration = next ? Math.max(0.4, next.time - segment.time) : 4;
 
   return (
-    <StudioPanel
+    <InspectorDock
       title={type === 'transcript' ? 'Transcript segment' : 'Translation segment'}
       icon={<Type size={12} className="text-accent" />}
     >
-      <div className="space-y-3">
+      <InspectorSection id="segment-content" title="Content" defaultOpen>
         <div className="clip-inspector-grid">
           <Field label="Start" value={formatStudioTimecode(segment.time)} />
           <Field label="Duration" value={formatStudioTimecode(duration)} />
         </div>
         {segment.speaker && <Field label="Speaker" value={segment.speaker} />}
-
         <div className="space-y-1.5">
           <Label>Text</Label>
           <textarea
@@ -245,7 +237,9 @@ function SegmentInspector({
             onChange={(e) => updateSegment(index, e.target.value, type)}
           />
         </div>
+      </InspectorSection>
 
+      <InspectorSection id="segment-timing" title="Timing" defaultOpen={false}>
         <div className="space-y-1.5">
           <Label>Start (s)</Label>
           <input
@@ -257,7 +251,6 @@ function SegmentInspector({
             onChange={(e) => updateSegmentTime(index, Math.max(0, Number(e.target.value) || 0), type)}
           />
         </div>
-
         <div className="space-y-1.5">
           <Label>Duration (s)</Label>
           <input
@@ -271,7 +264,9 @@ function SegmentInspector({
             }
           />
         </div>
+      </InspectorSection>
 
+      <InspectorSection id="segment-actions" title="Actions" defaultOpen={false}>
         <div className="clip-inspector-actions">
           <button
             type="button"
@@ -286,12 +281,12 @@ function SegmentInspector({
             className="studio-tools-action-btn studio-tools-action-btn--danger"
             onClick={() => removeTimelineClip('text', clipId)}
           >
-            <Trash2 size={13} />
+            <StudioIcon name="bin" size={13} />
             Delete
           </button>
         </div>
-      </div>
-    </StudioPanel>
+      </InspectorSection>
+    </InspectorDock>
   );
 }
 
@@ -307,8 +302,8 @@ function TrackDefaultsInspector() {
   const projectEditor = useAppStore((s) => s.projectEditor);
 
   return (
-    <div className="tools-section-stack">
-      <StudioPanel title="Project" icon={<Layers size={12} className="text-accent" />}>
+    <InspectorDock title="Project" icon={<Layers size={12} className="text-accent" />}>
+      <InspectorSection id="project-info" title="Overview" defaultOpen>
         <div className="clip-inspector-grid">
           <Field label="Aspect" value={aspectRatio} />
           <Field label="Timeline" value={formatStudioTimecode(duration)} />
@@ -320,9 +315,9 @@ function TrackDefaultsInspector() {
           <Field label="Audio clips" value={String(audioClips.length)} />
           <Field label="Overlays" value={String(canvasElements.length)} />
         </div>
-      </StudioPanel>
+      </InspectorSection>
 
-      <StudioPanel title="Tracks" icon={<Film size={12} className="text-accent" />}>
+      <InspectorSection id="project-tracks" title="Tracks" defaultOpen>
         <div className="space-y-2">
           {(['video', 'text', 'overlay', 'audio'] as const).map((trackId) => {
             const muted = timelineTrackMuted[trackId] ?? false;
@@ -333,17 +328,17 @@ function TrackDefaultsInspector() {
                 className="studio-tools-action-btn w-full"
                 onClick={() => toggleTimelineTrackMuted(trackId)}
               >
-                {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                {muted ? <StudioIcon name="volumeSlash" size={13} /> : <StudioIcon name="volume" size={13} />}
                 <span className="capitalize">{trackId}</span>
                 <span className="text-faint ml-auto">{muted ? 'Muted' : 'Active'}</span>
               </button>
             );
           })}
         </div>
-      </StudioPanel>
+      </InspectorSection>
 
       <p className="clip-inspector-hint">Select a clip on the timeline to edit its settings.</p>
-    </div>
+    </InspectorDock>
   );
 }
 

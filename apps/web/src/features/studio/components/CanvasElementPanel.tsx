@@ -2,6 +2,8 @@ import { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '@/features/project';
 import { Label, Slider } from '@vokop/ui';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
+import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
+import { getTextEffectSeed } from '@vokop/shared';
 import {
   Type,
   RotateCcw,
@@ -24,8 +26,6 @@ import { loadGoogleFont } from '@/features/studio/lib/googleFontLoader';
 import { GOOGLE_FONTS, FONT_CATEGORIES, type FontCategoryId } from '@/features/studio/constants/googleFonts';
 import { TEXT_EFFECTS, TEXT_EFFECT_IDS } from '@/features/studio/constants/textEffects';
 import { TextEffectPreviewCard } from '@/features/studio/components/TextEffectPreviewCard';
-import { useTextEffectPreviews } from '@/features/studio/hooks/useTextEffectPreviews';
-import type { TextEffectPreview } from '@vokop/api';
 import type { CanvasElement, CanvasTextEffectId } from '@/types/canvas';
 
 function elementTitle(element: CanvasElement) {
@@ -40,12 +40,10 @@ function EffectThumbnail({
   effectId,
   selected,
   onClick,
-  preview,
 }: {
   effectId: CanvasTextEffectId;
   selected: boolean;
   onClick: () => void;
-  preview?: TextEffectPreview;
 }) {
   if (effectId === 'none') {
     const cfg = TEXT_EFFECTS.none;
@@ -70,7 +68,6 @@ function EffectThumbnail({
       effectId={effectId}
       compact
       selected={selected}
-      preview={preview}
       onClick={onClick}
     />
   );
@@ -182,18 +179,17 @@ export function CanvasElementPanel() {
   const status = useAppStore((s) => s.status);
   const { retranslateActiveSegment } = useVideoProcessing();
   const replaceInputRef = useRef<HTMLInputElement>(null);
-  const { previewMap } = useTextEffectPreviews();
 
   const element = canvasElements.find((el) => el.id === selectedId);
 
   if (!element) {
     return (
-      <StudioPanel title="Canvas selection" icon={<Type size={12} className="text-accent" />}>
-        <p className="text-xs text-muted leading-relaxed">
+      <InspectorDock title="Canvas selection" icon={<Type size={12} className="text-accent" />}>
+        <p className="inspector-dock-empty">
           Click any text, sticker, or image on the preview to select it. Drag to move, use handles to
           resize, or double-click text to edit inline.
         </p>
-      </StudioPanel>
+      </InspectorDock>
     );
   }
 
@@ -237,283 +233,293 @@ export function CanvasElementPanel() {
       <Type size={12} className="text-accent" />
     );
 
+  const effectLabel =
+    element.textEffect && element.textEffect !== 'none'
+      ? (getTextEffectSeed(element.textEffect)?.sampleText ??
+        TEXT_EFFECTS[element.textEffect]?.label ??
+        element.textEffect)
+      : 'None';
+
   return (
-    <div className="space-y-3">
-      <StudioPanel title={elementTitle(element)} icon={panelIcon}>
-        <div className="space-y-3">
-          {isImage && element.src && (
+    <InspectorDock title={elementTitle(element)} icon={panelIcon}>
+      {isImage && (
+        <InspectorSection
+          id="canvas-media"
+          title="Media"
+          icon={<ImageIcon size={12} />}
+          summary={element.text}
+          defaultOpen
+        >
+          {element.src && (
             <div className="studio-canvas-image-preview">
               <img src={element.src} alt={element.text} />
             </div>
           )}
+          <input
+            ref={replaceInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) replaceCanvasElementImage(element.id, file);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => replaceInputRef.current?.click()}
+            className="studio-tools-action-btn w-full"
+          >
+            <ImageIcon size={14} />
+            Replace image
+          </button>
+          <Slider
+            label="Opacity"
+            valueLabel={`${Math.round(element.opacity * 100)}%`}
+            min={0.1}
+            max={1}
+            step={0.05}
+            value={element.opacity}
+            onChange={(e) =>
+              updateCanvasElement(element.id, { opacity: parseFloat(e.target.value) })
+            }
+          />
+        </InspectorSection>
+      )}
 
-          {isImage && (
-            <>
+      {!isImage && (
+        <InspectorSection
+          id="canvas-content"
+          title="Content"
+          icon={<Type size={12} />}
+          summary={element.text.slice(0, 24)}
+          defaultOpen
+        >
+          <textarea
+            value={element.text}
+            onChange={(e) => updateCanvasElement(element.id, { text: e.target.value })}
+            rows={3}
+            className="studio-canvas-textarea"
+          />
+        </InspectorSection>
+      )}
+
+      {!isImage && (
+        <InspectorSection
+          id="canvas-typography"
+          title="Typography"
+          icon={<Bold size={12} />}
+          summary={`${element.fontSize}px · ${element.fontFamily ?? 'Default'}`}
+          defaultOpen
+        >
+          <Slider
+            label="Font size"
+            valueLabel={`${element.fontSize}px`}
+            min={12}
+            max={96}
+            step={1}
+            value={element.fontSize}
+            onChange={(e) =>
+              updateCanvasElement(element.id, { fontSize: parseInt(e.target.value, 10) })
+            }
+          />
+          <div className="space-y-1.5">
+            <Label>Font</Label>
+            <FontPicker
+              value={element.fontFamily}
+              onChange={(f) => updateCanvasElement(element.id, { fontFamily: f })}
+            />
+          </div>
+          <div className="canvas-text-format-row">
+            <button
+              type="button"
+              className={cn('canvas-fmt-btn', style.fontWeight === 'bold' && 'active')}
+              onClick={() => updateStyle({ fontWeight: style.fontWeight === 'bold' ? 'normal' : 'bold' })}
+              title="Bold"
+            >
+              <Bold size={13} />
+            </button>
+            <button
+              type="button"
+              className={cn('canvas-fmt-btn', style.fontStyle === 'italic' && 'active')}
+              onClick={() => updateStyle({ fontStyle: style.fontStyle === 'italic' ? 'normal' : 'italic' })}
+              title="Italic"
+            >
+              <Italic size={13} />
+            </button>
+            <div className="canvas-fmt-divider" />
+            <button
+              type="button"
+              className={cn('canvas-fmt-btn', style.align === 'left' && 'active')}
+              onClick={() => updateStyle({ align: 'left' })}
+              title="Align left"
+            >
+              <AlignLeft size={13} />
+            </button>
+            <button
+              type="button"
+              className={cn('canvas-fmt-btn', (!style.align || style.align === 'center') && 'active')}
+              onClick={() => updateStyle({ align: 'center' })}
+              title="Align center"
+            >
+              <AlignCenter size={13} />
+            </button>
+            <button
+              type="button"
+              className={cn('canvas-fmt-btn', style.align === 'right' && 'active')}
+              onClick={() => updateStyle({ align: 'right' })}
+              title="Align right"
+            >
+              <AlignRight size={13} />
+            </button>
+            <div className="canvas-fmt-divider" />
+            <div className="canvas-color-pick" title="Text color">
               <input
-                ref={replaceInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) replaceCanvasElementImage(element.id, file);
-                  e.target.value = '';
-                }}
+                type="color"
+                value={style.fill ?? '#ffffff'}
+                onChange={(e) => updateStyle({ fill: e.target.value })}
+                className="canvas-color-input"
+                title="Text color"
               />
-              <button
-                type="button"
-                onClick={() => replaceInputRef.current?.click()}
-                className="studio-tools-action-btn w-full"
-              >
-                <ImageIcon size={14} />
-                Replace image
-              </button>
-            </>
-          )}
-
-          {!isImage && (
-            <div className="space-y-1.5">
-              <Label>Content</Label>
-              <textarea
-                value={element.text}
-                onChange={(e) => updateCanvasElement(element.id, { text: e.target.value })}
-                rows={3}
-                className="studio-canvas-textarea"
+              <span
+                className="canvas-color-swatch"
+                style={{ background: style.fill ?? '#ffffff' }}
               />
-            </div>
-          )}
-
-          {!isImage && (
-            <Slider
-              label="Font size"
-              valueLabel={`${element.fontSize}px`}
-              min={12}
-              max={96}
-              step={1}
-              value={element.fontSize}
-              onChange={(e) =>
-                updateCanvasElement(element.id, { fontSize: parseInt(e.target.value, 10) })
-              }
-            />
-          )}
-
-          {!isImage && (
-            <>
-              {/* Font picker */}
-              <div className="space-y-1.5">
-                <Label>Font</Label>
-                <FontPicker
-                  value={element.fontFamily}
-                  onChange={(f) => updateCanvasElement(element.id, { fontFamily: f })}
-                />
-              </div>
-
-              {/* Text formatting row */}
-              <div className="canvas-text-format-row">
-                <button
-                  type="button"
-                  className={cn('canvas-fmt-btn', style.fontWeight === 'bold' && 'active')}
-                  onClick={() => updateStyle({ fontWeight: style.fontWeight === 'bold' ? 'normal' : 'bold' })}
-                  title="Bold"
-                >
-                  <Bold size={13} />
-                </button>
-                <button
-                  type="button"
-                  className={cn('canvas-fmt-btn', style.fontStyle === 'italic' && 'active')}
-                  onClick={() => updateStyle({ fontStyle: style.fontStyle === 'italic' ? 'normal' : 'italic' })}
-                  title="Italic"
-                >
-                  <Italic size={13} />
-                </button>
-                <div className="canvas-fmt-divider" />
-                <button
-                  type="button"
-                  className={cn('canvas-fmt-btn', style.align === 'left' && 'active')}
-                  onClick={() => updateStyle({ align: 'left' })}
-                  title="Align left"
-                >
-                  <AlignLeft size={13} />
-                </button>
-                <button
-                  type="button"
-                  className={cn('canvas-fmt-btn', (!style.align || style.align === 'center') && 'active')}
-                  onClick={() => updateStyle({ align: 'center' })}
-                  title="Align center"
-                >
-                  <AlignCenter size={13} />
-                </button>
-                <button
-                  type="button"
-                  className={cn('canvas-fmt-btn', style.align === 'right' && 'active')}
-                  onClick={() => updateStyle({ align: 'right' })}
-                  title="Align right"
-                >
-                  <AlignRight size={13} />
-                </button>
-                <div className="canvas-fmt-divider" />
-                {/* Color swatch */}
-                <div className="canvas-color-pick" title="Text color">
-                  <input
-                    type="color"
-                    value={style.fill ?? '#ffffff'}
-                    onChange={(e) => updateStyle({ fill: e.target.value })}
-                    className="canvas-color-input"
-                    title="Text color"
-                  />
-                  <span
-                    className="canvas-color-swatch"
-                    style={{ background: style.fill ?? '#ffffff' }}
-                  />
-                </div>
-              </div>
-
-              {/* Text effects */}
-              <div className="space-y-1.5">
-                <Label>Text effect</Label>
-                <div className="canvas-effects-grid">
-                  {TEXT_EFFECT_IDS.map((id) => (
-                    <EffectThumbnail
-                      key={id}
-                      effectId={id}
-                      preview={id === 'none' ? undefined : previewMap.get(id)}
-                      selected={(element.textEffect ?? 'none') === id}
-                      onClick={() =>
-                        updateCanvasElement(element.id, { textEffect: id === 'none' ? undefined : id })
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {isImage && (
-            <Slider
-              label="Opacity"
-              valueLabel={`${Math.round(element.opacity * 100)}%`}
-              min={0.1}
-              max={1}
-              step={0.05}
-              value={element.opacity}
-              onChange={(e) =>
-                updateCanvasElement(element.id, { opacity: parseFloat(e.target.value) })
-              }
-            />
-          )}
-
-          <Slider
-            label="Position X"
-            valueLabel={`${Math.round(element.x)}px`}
-            min={0}
-            max={Math.max(100, canvasW)}
-            step={1}
-            value={element.x}
-            onChange={(e) =>
-              updateCanvasElement(element.id, { x: parseInt(e.target.value, 10) })
-            }
-          />
-
-          <Slider
-            label="Position Y"
-            valueLabel={`${Math.round(element.y)}px`}
-            min={0}
-            max={Math.max(100, canvasH)}
-            step={1}
-            value={element.y}
-            onChange={(e) =>
-              updateCanvasElement(element.id, { y: parseInt(e.target.value, 10) })
-            }
-          />
-
-          {!isImage && (
-            <Slider
-              label="Rotation"
-              valueLabel={`${Math.round(element.rotation)}°`}
-              min={-180}
-              max={180}
-              step={1}
-              value={element.rotation}
-              onChange={(e) =>
-                updateCanvasElement(element.id, { rotation: parseInt(e.target.value, 10) })
-              }
-            />
-          )}
-
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono text-muted">
-            <div className="studio-canvas-meta-chip">
-              <span className="text-faint">X</span> {Math.round(element.x)}
-            </div>
-            <div className="studio-canvas-meta-chip">
-              <span className="text-faint">Y</span> {Math.round(element.y)}
-            </div>
-            <div className="studio-canvas-meta-chip">
-              <span className="text-faint">W</span> {Math.round(element.width)}
-            </div>
-            <div className="studio-canvas-meta-chip">
-              <span className="text-faint">{isImage ? 'H' : '°'}</span>{' '}
-              {isImage ? Math.round(element.height) : Math.round(element.rotation)}
             </div>
           </div>
+        </InspectorSection>
+      )}
 
-          {!isImage && element.segmentType === 'translation' && element.segmentIndex != null && (
-            <button
-              type="button"
-              disabled={status !== 'idle'}
-              onClick={() => retranslateActiveSegment(element.segmentIndex!)}
-              className="studio-tools-action-btn w-full"
-            >
-              {status === 'translating' ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Sparkles size={14} />
-              )}
-              AI retranslate line
-            </button>
-          )}
+      {!isImage && (
+        <InspectorSection
+          id="canvas-effect"
+          title="Text effect"
+          icon={<Sparkles size={12} />}
+          summary={effectLabel}
+          defaultOpen
+        >
+          <div className="canvas-effects-grid">
+            {TEXT_EFFECT_IDS.map((id) => (
+              <EffectThumbnail
+                key={id}
+                effectId={id}
+                selected={(element.textEffect ?? 'none') === id}
+                onClick={() =>
+                  updateCanvasElement(element.id, { textEffect: id === 'none' ? undefined : id })
+                }
+              />
+            ))}
+          </div>
+        </InspectorSection>
+      )}
 
-          <button type="button" onClick={resetLayout} className="studio-tools-action-btn">
-            <RotateCcw size={14} />
-            Reset transform
-          </button>
-          <button
-            type="button"
-            onClick={() => duplicateCanvasElement(element.id)}
-            className="studio-tools-action-btn w-full"
-          >
-            <Copy size={14} />
-            Duplicate
-          </button>
-          {element.templateId && (
-            <button
-              type="button"
-              onClick={() => removeCanvasElement(element.id)}
-              className="studio-tools-action-btn w-full text-[#e8746a]"
-            >
-              <Trash2 size={14} />
-              Remove template
-            </button>
-          )}
-          {isImage && (
-            <button
-              type="button"
-              onClick={() => removeCanvasElement(element.id)}
-              className="studio-tools-action-btn w-full text-[#e8746a]"
-            >
-              <Trash2 size={14} />
-              Remove from frame
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => selectCanvasElement(null)}
-            className="studio-tools-action-btn w-full"
-          >
-            Deselect
-          </button>
+      <InspectorSection
+        id="canvas-transform"
+        title="Transform"
+        icon={<RotateCcw size={12} />}
+        summary={`${Math.round(element.x)}, ${Math.round(element.y)}`}
+        defaultOpen={false}
+      >
+        <Slider
+          label="Position X"
+          valueLabel={`${Math.round(element.x)}px`}
+          min={0}
+          max={Math.max(100, canvasW)}
+          step={1}
+          value={element.x}
+          onChange={(e) =>
+            updateCanvasElement(element.id, { x: parseInt(e.target.value, 10) })
+          }
+        />
+        <Slider
+          label="Position Y"
+          valueLabel={`${Math.round(element.y)}px`}
+          min={0}
+          max={Math.max(100, canvasH)}
+          step={1}
+          value={element.y}
+          onChange={(e) =>
+            updateCanvasElement(element.id, { y: parseInt(e.target.value, 10) })
+          }
+        />
+        {!isImage && (
+          <Slider
+            label="Rotation"
+            valueLabel={`${Math.round(element.rotation)}°`}
+            min={-180}
+            max={180}
+            step={1}
+            value={element.rotation}
+            onChange={(e) =>
+              updateCanvasElement(element.id, { rotation: parseInt(e.target.value, 10) })
+            }
+          />
+        )}
+        <div className="grid grid-cols-2 gap-2 text-xs font-mono text-muted">
+          <div className="studio-canvas-meta-chip">
+            <span className="text-faint">X</span> {Math.round(element.x)}
+          </div>
+          <div className="studio-canvas-meta-chip">
+            <span className="text-faint">Y</span> {Math.round(element.y)}
+          </div>
+          <div className="studio-canvas-meta-chip">
+            <span className="text-faint">W</span> {Math.round(element.width)}
+          </div>
+          <div className="studio-canvas-meta-chip">
+            <span className="text-faint">{isImage ? 'H' : '°'}</span>{' '}
+            {isImage ? Math.round(element.height) : Math.round(element.rotation)}
+          </div>
         </div>
-      </StudioPanel>
-    </div>
+      </InspectorSection>
+
+      <InspectorSection id="canvas-actions" title="Actions" defaultOpen={false}>
+        {!isImage && element.segmentType === 'translation' && element.segmentIndex != null && (
+          <button
+            type="button"
+            disabled={status !== 'idle'}
+            onClick={() => retranslateActiveSegment(element.segmentIndex!)}
+            className="studio-tools-action-btn w-full"
+          >
+            {status === 'translating' ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            AI retranslate line
+          </button>
+        )}
+        <button type="button" onClick={resetLayout} className="studio-tools-action-btn w-full">
+          <RotateCcw size={14} />
+          Reset transform
+        </button>
+        <button
+          type="button"
+          onClick={() => duplicateCanvasElement(element.id)}
+          className="studio-tools-action-btn w-full"
+        >
+          <Copy size={14} />
+          Duplicate
+        </button>
+        {(element.templateId || isImage) && (
+          <button
+            type="button"
+            onClick={() => removeCanvasElement(element.id)}
+            className="studio-tools-action-btn w-full text-[#e8746a]"
+          >
+            <Trash2 size={14} />
+            {isImage ? 'Remove from frame' : 'Remove template'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => selectCanvasElement(null)}
+          className="studio-tools-action-btn w-full"
+        >
+          Deselect
+        </button>
+      </InspectorSection>
+    </InspectorDock>
   );
 }
 

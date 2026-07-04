@@ -9,7 +9,7 @@ interface StudioPanelProps {
 
 export function StudioPanel({ title, icon, children, className }: StudioPanelProps) {
   return (
-    <section className={cn('studio-panel p-4 space-y-3', className)}>
+    <section className={cn('studio-panel space-y-3', className)}>
       <div className="studio-panel-title">
         {icon}
         <h3>{title}</h3>

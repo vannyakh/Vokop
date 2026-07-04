@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { Undo2, Redo2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
+import { StudioIcon } from '@vokop/ui';
 
 export function StudioHeaderHistoryTools() {
   const undoCanvas = useAppStore((s) => s.undoCanvas);
@@ -39,7 +39,7 @@ export function StudioHeaderHistoryTools() {
         onClick={undoCanvas}
         className={cn('studio-header-canvas-tool-btn', !canUndoCanvas && 'disabled')}
       >
-        <Undo2 size={13} strokeWidth={2} />
+        <StudioIcon name="undo" size={13} />
       </button>
       <button
         type="button"
@@ -48,7 +48,7 @@ export function StudioHeaderHistoryTools() {
         onClick={redoCanvas}
         className={cn('studio-header-canvas-tool-btn', !canRedoCanvas && 'disabled')}
       >
-        <Redo2 size={13} strokeWidth={2} />
+        <StudioIcon name="redo" size={13} />
       </button>
     </div>
   );

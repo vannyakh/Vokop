@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Diamond, Info, Loader2 } from 'lucide-react';
+import { Diamond, Info } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import {
@@ -12,9 +12,8 @@ import {
   type TextTemplateInput,
 } from '@/features/studio/constants/textTemplates';
 import { TEXT_EFFECTS, TEXT_EFFECT_IDS } from '@/features/studio/constants/textEffects';
-import { TEXT_EFFECT_CATEGORIES } from '@vokop/shared';
+import { getTextEffectSeed, TEXT_EFFECT_CATEGORIES } from '@vokop/shared';
 import { TextEffectPreviewCard } from '@/features/studio/components/TextEffectPreviewCard';
-import { useTextEffectPreviews } from '@/features/studio/hooks/useTextEffectPreviews';
 import { textEffectStyleOverrides } from '@/features/studio/lib/textEffectPreviewStyle';
 import type { TextTemplateStyle } from '@/features/studio/constants/textTemplates';
 import type { CanvasTextEffectId } from '@/types/canvas';
@@ -110,12 +109,12 @@ function TemplateCarousel({
 function applyTextEffect(
   addTextTemplate: ReturnType<typeof useAppStore.getState>['addTextTemplate'],
   effectId: CanvasTextEffectId,
-  sampleText?: string,
 ) {
   const cfg = TEXT_EFFECTS[effectId];
+  const sampleText = getTextEffectSeed(effectId)?.sampleText ?? 'Effect text';
   addTextTemplate({
     id: `effect-${effectId}`,
-    defaultText: sampleText ?? 'Effect text',
+    defaultText: sampleText,
     verticalAlign: 'center',
     style: textEffectStyleOverrides(cfg),
     textEffect: effectId,
@@ -127,7 +126,6 @@ export function TextTemplatesPanel() {
   const [tab, setTab] = useState<TextPanelTab>('effects');
   const [filter, setFilter] = useState<TextTemplateFilter>('all');
   const [effectFilter, setEffectFilter] = useState<EffectFilter>('all');
-  const { previewMap, loading: previewsLoading, pixabayEnabled } = useTextEffectPreviews();
 
   const applyTemplate = (template: TextTemplate) => {
     addTextTemplate({
@@ -149,7 +147,7 @@ export function TextTemplatesPanel() {
   };
 
   const effectIds = (TEXT_EFFECT_IDS.filter((id) => id !== 'none') as CanvasTextEffectId[]).filter(
-    (id) => effectFilter === 'all' || previewMap.get(id)?.category === effectFilter,
+    (id) => effectFilter === 'all' || getTextEffectSeed(id)?.category === effectFilter,
   );
 
   return (
@@ -175,58 +173,40 @@ export function TextTemplatesPanel() {
         </button>
       </div>
 
+      <div className="text-templates-body studio-scrollbar">
       {tab === 'effects' && (
         <div className="text-effects-panel">
-          <p className="text-effects-panel-lead">
-            Preview effects on real stock photos. Click to add styled text at the playhead.
-          </p>
-
-          {!pixabayEnabled && !previewsLoading && (
-            <p className="text-effects-api-hint">
-              <Info size={12} aria-hidden />
-              Set <code>PIXABAY_API_KEY</code> in server <code>.env</code> for photo previews.
-            </p>
-          )}
-
-          <div className="text-effects-filters" role="tablist" aria-label="Effect categories">
-            {TEXT_EFFECT_CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                role="tab"
-                aria-selected={effectFilter === cat.id}
-                className={cn('text-effects-filter', effectFilter === cat.id && 'active')}
-                onClick={() => setEffectFilter(cat.id)}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-
-          {previewsLoading ? (
-            <div className="text-effects-loading">
-              <Loader2 size={18} className="animate-spin text-muted" />
-              <span>Loading previews…</span>
-            </div>
-          ) : (
-            <div className="text-effects-grid">
-              {effectIds.map((effectId) => (
-                <TextEffectPreviewCard
-                  key={effectId}
-                  effectId={effectId}
-                  preview={previewMap.get(effectId)}
-                  onClick={() =>
-                    applyTextEffect(addTextTemplate, effectId, previewMap.get(effectId)?.sampleText)
-                  }
-                />
+          <div className="text-effects-toolbar">
+            <div className="text-effects-filters" role="tablist" aria-label="Effect categories">
+              {TEXT_EFFECT_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={effectFilter === cat.id}
+                  className={cn('text-effects-filter', effectFilter === cat.id && 'active')}
+                  onClick={() => setEffectFilter(cat.id)}
+                >
+                  {cat.label}
+                </button>
               ))}
             </div>
-          )}
+          </div>
+
+          <div className="text-effects-grid">
+            {effectIds.map((effectId) => (
+              <TextEffectPreviewCard
+                key={effectId}
+                effectId={effectId}
+                onClick={() => applyTextEffect(addTextTemplate, effectId)}
+              />
+            ))}
+          </div>
         </div>
       )}
 
       {tab === 'templates' && (
-        <>
+        <div className="text-templates-scroll">
           <div className="text-templates-filters">
             <button
               type="button"
@@ -300,8 +280,9 @@ export function TextTemplatesPanel() {
               </section>
             );
           })}
-        </>
+        </div>
       )}
+      </div>
     </div>
   );
 }

@@ -1,24 +1,10 @@
 import { useRef, useState, type RefObject } from 'react';
-import {
-  Play,
-  Pause,
-  Sparkles,
-  Loader2,
-  Mic2,
-  Scissors,
-  Trash2,
-  Mic,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  AlignCenter,
-  Magnet,
-} from 'lucide-react';
+import { Sparkles, Loader2, Mic2, Mic, AlignCenter, Magnet } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import { isEditableTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
-import { Button } from '@vokop/ui';
+import { Button, StudioIcon } from '@vokop/ui';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
@@ -122,7 +108,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             disabled={!transcriptReady}
             onClick={splitTimelineAtPlayhead}
           >
-            <Scissors size={15} />
+            <StudioIcon name="scissors" size={15} />
           </button>
           <button
             type="button"
@@ -131,7 +117,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             disabled={!canDelete}
             onClick={handleDeleteSelected}
           >
-            <Trash2 size={15} />
+            <StudioIcon name="bin" size={15} />
           </button>
           <Button size="md" onClick={onProcessAll} disabled={status !== 'idle'} className="studio-playback-process">
             {status === 'idle' ? <Sparkles size={14} /> : <Loader2 size={14} className="animate-spin" />}
@@ -147,9 +133,9 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             title={isPaused ? 'Play' : 'Pause'}
           >
             {isPaused ? (
-              <Play size={13} fill="currentColor" className="ml-0.5" />
+              <StudioIcon name="play" size={13} className="ml-0.5" />
             ) : (
-              <Pause size={13} />
+              <StudioIcon name="pause" size={13} />
             )}
           </button>
           <span className="studio-playback-time font-mono">
@@ -170,7 +156,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             className={cn('studio-playback-icon-btn studio-playback-ai', isSyncPlaying && 'active')}
             title="Live preview"
           >
-            {isSyncPlaying ? <Pause size={14} /> : <Mic2 size={14} />}
+            {isSyncPlaying ? <StudioIcon name="pause" size={14} /> : <Mic2 size={14} />}
           </button>
           <div className="studio-playback-divider" />
           <button
@@ -198,7 +184,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             onClick={() => setTimelineZoom(timelineZoom - 25)}
             title="Zoom out"
           >
-            <ZoomOut size={15} />
+            <StudioIcon name="zoomOut" size={15} />
           </button>
           <input
             type="range"
@@ -217,7 +203,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             onClick={() => setTimelineZoom(timelineZoom + 25)}
             title="Zoom in"
           >
-            <ZoomIn size={15} />
+            <StudioIcon name="zoomIn" size={15} />
           </button>
           <div className="studio-playback-divider" />
           <button
@@ -227,7 +213,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
             title={previewFullscreenOpen ? 'Exit fullscreen preview' : 'Fullscreen preview'}
             aria-pressed={previewFullscreenOpen}
           >
-            <Maximize2 size={15} />
+            <StudioIcon name="fullscreen" size={15} />
           </button>
         </div>
       </div>

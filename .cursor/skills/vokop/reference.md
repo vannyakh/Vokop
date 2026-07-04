@@ -58,6 +58,8 @@ Legacy (re-uploads file): `POST /api/v1/video/probe`, `POST /api/v1/video/filmst
 | `admin-service` | Admin RBAC, menus, users — port 4004 |
 | `video-tools` | FFmpeg sessions, filmstrip, presets, assets — port 4001 |
 | Web `@omnimedia/omnitool` | Browser video tools via `apps/web/src/features/studio/lib/omniTool/` |
+| `@vokop/ui` `StudioIcon` | Omniclip-adapted studio icons (`packages/ui/src/icons`) |
+| `@vokop/editor` utils | Omniclip-adapted timeline/placement/human helpers |
 | `ai-content` (planned) | FunClip-inspired ASR, subtitles, LLM clip assist |
 
 ## Web app entry points

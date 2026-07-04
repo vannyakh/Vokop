@@ -1434,6 +1434,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeStudioTool: 'text',
       toolsDrawerOpen: true,
       canvasTool: 'select',
+      editorOpen: true,
+      activeTab: 'inspector',
     });
   },
 

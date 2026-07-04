@@ -1,17 +1,10 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import {
-  Film,
-  Image as ImageIcon,
-  Music2,
-  Plus,
-  Trash2,
-  Upload,
-  Loader2,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { human } from '@vokop/editor';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
-import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
+import { StudioIcon } from '@vokop/ui';
 import {
   MEDIA_ASSET_DRAG_MIME,
   mediaAssetDragPayload,
@@ -19,10 +12,11 @@ import {
 } from '@/features/studio/lib/mediaLibrary';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
-function AssetIcon({ kind }: { kind: MediaAsset['kind'] }) {
-  if (kind === 'audio') return <Music2 size={18} />;
-  if (kind === 'image') return <ImageIcon size={18} />;
-  return <Film size={18} />;
+const ACCEPT =
+  'video/*,audio/*,image/*,.mp4,.webm,.mov,.mp3,.wav,.png,.jpg,.jpeg,.webp,.gif';
+
+function isFileDrag(e: DragEvent): boolean {
+  return Array.from(e.dataTransfer.types).includes('Files');
 }
 
 function MediaAssetCard({
@@ -38,6 +32,8 @@ function MediaAssetCard({
   onSetPrimary: () => void;
   timelineReady: boolean;
 }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
   const onDragStart = (e: DragEvent) => {
     if (!timelineReady) {
       e.preventDefault();
@@ -47,8 +43,21 @@ function MediaAssetCard({
     e.dataTransfer.effectAllowed = 'copy';
   };
 
+  const onVideoEnter = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    void video.play().catch(() => undefined);
+  };
+
+  const onVideoLeave = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+  };
+
   return (
-    <div
+    <article
       className={cn(
         'media-lib-card',
         asset.isPrimary && 'media-lib-card--primary',
@@ -62,59 +71,79 @@ function MediaAssetCard({
           : `${asset.name} — run Process All to unlock timeline edit`
       }
     >
-      <div className="media-lib-card-thumb">
-        {asset.kind === 'image' || asset.kind === 'video' ? (
-          asset.kind === 'video' ? (
-            <video src={asset.url} muted preload="metadata" className="media-lib-thumb-media" />
-          ) : (
-            <img src={asset.url} alt="" className="media-lib-thumb-media" />
-          )
+      <div
+        className="media-lib-card-thumb"
+        onPointerEnter={asset.kind === 'video' ? onVideoEnter : undefined}
+        onPointerLeave={asset.kind === 'video' ? onVideoLeave : undefined}
+      >
+        {asset.kind === 'video' ? (
+          <video
+            ref={videoRef}
+            src={asset.url}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="media-lib-thumb-media"
+          />
+        ) : asset.kind === 'image' ? (
+          <img src={asset.url} alt="" className="media-lib-thumb-media" />
         ) : (
           <div className="media-lib-thumb-audio">
-            <AssetIcon kind={asset.kind} />
+            <StudioIcon name="volume" size={28} />
           </div>
         )}
-        <span className="media-lib-kind">{asset.kind}</span>
-        {asset.isPrimary && <span className="media-lib-primary-badge">Main</span>}
-        <div className="media-lib-card-actions">
-          <button
-            type="button"
-            className="media-lib-action-btn"
-            title={timelineReady ? 'Add to timeline' : 'Unlocks after transcript'}
-            disabled={!timelineReady}
-            onClick={onAdd}
-          >
-            <Plus size={12} />
-          </button>
-          {!asset.isPrimary && (
-            <button type="button" className="media-lib-action-btn" title="Remove" onClick={onRemove}>
-              <Trash2 size={12} />
+
+        <div className="media-lib-overlay">
+          <span className="media-lib-kind">{asset.kind}</span>
+          <div className="media-lib-card-actions">
+            <button
+              type="button"
+              className="media-lib-action-btn media-lib-action-btn--add"
+              title={timelineReady ? 'Add to timeline' : 'Unlocks after transcript'}
+              disabled={!timelineReady}
+              onClick={onAdd}
+            >
+              <StudioIcon name="add" size={14} />
             </button>
-          )}
+            {!asset.isPrimary && (
+              <button
+                type="button"
+                className="media-lib-action-btn media-lib-action-btn--delete"
+                title="Remove"
+                onClick={onRemove}
+              >
+                <StudioIcon name="bin" size={14} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {asset.isPrimary && <span className="media-lib-primary-badge">Main</span>}
+        {asset.kind !== 'image' && asset.duration > 0 && (
+          <span className="media-lib-duration">{formatStudioTimecode(asset.duration)}</span>
+        )}
       </div>
+
       <div className="media-lib-card-meta">
         <span className="media-lib-card-name" title={asset.name}>
           {asset.name}
         </span>
         <span className="media-lib-card-sub">
-          {asset.kind !== 'image' && asset.duration > 0 && (
-            <span>{formatStudioTimecode(asset.duration)}</span>
-          )}
           {asset.width != null && asset.height != null && (
             <span>
               {asset.width}×{asset.height}
             </span>
           )}
-          <span>{(asset.size / (1024 * 1024)).toFixed(1)} MB</span>
+          <span>{human.bytes(asset.size)}</span>
         </span>
         {asset.kind === 'video' && !asset.isPrimary && (
           <button type="button" className="media-lib-set-main" onClick={onSetPrimary}>
-            Set as main video
+            Set as main
           </button>
         )}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -144,12 +173,15 @@ export function MediaLibraryPanel() {
   );
 
   const onDragOver = (e: DragEvent) => {
+    if (!isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
     if (!dragActive) setDragActive(true);
   };
 
   const onDragLeave = (e: DragEvent) => {
+    if (!isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     const related = e.relatedTarget as Node | null;
@@ -158,62 +190,95 @@ export function MediaLibraryPanel() {
   };
 
   const onDrop = (e: DragEvent) => {
+    if (!isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     void handleFiles(e.dataTransfer.files);
   };
 
-  return (
-    <StudioPanel title="Project media" icon={<Film size={12} className="text-accent" />}>
-      <div
-        className={cn('media-lib-panel', dragActive && 'media-lib-panel--drag')}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="video/*,audio/*,image/*,.mp4,.webm,.mov,.mp3,.wav,.png,.jpg,.jpeg,.webp,.gif"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            void handleFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
+  const empty = mediaAssets.length === 0 && !importing;
 
+  return (
+    <div
+      className={cn('media-lib-panel', dragActive && 'media-lib-panel--drag')}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+
+      <header className="media-lib-header">
+        <p className="media-lib-count">
+          {mediaAssets.length === 0
+            ? 'Drop files anywhere'
+            : `${mediaAssets.length} file${mediaAssets.length === 1 ? '' : 's'}`}
+        </p>
         <button
           type="button"
           className="media-lib-import-btn"
           disabled={importing}
           onClick={() => inputRef.current?.click()}
         >
-          {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          {importing ? 'Importing…' : 'Import media'}
+          {importing ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <StudioIcon name="import" size={15} />
+          )}
+          <span>{importing ? 'Importing…' : 'Import'}</span>
         </button>
+      </header>
 
-        {mediaAssets.length === 0 ? (
-          <div className="media-lib-empty">
-            <Upload size={18} className="text-faint" />
-            <p>No media yet. Import video, audio, or images.</p>
-          </div>
-        ) : (
-          <div className="media-lib-grid">
-            {mediaAssets.map((asset) => (
-              <MediaAssetCard
-                key={asset.id}
-                asset={asset}
-                timelineReady={transcriptReady}
-                onAdd={() => addMediaAssetToTimeline(asset.id)}
-                onRemove={() => removeMediaAsset(asset.id)}
-                onSetPrimary={() => setPrimaryVideoAsset(asset.id)}
-              />
-            ))}
-          </div>
-        )}
+      {empty ? (
+        <button
+          type="button"
+          className="media-lib-empty"
+          onClick={() => inputRef.current?.click()}
+        >
+          <StudioIcon name="import" size={36} className="media-lib-empty-icon" />
+          <span className="media-lib-empty-title">No media files yet</span>
+          <span className="media-lib-empty-sub">
+            Drop video, audio, or images here — or click to browse
+          </span>
+        </button>
+      ) : (
+        <div className="media-lib-grid">
+          {importing && (
+            <div className="media-lib-card media-lib-card--placeholder" aria-hidden>
+              <div className="media-lib-placeholder">
+                <Loader2 size={22} className="animate-spin text-accent" />
+              </div>
+            </div>
+          )}
+          {mediaAssets.map((asset) => (
+            <MediaAssetCard
+              key={asset.id}
+              asset={asset}
+              timelineReady={transcriptReady}
+              onAdd={() => addMediaAssetToTimeline(asset.id)}
+              onRemove={() => removeMediaAsset(asset.id)}
+              onSetPrimary={() => setPrimaryVideoAsset(asset.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="media-lib-drag-message" aria-hidden={!dragActive}>
+        <div className="media-lib-drag-content">
+          <StudioIcon name="import" size={36} />
+          <span>Drop files to import</span>
+        </div>
       </div>
-    </StudioPanel>
+    </div>
   );
 }

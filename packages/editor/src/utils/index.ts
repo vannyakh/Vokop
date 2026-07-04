@@ -1,3 +1,9 @@
 export * from './timecode.js';
 export * from './timeline.js';
 export * from './clips.js';
+export * from './human.js';
+export * from './wait.js';
+export * from './arrays.js';
+export * from './dashify.js';
+export * from './placement.js';
+export { computeTimelineDurationMs as calculateProjectDuration } from './clips.js';

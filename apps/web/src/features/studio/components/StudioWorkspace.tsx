@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { PanelRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { useAudioEngine, useSyncPlayback, useReelPlayback, useVideoExport } from '@/features/audio';
@@ -9,7 +8,6 @@ import { StudioToolsDock } from '@/features/studio/components/StudioToolsDock';
 import { VideoViewport } from '@/features/studio/components/VideoViewport';
 import { TimelineBar } from '@/features/studio/components/TimelineBar';
 import { EditorSidebar } from '@/features/studio/components/EditorSidebar';
-import { IconButton } from '@vokop/ui';
 import { CinemaPreviewOverlay } from '@/features/studio/components/CinemaPreviewOverlay';
 import { ExportSettingsModal } from '@/features/studio/components/ExportSettingsModal';
 import { useVideoSession } from '@/features/studio/hooks/useVideoSession';
@@ -20,8 +18,6 @@ import type { ExportSettings } from '@/features/studio/lib/exportSettings';
 
 export function StudioWorkspace() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const setEditorOpen = useAppStore((s) => s.setEditorOpen);
-  const editorOpen = useAppStore((s) => s.editorOpen);
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
   const isExporting = useAppStore((s) => s.isExporting);
@@ -112,16 +108,6 @@ export function StudioWorkspace() {
           onPlayAnalysis={handlePlayAnalysis}
           onStartReel={startReel}
         />
-
-        {!editorOpen && (
-          <IconButton
-            onClick={() => setEditorOpen(true)}
-            className="studio-panel-trigger studio-panel-trigger--right"
-            title="Open editor"
-          >
-            <PanelRight size={18} />
-          </IconButton>
-        )}
       </div>
 
       <CinemaPreviewOverlay videoRef={videoRef} />
