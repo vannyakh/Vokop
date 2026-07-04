@@ -6,3 +6,4 @@ export * from './editor.js';
 export * from './media.js';
 export * from './auth.js';
 export * from './projects.js';
+export * from './ai.js';

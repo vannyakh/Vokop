@@ -12,7 +12,7 @@ export {
   retranslateSegment,
   analyzeVideo,
   editorSegmentsToTranscript,
-} from './services/gemini';
+} from './services/studioAi';
 export type {
   EditorSegment,
   TranscriptionResult,

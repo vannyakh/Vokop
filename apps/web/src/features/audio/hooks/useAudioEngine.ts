@@ -24,7 +24,7 @@ export function useAudioEngine() {
         audioContextRef.current = await ensureAudioContext(audioContextRef.current);
         const ctx = audioContextRef.current;
 
-        const audioBuffer = decodeBase64ToAudioBuffer(ctx, base64);
+        const audioBuffer = await decodeBase64ToAudioBuffer(ctx, base64);
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
 

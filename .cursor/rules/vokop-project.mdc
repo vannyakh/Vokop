@@ -18,7 +18,7 @@ alwaysApply: true
 | `services/auth` | Account & security only (port 4002) |
 | `services/studio` | Studio projects CRUD + trash (port 4003) |
 | `services/admin` | Admin RBAC, menus, users (port 4004) |
-| `services/ai-content` | Planned FunClip-inspired AI generate-content |
+| `services/ai-content` | Studio AI: text, image, voice, translate, transcripts, agent (port 4005) |
 | `packages/shared` | Config, constants, types, preferences provider |
 | `packages/api` | Zod schemas, routes, typed `ApiClient` |
 | `packages/ui` | Shared React components (`Button`, `LaunchButton`, …) |
@@ -30,14 +30,17 @@ alwaysApply: true
 | Source | Use in Vokop |
 |--------|----------------|
 | [Omniclip](https://github.com/omni-media/omniclip) | Editor **frontend core** patterns (timeline/clips, trim/split, undo/redo). Keep **own UI/UX**. |
-| [FunClip](https://github.com/modelscope/FunClip) | **AI content service** (ASR, SRT, LLM clip assist) as `services/ai-content`. No Gradio UI. |
+| [FunClip](https://github.com/modelscope/FunClip) | **AI content** service design (`services/ai-content`). No Gradio UI. |
+| [302.AI](https://302.ai/) | Optional **unified LLM gateway** (`provider: 302ai`) — one key for many models. |
 
 ## Commands
 
 ```bash
-pnpm db:up && pnpm dev    # Mongo/Redis + all services
-pnpm stop                 # free ports 3000–3001, 4000–4003
+pnpm db:up && pnpm dev    # Mongo/Redis + all services (incl. ai-content)
+pnpm dev:ai               # ai-content only
+pnpm stop                 # free ports 3000–3001, 4000–4005
 pnpm build                # build all packages
+node --env-file=.env scripts/test-ai-302.mjs   # smoke-test 302.AI + /ai/*
 ```
 
 ## Conventions
@@ -46,4 +49,5 @@ pnpm build                # build all packages
 - **UI components** prefer `@vokop/ui` for reusable primitives. Use `@vokop/ui/antd` for Ant Design and `@vokop/ui/shadcn` for shadcn/Radix primitives — do not depend on `antd` directly in apps. Keep app-specific customization in the owning app component and promote stable shared pieces to `packages/ui`.
 - **New API routes**: add Zod schema → `packages/api` client → proxy in `services/gateway` → handler in service.
 - **Video session**: upload once via `POST /api/v1/video/session`; reuse `sessionId` for filmstrip, editor apply, preview, and AI jobs.
+- **Studio AI**: implement in `services/ai-content` via `/api/v1/ai/*` (LLM registry: `302ai` | `gemini` | `openai` | `claude`). Prefer server APIs over client-only Gemini.
 - Keep diffs minimal; match existing naming and import style (`@/` in web app).

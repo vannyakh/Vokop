@@ -10,7 +10,7 @@ import {
   generateVoiceoverForEditor,
   analyzeVideo,
   retranslateSegment,
-} from '@/features/translation/services/gemini';
+} from '@/features/translation/services/studioAi';
 
 export function useVideoProcessing() {
   const store = useAppStore();

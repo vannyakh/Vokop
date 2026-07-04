@@ -23,8 +23,7 @@ alwaysApply: false
 | `admin` (`@vokop/admin-service`) | Admin RBAC, menus, users |
 | `video-tools` | FFmpeg sessions, filmstrip jobs, editor apply/preview — uses `@vokop/pipeline` |
 | `gateway` | Proxies `/api/v1/*` via `src/proxy/routes.ts` |
-| `auth` | Login/register, RBAC, projects CRUD |
-| `ai-content` (planned) | FunClip-inspired ASR, subtitles, LLM clip suggestions |
+| `ai-content` (`@vokop/ai-content`) | Text, image, voice TTS, translate, transcripts, clip-suggest, agent; LLM registry |
 
 ## video-tools patterns
 
@@ -34,17 +33,19 @@ alwaysApply: false
 - **Editor**: `src/editor/` — catalog, apply, FFmpeg preview; presets in `@vokop/shared/constants/editor.ts`.
 - Validate responses with `toApiResponse(schema, data)` from `@vokop/api`.
 - Handle `EADDRINUSE` with clear message; suggest `pnpm stop`.
+- AI queue workers may forward ASR to `AI_CONTENT_URL`; public `/api/v1/ai` is owned by **ai-content**, not video-tools.
 
-## ai-content patterns (FunClip reference)
+## ai-content patterns
 
-Reference: https://github.com/modelscope/FunClip
+Reference: FunClip (ASR/SRT/clips) · [302.AI](https://302.ai/) (optional multi-model gateway)
 
-- Implement as **HTTP service** under `services/ai-content`, not Gradio.
-- Prefer `sessionId` from video-tools for media input (no full re-upload).
-- Long ASR/LLM work = **async jobs** + `GET /api/v1/ai/jobs/:id` progress (mirror filmstrip jobs).
-- Outputs: timed transcript segments, SRT, optional `speakerId`, LLM clip ranges `[start, end]`.
-- Gateway proxy: `/api/v1/ai` → `AI_CONTENT_URL`.
-- Studio consumes results into timeline/captions; never embed FunClip UI.
+- Service: `services/ai-content` (port 4005), gateway `/api/v1/ai` → `AI_CONTENT_URL`.
+- **LLM registry** (`src/llm/`): `302ai` | `gemini` | `openai` | `claude`. Prefer `optionsForFeature()` for task routing.
+- Features: text assist, image analyze, voice TTS, translate, transcribe (async jobs), subtitles, clip-suggest, agent.
+- Contracts: `packages/api/src/schemas/ai.ts` + `ApiClient` (`translate`, `analyzeImage`, `synthesizeSpeech`, `assistText`, `startTranscribe`, …).
+- Prefer `sessionId` / media from video-tools; accept `mediaBase64` when needed.
+- Long work = Redis jobs + `GET /api/v1/ai/jobs/:id`. Studio consumes results into timeline/captions.
+- See rule `ai-content.mdc` for provider/env details. Never embed FunClip Gradio.
 
 ## Package exports
 
@@ -55,4 +56,4 @@ Reference: https://github.com/modelscope/FunClip
 
 ## Env
 
-Root `.env` is loaded by all services. Key vars: `MONGODB_URI`, `REDIS_URL`, `GATEWAY_PORT`, `VIDEO_TOOLS_PORT`, `AUTH_PORT`, `AI_CONTENT_PORT`, `SESSION_TTL_SEC`.
+Root `.env` is loaded by all services. Key vars: `MONGODB_URI`, `REDIS_URL`, `GATEWAY_PORT`, `VIDEO_TOOLS_PORT`, `AUTH_PORT`, `STUDIO_PORT`, `ADMIN_SERVICE_PORT`, `AI_CONTENT_PORT`, `AI_CONTENT_URL`, `SESSION_TTL_SEC`, `LLM_PROVIDER`, `AI_302_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`.

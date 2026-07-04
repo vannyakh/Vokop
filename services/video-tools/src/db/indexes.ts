@@ -10,9 +10,14 @@
  *   rest of the startup sequence.
  */
 
+import type { CreateIndexesOptions, IndexSpecification } from 'mongodb';
 import { projects, assets, renderJobs } from './collections.js';
 
-const indexDefs: Array<{ col: () => ReturnType<typeof projects>; keys: object; opts?: object }> = [
+type Indexable = {
+  createIndex: (keys: IndexSpecification, options?: CreateIndexesOptions) => Promise<string>;
+};
+
+const indexDefs: Array<{ col: () => Indexable; keys: IndexSpecification; opts?: CreateIndexesOptions }> = [
   { col: projects, keys: { projectId: 1 }, opts: { unique: true, sparse: true } },
   { col: projects, keys: { ownerId: 1 } },
 

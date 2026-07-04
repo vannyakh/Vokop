@@ -8,7 +8,7 @@ import { isElementVisible } from '@/features/studio/lib/canvasElements';
 import { getVideoContentRect, clampToContentRect, type CanvasRect } from '@/features/studio/lib/canvasCoords';
 import { getDisplayRatio } from '@/features/studio/constants/aspectRatios';
 import { snapDragPosition, type CanvasGuideLine } from '@/features/studio/lib/canvasSnap';
-import { loadGoogleFont } from '@/features/studio/lib/googleFontLoader';
+import { loadStudioFont } from '@/features/studio/lib/fontLoader';
 import { getEffectProps } from '@/features/studio/constants/textEffects';
 import {
   CanvasElementOverlay,
@@ -133,7 +133,7 @@ function CanvasElementNode({
 
   useEffect(() => {
     if (element.fontFamily) {
-      void loadGoogleFont(element.fontFamily);
+      void loadStudioFont(element.fontFamily);
     }
   }, [element.fontFamily]);
 

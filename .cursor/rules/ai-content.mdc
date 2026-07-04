@@ -1,0 +1,52 @@
+---
+description: AI content service — LLM provider registry, studio AI features, 302.AI gateway
+globs: services/ai-content/**/*,packages/api/src/schemas/ai.ts,packages/api/src/client.ts,scripts/test-ai-302.mjs
+alwaysApply: false
+---
+
+# AI content (`services/ai-content`)
+
+Owns studio AI: text, image, voice (TTS), translation, transcripts, clip-suggest, agent. Port **4005**. Gateway: `/api/v1/ai` → `AI_CONTENT_URL`.
+
+## Provider registry
+
+Providers live in `src/llm/providers/` and register in `src/llm/registry.ts`.
+
+| Id | Backend | Env |
+|----|---------|-----|
+| `302ai` | [302.AI](https://302.ai/) OpenAI-compatible gateway | `AI_302_API_KEY`, `AI_302_BASE_URL=https://api.302.ai` |
+| `gemini` | Google Gemini direct | `GEMINI_API_KEY` |
+| `openai` | OpenAI direct | `OPENAI_API_KEY` |
+| `claude` | Anthropic direct | `ANTHROPIC_API_KEY` |
+
+Resolution order: explicit `provider` → model prefix → `LLM_PROVIDER` default → first configured. Unknown models (deepseek, qwen, …) and missing native keys fall through to **302ai** when configured.
+
+- Add a provider: implement `LlmProvider` in `src/llm/providers/`, register in `registry.ts`, extend `LLM_PROVIDER_IDS` + `llmProviderIdSchema` in `@vokop/api`.
+- Feature routing: `optionsForFeature()` in `src/llm/capabilities.ts` (prefers 302 models per task).
+- TTS: OpenAI-compatible speech via `src/llm/speechClient.ts` (302 or OpenAI).
+
+## Studio features (HTTP)
+
+| Feature | Path | Notes |
+|---------|------|--------|
+| Capabilities | `GET /ai/capabilities` | What’s available + preferred models |
+| Providers | `GET /ai/llm/providers` | Registry status |
+| Transcripts | `POST /ai/transcribe` | Async job; poll `GET /ai/jobs/:id` |
+| Translate | `POST /ai/translate` | Text or timed segments |
+| Image | `POST /ai/image/analyze` | describe / ocr / caption |
+| Voice | `POST /ai/voice/tts` | `audioBase64` |
+| Text | `POST /ai/text` | rewrite, summarize, captions, polish, expand |
+| Subtitles | `POST /ai/subtitles` | SRT/VTT from segments |
+| Clips | `POST /ai/clip-suggest` | LLM `[start,end]` ranges |
+| Agent | `POST /ai/agent` | Studio agent + tools |
+| LLM | `POST /ai/llm/complete` | Low-level completion |
+
+Contracts: `packages/api/src/schemas/ai.ts` + `ApiClient` methods. Validate with `toApiResponse`.
+
+## Patterns
+
+- Prefer `sessionId` / media from video-tools when possible; accept `mediaBase64` for multimodal ASR/image.
+- Long work = Redis jobs (`src/lib/jobs.ts`) + poll; sync for translate/text/image/tts.
+- Studio UI should call `@vokop/api` (`api.translate`, `api.startTranscribe`, …) — not client-only Gemini long-term.
+- Smoke test: `node --env-file=.env scripts/test-ai-302.mjs` (needs balance on 302.AI).
+- Do not embed FunClip Gradio; FunClip is architecture reference only.

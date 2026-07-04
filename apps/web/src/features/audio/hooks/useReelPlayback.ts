@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import type { RefObject } from 'react';
 import { useAppStore } from '@/features/project';
-import { generateSpeech } from '@/features/translation/services/gemini';
+import { generateSpeech } from '@/features/translation/services/studioAi';
 import { parseTimeToSeconds } from '@/lib/utils/time';
 import { decodeBase64ToAudioBuffer, ensureAudioContext } from '@/lib/utils/audio';
 
@@ -39,7 +39,7 @@ export function useReelPlayback(
 
         audioContextRef.current = await ensureAudioContext(audioContextRef.current);
         const ctx = audioContextRef.current;
-        const audioBuffer = decodeBase64ToAudioBuffer(ctx, audioBase64Str);
+        const audioBuffer = await decodeBase64ToAudioBuffer(ctx, audioBase64Str);
 
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;

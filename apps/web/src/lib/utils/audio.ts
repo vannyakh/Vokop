@@ -1,7 +1,8 @@
 const SAMPLE_RATE = 24000;
 
 export function getAudioContext(): AudioContext {
-  return new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({
+  return new (window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({
     sampleRate: SAMPLE_RATE,
   });
 }
@@ -14,10 +15,16 @@ export async function ensureAudioContext(ctx: AudioContext | null): Promise<Audi
   return context;
 }
 
-export function decodeBase64ToAudioBuffer(
-  ctx: AudioContext,
-  base64: string,
-): AudioBuffer {
+function base64ToBytes(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function decodePcm16Base64(ctx: AudioContext, base64: string): AudioBuffer {
   const binaryString = atob(base64);
   const bytes = new Int16Array(binaryString.length / 2);
   for (let i = 0; i < binaryString.length; i += 2) {
@@ -32,6 +39,32 @@ export function decodeBase64ToAudioBuffer(
   const audioBuffer = ctx.createBuffer(1, float32Data.length, SAMPLE_RATE);
   audioBuffer.getChannelData(0).set(float32Data);
   return audioBuffer;
+}
+
+/**
+ * Decode TTS audio from ai-content (mp3/wav) or legacy Gemini PCM s16le @ 24kHz.
+ */
+export async function decodeBase64ToAudioBuffer(
+  ctx: AudioContext,
+  base64: string,
+): Promise<AudioBuffer> {
+  const bytes = base64ToBytes(base64);
+  try {
+    return await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  } catch {
+    return decodePcm16Base64(ctx, base64);
+  }
+}
+
+/** Object URL for waveform players — prefers encoded audio (mp3) from ai-content. */
+export function audioBase64ToObjectUrl(base64: string, mimeType = 'audio/mpeg'): string {
+  const bytes = base64ToBytes(base64);
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+}
+
+/** @deprecated Use audioBase64ToObjectUrl — kept for existing imports. */
+export function pcmBase64ToObjectUrl(base64: string): string {
+  return audioBase64ToObjectUrl(base64);
 }
 
 export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
@@ -75,10 +108,4 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   }
 
   return new Blob([arrayBuffer], { type: 'audio/wav' });
-}
-
-export function pcmBase64ToObjectUrl(base64: string): string {
-  const ctx = getAudioContext();
-  const buffer = decodeBase64ToAudioBuffer(ctx, base64);
-  return URL.createObjectURL(audioBufferToWavBlob(buffer));
 }

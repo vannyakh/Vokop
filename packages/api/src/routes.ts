@@ -63,8 +63,20 @@ export const routes = {
     project: (projectId: string) => `${API_PREFIX}/export/projects/${projectId}`,
     job: (jobId: string) => `${API_PREFIX}/export/jobs/${jobId}`,
   },
+  /** ai-content — text, image, voice, translate, transcripts, agent */
   ai: {
+    capabilities: `${API_PREFIX}/ai/capabilities`,
     transcribe: `${API_PREFIX}/ai/transcribe`,
+    translate: `${API_PREFIX}/ai/translate`,
+    analyze: `${API_PREFIX}/ai/analyze`,
+    imageAnalyze: `${API_PREFIX}/ai/image/analyze`,
+    voiceTts: `${API_PREFIX}/ai/voice/tts`,
+    textAssist: `${API_PREFIX}/ai/text`,
+    subtitles: `${API_PREFIX}/ai/subtitles`,
+    clipSuggest: `${API_PREFIX}/ai/clip-suggest`,
+    agent: `${API_PREFIX}/ai/agent`,
+    llmProviders: `${API_PREFIX}/ai/llm/providers`,
+    llmComplete: `${API_PREFIX}/ai/llm/complete`,
     job: (jobId: string) => `${API_PREFIX}/ai/jobs/${jobId}`,
   },
 

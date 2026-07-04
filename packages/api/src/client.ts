@@ -7,14 +7,25 @@ import { routes } from './routes.js';
 import {
   adminMenuResponseSchema,
   adminMenusResponseSchema,
+  agentRunRequestSchema,
+  agentRunResponseSchema,
+  aiCapabilitiesResponseSchema,
+  aiJobResponseSchema,
   applyEditorEditResponseSchema,
   authSessionResponseSchema,
+  clipSuggestRequestSchema,
+  clipSuggestResponseSchema,
   emailLookupResponseSchema,
   editorCatalogResponseSchema,
   editorPreviewResponseSchema,
   filmstripResponseSchema,
   giphyStickersResponseSchema,
   healthResponseSchema,
+  imageAnalyzeRequestSchema,
+  imageAnalyzeResponseSchema,
+  llmCompleteRequestSchema,
+  llmCompleteResponseSchema,
+  llmProvidersResponseSchema,
   mediaStatusResponseSchema,
   meResponseSchema,
   okResponseSchema,
@@ -23,9 +34,21 @@ import {
   pixabayVideoSearchResponseSchema,
   roleResponseSchema,
   rolesListResponseSchema,
+  startAiJobResponseSchema,
   startFilmstripJobResponseSchema,
+  subtitlesRequestSchema,
+  subtitlesResponseSchema,
+  textAssistRequestSchema,
+  textAssistResponseSchema,
   textEffectPreviewsResponseSchema,
+  transcribeRequestSchema,
+  translateRequestSchema,
+  translateResponseSchema,
   updateUserRolesRequestSchema,
+  videoAnalyzeRequestSchema,
+  videoAnalyzeResponseSchema,
+  voiceTtsRequestSchema,
+  voiceTtsResponseSchema,
   upsertAdminMenuRequestSchema,
   upsertRoleRequestSchema,
   usersListResponseSchema,
@@ -38,18 +61,41 @@ import {
   videoSessionResponseSchema,
 } from './schemas/index.js';
 import type {
+  AgentRunRequest,
+  AgentRunResponse,
+  AiCapabilitiesResponse,
+  AiJobResponse,
   ApplyEditorEditResponse,
   AuthSessionResponse,
+  ClipSuggestRequest,
+  ClipSuggestResponse,
   EditorCatalogResponse,
   EditorPreviewResponse,
   FilmstripResponse,
   GiphySticker,
   HealthResponse,
+  ImageAnalyzeRequest,
+  ImageAnalyzeResponse,
+  LlmCompleteRequest,
+  LlmCompleteResponse,
+  LlmProvidersResponse,
   MediaStatusResponse,
+  StartAiJobResponse,
+  SubtitlesRequest,
+  SubtitlesResponse,
+  TextAssistRequest,
+  TextAssistResponse,
   TextEffectPreviewsResponse,
+  TranscribeRequest,
+  TranslateRequest,
+  TranslateResponse,
   VideoJobResponse,
   VideoProbeResponse,
   VideoSessionResponse,
+  VideoAnalyzeRequest,
+  VideoAnalyzeResponse,
+  VoiceTtsRequest,
+  VoiceTtsResponse,
 } from './schemas/index.js';
 import type { StudioToolId } from './schemas/editor.js';
 
@@ -62,6 +108,12 @@ export interface PollJobOptions {
   intervalMs?: number;
   signal?: AbortSignal;
   onUpdate?: (job: VideoJobResponse) => void;
+}
+
+export interface PollAiJobOptions {
+  intervalMs?: number;
+  signal?: AbortSignal;
+  onUpdate?: (job: AiJobResponse) => void;
 }
 
 export class ApiClient {
@@ -176,6 +228,136 @@ export class ApiClient {
         );
       });
     }
+  }
+
+  // ─── ai-content (text, image, voice, translate, transcripts) ──────────────
+
+  async getAiCapabilities(): Promise<AiCapabilitiesResponse> {
+    return this.get(
+      aiCapabilitiesResponseSchema,
+      routes.ai.capabilities,
+      'Failed to load AI capabilities',
+    );
+  }
+
+  async startTranscribe(body: TranscribeRequest): Promise<StartAiJobResponse> {
+    const data = transcribeRequestSchema.parse(body);
+    return this.postJson(
+      startAiJobResponseSchema,
+      routes.ai.transcribe,
+      data,
+      'Failed to start transcription',
+    );
+  }
+
+  async getAiJob(jobId: string): Promise<AiJobResponse> {
+    return this.get(aiJobResponseSchema, routes.ai.job(jobId), 'Failed to fetch AI job');
+  }
+
+  async waitForAiJob(jobId: string, options: PollAiJobOptions = {}): Promise<AiJobResponse> {
+    const intervalMs = options.intervalMs ?? 450;
+
+    while (true) {
+      if (options.signal?.aborted) throw new Error('Job cancelled');
+
+      const job = await this.getAiJob(jobId);
+      options.onUpdate?.(job);
+
+      if (job.status === 'completed') return job;
+      if (job.status === 'failed') {
+        throw new Error(job.error ?? 'AI job failed');
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, intervalMs);
+        options.signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(new Error('Job cancelled'));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+
+  async translate(body: TranslateRequest): Promise<TranslateResponse> {
+    const data = translateRequestSchema.parse(body);
+    return this.postJson(translateResponseSchema, routes.ai.translate, data, 'Translation failed');
+  }
+
+  async analyzeImage(body: ImageAnalyzeRequest): Promise<ImageAnalyzeResponse> {
+    const data = imageAnalyzeRequestSchema.parse(body);
+    return this.postJson(
+      imageAnalyzeResponseSchema,
+      routes.ai.imageAnalyze,
+      data,
+      'Image analysis failed',
+    );
+  }
+
+  async analyzeVideo(body: VideoAnalyzeRequest): Promise<VideoAnalyzeResponse> {
+    const data = videoAnalyzeRequestSchema.parse(body);
+    return this.postJson(
+      videoAnalyzeResponseSchema,
+      routes.ai.analyze,
+      data,
+      'Video analysis failed',
+    );
+  }
+
+  async synthesizeSpeech(body: VoiceTtsRequest): Promise<VoiceTtsResponse> {
+    const data = voiceTtsRequestSchema.parse(body);
+    return this.postJson(voiceTtsResponseSchema, routes.ai.voiceTts, data, 'TTS failed');
+  }
+
+  async assistText(body: TextAssistRequest): Promise<TextAssistResponse> {
+    const data = textAssistRequestSchema.parse(body);
+    return this.postJson(textAssistResponseSchema, routes.ai.textAssist, data, 'Text assist failed');
+  }
+
+  async buildSubtitles(body: SubtitlesRequest): Promise<SubtitlesResponse> {
+    const data = subtitlesRequestSchema.parse(body);
+    return this.postJson(
+      subtitlesResponseSchema,
+      routes.ai.subtitles,
+      data,
+      'Failed to build subtitles',
+    );
+  }
+
+  async suggestClips(body: ClipSuggestRequest): Promise<ClipSuggestResponse> {
+    const data = clipSuggestRequestSchema.parse(body);
+    return this.postJson(
+      clipSuggestResponseSchema,
+      routes.ai.clipSuggest,
+      data,
+      'Failed to suggest clips',
+    );
+  }
+
+  async runAgent(body: AgentRunRequest): Promise<AgentRunResponse> {
+    const data = agentRunRequestSchema.parse(body);
+    return this.postJson(agentRunResponseSchema, routes.ai.agent, data, 'Agent run failed');
+  }
+
+  async listLlmProviders(): Promise<LlmProvidersResponse> {
+    return this.get(
+      llmProvidersResponseSchema,
+      routes.ai.llmProviders,
+      'Failed to list LLM providers',
+    );
+  }
+
+  async llmComplete(body: LlmCompleteRequest): Promise<LlmCompleteResponse> {
+    const data = llmCompleteRequestSchema.parse(body);
+    return this.postJson(
+      llmCompleteResponseSchema,
+      routes.ai.llmComplete,
+      data,
+      'LLM completion failed',
+    );
   }
 
   async getEditorCatalog(): Promise<EditorCatalogResponse> {

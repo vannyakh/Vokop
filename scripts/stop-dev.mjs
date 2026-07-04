@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 
 /** Keep in sync with `packages/shared/src/config/ports.ts` → DEV_PORT_LIST */
-const DEV_PORT_LIST = [3000, 3001, 4000, 4001, 4002, 4003, 4004];
+const DEV_PORT_LIST = [3000, 3001, 4000, 4001, 4002, 4003, 4004, 4005];
 
 for (const port of DEV_PORT_LIST) {
   try {

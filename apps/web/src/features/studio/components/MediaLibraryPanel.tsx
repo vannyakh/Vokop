@@ -224,19 +224,6 @@ export function MediaLibraryPanel() {
             ? 'Drop files anywhere'
             : `${mediaAssets.length} file${mediaAssets.length === 1 ? '' : 's'}`}
         </p>
-        <button
-          type="button"
-          className="media-lib-import-btn"
-          disabled={importing}
-          onClick={() => inputRef.current?.click()}
-        >
-          {importing ? (
-            <Loader2 size={15} className="animate-spin" />
-          ) : (
-            <StudioIcon name="import" size={15} />
-          )}
-          <span>{importing ? 'Importing…' : 'Import'}</span>
-        </button>
       </header>
 
       {empty ? (

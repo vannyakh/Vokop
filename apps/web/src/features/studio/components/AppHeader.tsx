@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import { useProjectNavigation } from '@/features/project/hooks/useProjectNavigation';
-import vokopIcon from '@/assets/images/vokop.png';
+import { ASSET_IMAGES } from '@/assets/support';
 import { StudioHeaderCenter } from '@/features/studio/components/StudioHeaderCenter';
 import { StudioExportButton } from '@/features/studio/components/StudioExportButton';
 import {
@@ -67,7 +67,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
         label: 'Vokop',
         iconTrigger: (
           <img
-            src={vokopIcon}
+            src={ASSET_IMAGES.vokopIcon}
             alt="Vokop"
             className="studio-menubar-app-logo"
             width={16}

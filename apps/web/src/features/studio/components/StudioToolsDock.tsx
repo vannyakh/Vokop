@@ -1,10 +1,8 @@
 import type { RefObject } from 'react';
 import {
   Mic2,
-  Sparkles,
   Languages,
   Loader2,
-  Stamp,
   BookOpen,
   Volume1,
   Volume2,
@@ -14,14 +12,16 @@ import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { LANGUAGES } from '@/features/translation/constants/languages';
 import { VOICES } from '@/features/translation/constants/voices';
-import { Label, Select, StudioIcon, type StudioIconName } from '@vokop/ui';
+import { Label, Select, StudioIcon } from '@vokop/ui';
+import { AssetIcon, type AssetIconName } from '@/assets/support';
 import { InspectorSection } from '@/features/studio/components/InspectorSection';
 import { AudioMixWaveforms } from '@/features/studio/components/AudioMixWaveforms';
 import { MediaLibraryPanel } from '@/features/studio/components/MediaLibraryPanel';
 import { TextTemplatesPanel } from '@/features/studio/components/TextTemplatesPanel';
-import { StickersPanel } from '@/features/studio/components/StickersPanel';
 import { EditorPresetGrid } from '@/features/studio/components/EditorPresetGrid';
-import { TransitionPreview } from '@/features/studio/components/TransitionPreview';
+import { TransitionsPanel } from '@/features/studio/components/TransitionsPanel';
+import { FiltersPanel } from '@/features/studio/components/FiltersPanel';
+import { EffectsPanel } from '@/features/studio/components/EffectsPanel';
 import { useEditorCatalog } from '@/features/studio/hooks/useEditorCatalog';
 import { useEditorActions } from '@/features/studio/hooks/useEditorActions';
 import { useSidePanelSplit } from '@/features/studio/hooks/useSidePanelSplit';
@@ -37,15 +37,15 @@ interface StudioToolsDockProps {
   onRegenerateVoiceover?: () => void;
 }
 
-const TOOLS: { id: StudioToolId; label: string; icon: StudioIconName }[] = [
-  { id: 'media', label: 'Media', icon: 'video' },
+const TOOLS: { id: StudioToolId; label: string; icon: AssetIconName }[] = [
+  { id: 'media', label: 'Media', icon: 'images' },
   { id: 'text', label: 'Text', icon: 'text' },
-  { id: 'audio', label: 'Audio', icon: 'volume' },
-  { id: 'voice', label: 'Voice', icon: 'volume' },
-  { id: 'captions', label: 'Captions', icon: 'timeline' },
-  { id: 'effects', label: 'Effects', icon: 'gear' },
+  { id: 'audio', label: 'Audio', icon: 'audio' },
+  { id: 'voice', label: 'Voice', icon: 'audio' },
+  { id: 'captions', label: 'Captions', icon: 'text' },
+  { id: 'effects', label: 'Effects', icon: 'effect' },
   { id: 'transitions', label: 'Transitions', icon: 'transition' },
-  { id: 'filters', label: 'Filters', icon: 'sliders' },
+  { id: 'filters', label: 'Filters', icon: 'ease' },
 ];
 
 function ToolsScroll({ children }: { children: React.ReactNode }) {
@@ -127,7 +127,7 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
               activeStudioTool === tool.id && toolsDrawerOpen && 'active',
             )}
           >
-            <StudioIcon name={tool.icon} size={20} />
+            <AssetIcon name={tool.icon} size={20} className="studio-tools-rail-asset-icon" />
             <span className="studio-tools-rail-label">{tool.label}</span>
           </button>
         ))}
@@ -442,93 +442,42 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
 
               {activeStudioTool === 'effects' && (
                 <ToolsScroll>
-                  <InspectorSection
-                    id="tools-effects-video"
-                    title="Video effects"
-                    icon={<Sparkles size={12} />}
-                    defaultOpen
-                  >
-                    <EditorPresetGrid
-                      presets={presetsFor('effects')}
-                      disabled={applying}
-                      onSelect={(id) => void applyPreset('effects', id)}
-                    />
-                  </InspectorSection>
-                  <InspectorSection
-                    id="tools-effects-stickers"
-                    title="Stickers"
-                    icon={<Stamp size={12} />}
-                    defaultOpen
-                  >
-                    <StickersPanel />
-                  </InspectorSection>
+                  <EffectsPanel
+                    activeId={
+                      selectedTimelineClip
+                        ? projectEditor.clipEdits[selectedTimelineClip.clipId]?.effectId
+                        : null
+                    }
+                    disabled={applying}
+                    onSelect={(id) => void applyPreset('effects', id)}
+                  />
                 </ToolsScroll>
               )}
 
               {activeStudioTool === 'transitions' && (
                 <ToolsScroll>
-                  <InspectorSection
-                    id="tools-transitions-presets"
-                    title="Transitions"
-                    icon={<StudioIcon name="transition" size={12} />}
-                    defaultOpen
-                  >
-                    {selectedTimelineClip ? (
-                      <EditorPresetGrid
-                        presets={presetsFor('transitions')}
-                        activeId={
-                          projectEditor.clipEdits[selectedTimelineClip.clipId]?.transitionInId
-                        }
-                        disabled={applying}
-                        onSelect={(id) => void applyPreset('transitions', id)}
-                      />
-                    ) : (
-                      <p className="tools-panel-hint">Select a timeline clip to apply a transition</p>
-                    )}
-                  </InspectorSection>
-                  <InspectorSection
-                    id="tools-transitions-preview"
-                    title="Live preview"
-                    icon={<StudioIcon name="transition" size={12} />}
-                    defaultOpen
-                  >
-                    <TransitionPreview
-                      presetId={
-                        selectedTimelineClip
-                          ? projectEditor.clipEdits[selectedTimelineClip.clipId]?.transitionInId
-                          : 'dissolve'
-                      }
-                      label={
-                        selectedTimelineClip
-                          ? presetsFor('transitions').find(
-                              (p) =>
-                                p.id ===
-                                projectEditor.clipEdits[selectedTimelineClip.clipId]
-                                  ?.transitionInId,
-                            )?.label
-                          : 'Dissolve'
-                      }
-                    />
-                  </InspectorSection>
+                  <TransitionsPanel
+                    presets={presetsFor('transitions')}
+                    activeId={
+                      selectedTimelineClip
+                        ? projectEditor.clipEdits[selectedTimelineClip.clipId]?.transitionInId
+                        : null
+                    }
+                    disabled={applying}
+                    clipSelected={Boolean(selectedTimelineClip)}
+                    onSelect={(id) => void applyPreset('transitions', id)}
+                  />
                 </ToolsScroll>
               )}
 
               {activeStudioTool === 'filters' && (
                 <ToolsScroll>
-                  <InspectorSection
-                    id="tools-filters-color"
-                    title="Color filters"
-                    icon={<StudioIcon name="sliders" size={12} />}
-                    summary={projectEditor.videoFilterId ?? 'original'}
-                    defaultOpen
-                  >
-                    <EditorPresetGrid
-                      presets={presetsFor('filters')}
-                      activeId={projectEditor.videoFilterId ?? 'original'}
-                      disabled={applying}
-                      onSelect={(id) => void applyPreset('filters', id)}
-                    />
-                  </InspectorSection>
+                  <FiltersPanel
+                    presets={presetsFor('filters')}
+                    activeId={projectEditor.videoFilterId ?? 'original'}
+                    disabled={applying}
+                    onSelect={(id) => void applyPreset('filters', id)}
+                  />
                 </ToolsScroll>
               )}
             </div>

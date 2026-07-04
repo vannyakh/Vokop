@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
+import { preloadLocalFonts } from '@/assets/support';
 import { useAppStore } from '@/features/project';
 import { useAudioEngine, useSyncPlayback, useReelPlayback, useVideoExport } from '@/features/audio';
 import { useVideoProcessing } from '@/features/translation';
@@ -32,6 +33,10 @@ export function StudioWorkspace() {
   useEffect(() => {
     void hydrateMediaLibrary();
   }, [hydrateMediaLibrary]);
+
+  useEffect(() => {
+    preloadLocalFonts();
+  }, []);
 
   const { audioContextRef, audioSourceRef, videoSourceRef, stopAudio, playSegment } =
     useAudioEngine();

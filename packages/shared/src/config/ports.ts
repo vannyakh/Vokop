@@ -7,6 +7,7 @@ export const DEV_PORTS = {
   auth: 4002,
   studio: 4003,
   adminService: 4004,
+  aiContent: 4005,
 } as const;
 
 export type DevPortKey = keyof typeof DEV_PORTS;
@@ -20,6 +21,7 @@ export const DEV_PORT_LIST: number[] = [
   DEV_PORTS.auth,
   DEV_PORTS.studio,
   DEV_PORTS.adminService,
+  DEV_PORTS.aiContent,
 ];
 
 export function devOrigin(port: number, host = 'localhost'): string {
@@ -34,4 +36,5 @@ export const DEFAULT_DEV_URLS = {
   auth: devOrigin(DEV_PORTS.auth),
   studio: devOrigin(DEV_PORTS.studio),
   adminService: devOrigin(DEV_PORTS.adminService),
+  aiContent: devOrigin(DEV_PORTS.aiContent),
 } as const;

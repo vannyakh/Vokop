@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useVideoProcessing } from '@/features/translation';
-import { loadGoogleFont } from '@/features/studio/lib/googleFontLoader';
-import { GOOGLE_FONTS, FONT_CATEGORIES, type FontCategoryId } from '@/features/studio/constants/googleFonts';
+import { loadStudioFont } from '@/features/studio/lib/fontLoader';
+import { STUDIO_FONTS, FONT_CATEGORIES, type FontCategoryId } from '@/features/studio/constants/studioFonts';
 import { TEXT_EFFECTS, TEXT_EFFECT_IDS } from '@/features/studio/constants/textEffects';
 import { TextEffectPreviewCard } from '@/features/studio/components/TextEffectPreviewCard';
 import type { CanvasElement, CanvasTextEffectId } from '@/types/canvas';
@@ -88,8 +88,8 @@ function FontPicker({
   useEffect(() => {
     const load = async () => {
       const newSet = new Set(loadedFonts);
-      for (const f of GOOGLE_FONTS) {
-        await loadGoogleFont(f.family);
+      for (const f of STUDIO_FONTS) {
+        await loadStudioFont(f.family);
         newSet.add(f.family);
       }
       setLoadedFonts(newSet);
@@ -108,8 +108,8 @@ function FontPicker({
   }, [open]);
 
   const filtered = catFilter === 'all'
-    ? GOOGLE_FONTS
-    : GOOGLE_FONTS.filter((f) => f.category === catFilter);
+    ? STUDIO_FONTS
+    : STUDIO_FONTS.filter((f) => f.category === catFilter);
 
   const display = value ?? 'Default';
 

@@ -1,0 +1,77 @@
+/**
+ * Studio-facing @font-face rules for bundled fonts under assets/fonts.
+ * Family names match the font picker (`Poppins`, `Nippo`, `Noto Emoji`).
+ */
+
+@font-face {
+  font-family: 'Poppins';
+  src:
+    url('./Poppins/Fonts/WEB/fonts/Poppins-Variable.woff2') format('woff2'),
+    url('./Poppins/Fonts/WEB/fonts/Poppins-Variable.woff') format('woff'),
+    url('./Poppins/Fonts/WEB/fonts/Poppins-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src:
+    url('./Poppins/Fonts/WEB/fonts/Poppins-VariableItalic.woff2') format('woff2'),
+    url('./Poppins/Fonts/WEB/fonts/Poppins-VariableItalic.woff') format('woff'),
+    url('./Poppins/Fonts/WEB/fonts/Poppins-VariableItalic.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Nippo';
+  src:
+    url('./Nippo/Fonts/WEB/fonts/Nippo-Variable.woff2') format('woff2'),
+    url('./Nippo/Fonts/WEB/fonts/Nippo-Variable.woff') format('woff'),
+    url('./Nippo/Fonts/WEB/fonts/Nippo-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Emoji';
+  src: url('./NotoEmoji/Fonts/WEB/fonts/NotoEmoji-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Emoji';
+  src: url('./NotoEmoji/Fonts/WEB/fonts/NotoEmoji-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Emoji';
+  src: url('./NotoEmoji/Fonts/WEB/fonts/NotoEmoji-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Emoji';
+  src: url('./NotoEmoji/Fonts/WEB/fonts/NotoEmoji-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Emoji';
+  src: url('./NotoEmoji/Fonts/WEB/fonts/NotoEmoji-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

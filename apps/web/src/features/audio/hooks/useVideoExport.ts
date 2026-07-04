@@ -65,7 +65,7 @@ export function useVideoExport(refs: ExportRefs) {
       videoGain.connect(dest);
 
       if (audioBase64 && settings.includeVoiceover) {
-        const audioBuffer = decodeBase64ToAudioBuffer(actx, audioBase64);
+        const audioBuffer = await decodeBase64ToAudioBuffer(actx, audioBase64);
         const voiceSrc = actx.createBufferSource();
         voiceSrc.buffer = audioBuffer;
         const voiceGain = actx.createGain();

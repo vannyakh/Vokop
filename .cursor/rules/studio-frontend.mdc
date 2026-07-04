@@ -11,7 +11,7 @@ alwaysApply: false
 ```
 src/features/
   studio/     Timeline, canvas (Konva), tools dock, filmstrip, export, menubar
-  translation/  Gemini AI transcribe/translate/voiceover
+  translation/  Transcribe/translate/voiceover (prefer services/ai-content via api.*)
   project/    useAppStore + useStudioProject (API load/poll/save)
   projects/   Recent projects list
   upload/     Video upload + blank project create
@@ -33,12 +33,12 @@ Use Omniclip for **editor core behavior**, not visuals:
 
 ## Studio tools (CapCut-style rail)
 
-`media | text | audio | voice | captions | effects | transitions | filters` (+ future AI clip)
+`media | text | audio | voice | captions | effects | transitions | filters` (+ AI clip)
 
 - Presets from `useEditorCatalog()` + apply via `useEditorActions()`.
 - Filter preview: CSS on `<video>` via `getVideoCssFilter()` in store.
 - Server apply/preview when `videoSessionId` exists (`useVideoSession` on studio load).
-- AI generate-content (ASR/subtitles/clip suggest) will call `services/ai-content` via `/api/v1/ai/*`.
+- **Studio AI** (transcribe, translate, TTS, text assist, image, clips, agent) → `services/ai-content` via `/api/v1/ai/*` and `ApiClient` (`api.translate`, `api.startTranscribe`, `api.synthesizeSpeech`, `api.assistText`, `api.analyzeImage`, `api.suggestClips`, `api.runAgent`). Prefer server APIs over client-only Gemini in `features/translation/`.
 
 ## State
 
@@ -51,6 +51,7 @@ Use Omniclip for **editor core behavior**, not visuals:
 ```typescript
 import { api } from '@/lib/api';
 // Dev proxy: /api → gateway :4000
+// AI: api.getAiCapabilities(), api.translate(...), api.waitForAiJob(jobId)
 ```
 
 ## UI

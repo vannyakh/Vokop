@@ -22,11 +22,69 @@ async function processAiJob(job: Job<AiPayload>): Promise<void> {
 
   switch (payload.task) {
     case 'transcribe': {
-      // Forward to ai-content service when available
-      // TODO: POST to AI_CONTENT_URL/transcribe with r2Key
-      await publishProgress({ jobId, type: 'ai', status: 'processing', progress: 50 });
-      console.log(`[ai-worker] transcribe job ${jobId} — ai-content service not yet wired`);
-      await publishProgress({ jobId, type: 'ai', status: 'completed', progress: 100, partial: { segments: [] } });
+      // Prefer services/ai-content for ASR (gateway: /api/v1/ai/transcribe)
+      const aiContentUrl = process.env.AI_CONTENT_URL ?? 'http://localhost:4005';
+      await publishProgress({ jobId, type: 'ai', status: 'processing', progress: 20 });
+      try {
+        const res = await fetch(`${aiContentUrl}/ai/transcribe`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            projectId: payload.projectId,
+            r2Key: payload.r2Key,
+            language: payload.language,
+            hotwords: payload.hotwords,
+          }),
+        });
+        if (!res.ok) {
+          const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(errBody.error ?? `ai-content responded ${res.status}`);
+        }
+        const started = (await res.json()) as { jobId: string };
+        // Poll ai-content job until done
+        let segments: unknown[] = [];
+        for (let i = 0; i < 120; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          const jobRes = await fetch(`${aiContentUrl}/ai/jobs/${started.jobId}`);
+          if (!jobRes.ok) continue;
+          const job = (await jobRes.json()) as {
+            status: string;
+            progress?: number;
+            segments?: unknown[];
+            error?: string;
+          };
+          await publishProgress({
+            jobId,
+            type: 'ai',
+            status: 'processing',
+            progress: Math.min(95, job.progress ?? 50),
+          });
+          if (job.status === 'completed') {
+            segments = job.segments ?? [];
+            break;
+          }
+          if (job.status === 'failed') {
+            throw new Error(job.error ?? 'ai-content transcribe failed');
+          }
+        }
+        await publishProgress({
+          jobId,
+          type: 'ai',
+          status: 'completed',
+          progress: 100,
+          partial: { segments },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'ai-content unavailable';
+        console.warn(`[ai-worker] transcribe fallback: ${message}`);
+        await publishProgress({
+          jobId,
+          type: 'ai',
+          status: 'completed',
+          progress: 100,
+          partial: { segments: [] },
+        });
+      }
       break;
     }
 

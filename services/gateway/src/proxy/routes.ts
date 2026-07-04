@@ -19,9 +19,16 @@ export type ProxyRoute = {
  * | studio         | Studio projects (CRUD + soft-delete)    |
  * | admin-service  | Admin RBAC, menus, users management     |
  * | video-tools    | Media pipeline, presets, assets, export |
+ * | ai-content     | Agent, LLM, ASR, subtitles, clip assist |
  */
 export function getProxyRoutes(): ProxyRoute[] {
-  const { videoToolsUrl, authServiceUrl, studioServiceUrl, adminServiceUrl } = gatewayConfig;
+  const {
+    videoToolsUrl,
+    authServiceUrl,
+    studioServiceUrl,
+    adminServiceUrl,
+    aiContentUrl,
+  } = gatewayConfig;
 
   return [
     // auth — account & security only
@@ -40,6 +47,8 @@ export function getProxyRoutes(): ProxyRoute[] {
     { publicPath: '/api/v1/presets', target: videoToolsUrl, servicePath: '/presets' },
     { publicPath: '/api/v1/assets', target: videoToolsUrl, servicePath: '/assets' },
     { publicPath: '/api/v1/export', target: videoToolsUrl, servicePath: '' },
-    { publicPath: '/api/v1/ai', target: videoToolsUrl, servicePath: '/ai' },
+
+    // ai-content — agent + LLM + FunClip-style generate-content
+    { publicPath: '/api/v1/ai', target: aiContentUrl, servicePath: '/ai' },
   ];
 }

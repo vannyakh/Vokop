@@ -9,9 +9,6 @@ export default createReactAppViteConfig({
   dirname,
   portEnvKey: 'WEB_PORT',
   defaultPort: DEV_PORTS.web,
-  defineEnv: {
-    'process.env.GEMINI_API_KEY': 'GEMINI_API_KEY',
-  },
   // Enables SharedArrayBuffer for @ffmpeg/ffmpeg without a service worker in dev.
   serverHeaders: {
     'Cross-Origin-Opener-Policy': 'same-origin',

@@ -26,7 +26,7 @@ export function useSyncPlayback(refs: SyncPlaybackRefs) {
       refs.audioContextRef.current = await ensureAudioContext(refs.audioContextRef.current);
       const ctx = refs.audioContextRef.current;
 
-      const audioBuffer = decodeBase64ToAudioBuffer(ctx, audioBase64);
+      const audioBuffer = await decodeBase64ToAudioBuffer(ctx, audioBase64);
       const voiceSource = ctx.createBufferSource();
       voiceSource.buffer = audioBuffer;
 
