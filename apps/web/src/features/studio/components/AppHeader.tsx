@@ -9,8 +9,11 @@ import {
   Hand,
   HelpCircle,
   Info,
+  LayoutDashboard,
   Loader2,
+  MonitorDown,
   MousePointer2,
+  PanelRight,
   Redo2,
   Scissors,
   Settings,
@@ -297,6 +300,49 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             <span>Project failed</span>
           </div>
         ) : null}
+
+        <div className="studio-header-icon-group" role="toolbar" aria-label="Studio tools">
+          <button
+            type="button"
+            className="studio-header-icon-btn"
+            title="Download for desktop"
+            aria-label="Download for desktop"
+          >
+            <MonitorDown size={16} />
+          </button>
+          <button
+            type="button"
+            className="studio-header-icon-btn"
+            title="Workspace"
+            aria-label="Workspace"
+          >
+            <LayoutDashboard size={16} />
+          </button>
+          <button
+            type="button"
+            className="studio-header-icon-btn"
+            title="Help"
+            aria-label="Help"
+          >
+            <HelpCircle size={16} />
+          </button>
+          <button
+            type="button"
+            className="studio-header-icon-btn"
+            title="Properties panel"
+            aria-label="Properties panel"
+          >
+            <PanelRight size={16} />
+          </button>
+          <button
+            type="button"
+            className="studio-header-icon-btn"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <Settings size={16} />
+          </button>
+        </div>
 
         <StudioExportButton
           onClick={onExport}

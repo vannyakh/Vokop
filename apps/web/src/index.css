@@ -3368,6 +3368,34 @@ table.landing-compare th.col-pro {
   justify-self: end;
 }
 
+.studio-header-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-right: 0.15rem;
+}
+
+.studio-header-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.studio-header-icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .studio-header-status {
   display: none;
   align-items: center;
