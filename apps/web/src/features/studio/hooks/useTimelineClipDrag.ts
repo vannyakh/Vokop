@@ -46,8 +46,7 @@ export function useTimelineClipDrag(
   const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
   const updateMediaClip = useAppStore((s) => s.updateMediaClip);
   const commitProjectHistory = useAppStore((s) => s.commitProjectHistory);
-  const setSelectedTimelineClip = useAppStore((s) => s.setSelectedTimelineClip);
-  const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
+  const selectTimelineClip = useAppStore((s) => s.selectTimelineClip);
   const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
 
   const resolveTrackAtY = useCallback(
@@ -73,9 +72,10 @@ export function useTimelineClipDrag(
       clipDuration: number,
       allClips: TimelineClipModel[],
       excludeId: string,
+      timelineDuration: number,
     ): { start: number; snapX: number | null } => {
       const threshold = SNAP_PX / pxPerSec;
-      const edges: number[] = [0, duration];
+      const edges: number[] = [0, timelineDuration];
 
       for (const c of allClips) {
         if (c.id === excludeId) continue;
@@ -107,7 +107,7 @@ export function useTimelineClipDrag(
         snapX: bestEdge !== null ? timeToPx(bestEdge, pxPerSec) : null,
       };
     },
-    [pxPerSec, duration],
+    [pxPerSec],
   );
 
   const applyCanvasTiming = useCallback(
@@ -182,7 +182,9 @@ export function useTimelineClipDrag(
   const onDragMove = useCallback(
     (e: PointerEvent) => {
       const d = dragRef.current;
-      if (!d || !duration) return;
+      if (!d) return;
+      // Fall back so drag still works before media duration is probed.
+      const timelineDuration = duration > 0 ? duration : Math.max(d.origStart + d.origDuration + 60, 60);
 
       const deltaSec = (e.clientX - d.startClientX) / pxPerSec;
 
@@ -195,7 +197,10 @@ export function useTimelineClipDrag(
             d.trackId = over.id as TimelineTrackId;
             d.trackClips = over.clips;
             setHoverTrackId(String(over.id));
-            setSelectedTimelineClip({ trackId: over.id as TimelineTrackId, clipId: d.clip.id });
+            selectTimelineClip(
+              { trackId: over.id as TimelineTrackId, clipId: d.clip.id },
+              { mode: 'replace', syncCanvas: true },
+            );
           } else {
             setHoverTrackId(null);
           }
@@ -210,12 +215,20 @@ export function useTimelineClipDrag(
           d.origDuration,
           d.trackClips,
           d.clip.id,
+          timelineDuration,
         );
-        const { start, duration: clipDur } = clampClip(snapped, d.origDuration, duration);
+        const { start, duration: clipDur } = clampClip(
+          snapped,
+          d.origDuration,
+          timelineDuration,
+        );
         applyClipPatch(d.trackId, d.clip, { start, duration: clipDur }, d.mode, d.origStart);
         setSnapIndicator(snapX != null ? { snapX, trackId: d.trackId } : null);
       } else if (d.mode === 'right') {
-        const clipDur = Math.max(0.4, Math.min(duration - d.origStart, d.origDuration + deltaSec));
+        const clipDur = Math.max(
+          0.4,
+          Math.min(timelineDuration - d.origStart, d.origDuration + deltaSec),
+        );
         applyClipPatch(d.trackId, d.clip, { duration: clipDur }, d.mode, d.origStart);
         setSnapIndicator(null);
       } else if (d.mode === 'left') {
@@ -233,7 +246,7 @@ export function useTimelineClipDrag(
       computeSnap,
       resolveTrackAtY,
       moveTimelineClipToTrack,
-      setSelectedTimelineClip,
+      selectTimelineClip,
     ],
   );
 
@@ -257,10 +270,10 @@ export function useTimelineClipDrag(
 
       e.stopPropagation();
       commitProjectHistory();
-      setSelectedTimelineClip({ trackId, clipId: clip.id });
-      if (clip.canvasKind) {
-        selectCanvasElement(clip.id);
-      }
+      selectTimelineClip(
+        { trackId, clipId: clip.id },
+        { mode: 'replace', syncCanvas: true },
+      );
 
       dragRef.current = {
         trackId,
@@ -276,7 +289,7 @@ export function useTimelineClipDrag(
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', onDragEnd);
     },
-    [commitProjectHistory, onDragMove, onDragEnd, setSelectedTimelineClip, selectCanvasElement],
+    [commitProjectHistory, onDragMove, onDragEnd, selectTimelineClip],
   );
 
   return { beginClipDrag, snapIndicator, hoverTrackId };

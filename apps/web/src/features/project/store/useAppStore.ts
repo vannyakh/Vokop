@@ -14,6 +14,7 @@ import type {
   ExtraTimelineTrack,
   ExtraTrackType,
   MediaClip,
+  TimelineSelectionItem,
   TimelineTrackId,
 } from '@/features/studio/lib/timelineTypes';
 import {
@@ -29,6 +30,13 @@ import {
   moveTrackInOrder,
   trackTypeFromId,
 } from '@/features/studio/lib/timelineTrackUtils';
+import {
+  buildTimelineSelection,
+  pruneTimelineSelection,
+  resolveTimelineSelectionItems,
+  toggleTimelineSelectionItem,
+  type TimelineSelectMode,
+} from '@/features/studio/lib/timelineSelection';
 import { createKeyframeAtOffset } from '@/features/studio/lib/keyframeUtils';
 import type { CanvasElement, CanvasTool } from '@/types/canvas';
 import { defaultProjectName, detectAspectRatioId } from '@/features/studio/constants/aspectRatios';
@@ -72,9 +80,43 @@ export type AddCanvasImageOptions = {
   trackId?: string;
 };
 
+function selectionWithCanvasSync(
+  state: { canvasElements: CanvasElement[]; selectedCanvasElementId: string | null },
+  selection: ReturnType<typeof buildTimelineSelection>,
+  syncCanvas: boolean,
+): ReturnType<typeof buildTimelineSelection> & {
+  selectedCanvasElementId?: string | null;
+} {
+  if (!syncCanvas) return selection;
+  const primaryId = selection.selectedTimelineClip?.clipId;
+  const isCanvas =
+    Boolean(primaryId) && state.canvasElements.some((el) => el.id === primaryId);
+  return {
+    ...selection,
+    selectedCanvasElementId: isCanvas ? primaryId! : null,
+  };
+}
+
+function selectionAfterRemovingClip(
+  state: {
+    selectedTimelineClip: TimelineSelectionItem | null;
+    selectedTimelineClips: TimelineSelectionItem[];
+    selectedCanvasElementId: string | null;
+    canvasElements: CanvasElement[];
+  },
+  clipId: string,
+) {
+  const selection = pruneTimelineSelection(
+    state.selectedTimelineClip,
+    state.selectedTimelineClips,
+    (item) => item.clipId === clipId,
+  );
+  return selectionWithCanvasSync(state, selection, true);
+}
+
 function resolveVisualTrackId(
   state: {
-    selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
+    selectedTimelineClip: TimelineSelectionItem | null;
   },
   preferred: 'image' | 'sticker' = 'image',
 ): string {
@@ -103,7 +145,7 @@ function buildCanvasImageElement(
     canvasElements: CanvasElement[];
     duration: number;
     currentTime: number;
-    selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
+    selectedTimelineClip: TimelineSelectionItem | null;
   },
   src: string,
   label: string,
@@ -264,8 +306,8 @@ interface AppState {
   /** Hidden core tracks (can be restored via Add track). */
   timelineTrackHidden: string[];
   extraTimelineTracks: ExtraTimelineTrack[];
-  selectedTimelineClip: { trackId: TimelineTrackId; clipId: string } | null;
-  selectedTimelineClips: { trackId: TimelineTrackId; clipId: string }[];
+  selectedTimelineClip: TimelineSelectionItem | null;
+  selectedTimelineClips: TimelineSelectionItem[];
   timelineClipboard: CanvasElement[] | null;
   canvasElements: CanvasElement[];
   selectedCanvasElementId: string | null;
@@ -370,10 +412,30 @@ interface AppState {
   getVideoCssFilter: () => string;
   setTimelineZoom: (zoom: number) => void;
   toggleTimelineTrackMuted: (trackId: TimelineTrackId) => void;
-  setSelectedTimelineClip: (clip: { trackId: TimelineTrackId; clipId: string } | null) => void;
-  setSelectedTimelineClips: (clips: { trackId: TimelineTrackId; clipId: string }[]) => void;
-  addToTimelineSelection: (clip: { trackId: TimelineTrackId; clipId: string }) => void;
-  removeFromTimelineSelection: (clip: { trackId: TimelineTrackId; clipId: string }) => void;
+  /** Replace selection with one clip (or clear). Keeps primary + multi in sync. */
+  selectTimelineClip: (
+    clip: TimelineSelectionItem | null,
+    options?: {
+      mode?: TimelineSelectMode;
+      syncCanvas?: boolean;
+      openInspector?: boolean;
+    },
+  ) => void;
+  /** Replace multi-selection; primary defaults to last item. */
+  setTimelineSelection: (
+    clips: TimelineSelectionItem[],
+    primary?: TimelineSelectionItem | null,
+    options?: { syncCanvas?: boolean },
+  ) => void;
+  clearTimelineSelection: (options?: { clearCanvas?: boolean }) => void;
+  /** @deprecated Prefer selectTimelineClip / setTimelineSelection */
+  setSelectedTimelineClip: (clip: TimelineSelectionItem | null) => void;
+  /** @deprecated Prefer setTimelineSelection */
+  setSelectedTimelineClips: (clips: TimelineSelectionItem[]) => void;
+  /** @deprecated Prefer selectTimelineClip({ mode: 'add' }) */
+  addToTimelineSelection: (clip: TimelineSelectionItem) => void;
+  /** @deprecated Prefer selectTimelineClip({ mode: 'toggle' }) */
+  removeFromTimelineSelection: (clip: TimelineSelectionItem) => void;
   copyTimelineSelection: () => void;
   cutTimelineSelection: () => void;
   pasteTimelineClipboard: (atTime?: number) => void;
@@ -479,8 +541,8 @@ const initialState = {
   timelineTrackLabels: {} as Record<string, string>,
   timelineTrackHidden: [] as string[],
   extraTimelineTracks: [] as ExtraTimelineTrack[],
-  selectedTimelineClip: null as { trackId: TimelineTrackId; clipId: string } | null,
-  selectedTimelineClips: [] as { trackId: TimelineTrackId; clipId: string }[],
+  selectedTimelineClip: null as TimelineSelectionItem | null,
+  selectedTimelineClips: [] as TimelineSelectionItem[],
   timelineClipboard: null as CanvasElement[] | null,
   canvasElements: [] as CanvasElement[],
   selectedCanvasElementId: null as string | null,
@@ -1020,29 +1082,78 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       timelineTrackMuted: { ...s.timelineTrackMuted, [trackId]: !s.timelineTrackMuted[trackId] },
     })),
-  setSelectedTimelineClip: (clip) => set({ selectedTimelineClip: clip }),
-  setSelectedTimelineClips: (clips) => set({ selectedTimelineClips: clips }),
-  addToTimelineSelection: (clip) => {
-    const { selectedTimelineClips } = get();
-    const exists = selectedTimelineClips.some(
-      (c) => c.trackId === clip.trackId && c.clipId === clip.clipId,
-    );
-    if (!exists) set({ selectedTimelineClips: [...selectedTimelineClips, clip] });
+  selectTimelineClip: (clip, options = {}) => {
+    const { mode = 'replace', syncCanvas = true, openInspector = false } = options;
+    const state = get();
+    let selection = buildTimelineSelection([]);
+
+    if (clip) {
+      const current = resolveTimelineSelectionItems(
+        state.selectedTimelineClip,
+        state.selectedTimelineClips,
+      );
+      if (mode === 'replace') {
+        selection = buildTimelineSelection([clip], clip);
+      } else if (mode === 'add') {
+        selection = buildTimelineSelection([...current, clip], clip);
+      } else {
+        selection = toggleTimelineSelectionItem(current, clip, state.selectedTimelineClip);
+      }
+    }
+
+    const patch: Partial<AppState> = selectionWithCanvasSync(state, selection, syncCanvas);
+    const stillSelected =
+      clip &&
+      selection.selectedTimelineClips.some(
+        (c) => c.trackId === clip.trackId && c.clipId === clip.clipId,
+      );
+    if (openInspector && stillSelected) {
+      patch.activeTab = 'inspector';
+      patch.editorOpen = true;
+    }
+    set(patch);
+    // Pause playback when focusing a canvas or video clip so Konva handles stay interactive.
+    if (
+      stillSelected &&
+      state.isTimelinePlaying &&
+      (patch.selectedCanvasElementId || clip?.trackId === 'video')
+    ) {
+      get().setTimelinePlaying(false);
+    }
   },
-  removeFromTimelineSelection: (clip) =>
-    set((state) => ({
-      selectedTimelineClips: state.selectedTimelineClips.filter(
-        (c) => !(c.trackId === clip.trackId && c.clipId === clip.clipId),
-      ),
-    })),
+
+  setTimelineSelection: (clips, primary, options = {}) => {
+    const { syncCanvas = true } = options;
+    const state = get();
+    const selection = buildTimelineSelection(clips, primary);
+    set(selectionWithCanvasSync(state, selection, syncCanvas));
+  },
+
+  clearTimelineSelection: (options = {}) => {
+    const { clearCanvas = true } = options;
+    set({
+      selectedTimelineClip: null,
+      selectedTimelineClips: [],
+      ...(clearCanvas ? { selectedCanvasElementId: null } : {}),
+    });
+  },
+
+  setSelectedTimelineClip: (clip) => {
+    get().selectTimelineClip(clip, { mode: 'replace', syncCanvas: true });
+  },
+  setSelectedTimelineClips: (clips) => {
+    get().setTimelineSelection(clips);
+  },
+  addToTimelineSelection: (clip) => {
+    get().selectTimelineClip(clip, { mode: 'add', syncCanvas: true });
+  },
+  removeFromTimelineSelection: (clip) => {
+    get().selectTimelineClip(clip, { mode: 'toggle', syncCanvas: true });
+  },
+
   copyTimelineSelection: () => {
     const { selectedTimelineClips, selectedTimelineClip, canvasElements } = get();
-    const keys =
-      selectedTimelineClips.length > 0
-        ? selectedTimelineClips
-        : selectedTimelineClip
-          ? [selectedTimelineClip]
-          : [];
+    const keys = resolveTimelineSelectionItems(selectedTimelineClip, selectedTimelineClips);
     if (!keys.length) return;
     const ids = new Set(keys.map((k) => k.clipId));
     const copied = canvasElements
@@ -1066,23 +1177,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { ...el, id, startTime: newStart, endTime: newEnd };
     });
     const state = get();
+    const items: TimelineSelectionItem[] = newElements.map((el) => ({
+      trackId: (el.trackId ?? 'text') as TimelineTrackId,
+      clipId: el.id,
+    }));
+    const selection = buildTimelineSelection(items, items[0] ?? null);
     set({
       ...pushHistory(state),
       canvasElements: [...canvasElements, ...newElements],
-      selectedCanvasElementId: newElements[0]?.id ?? null,
-      selectedTimelineClip: newElements[0]
-        ? { trackId: 'text', clipId: newElements[0].id }
-        : null,
+      ...selectionWithCanvasSync(
+        { ...state, canvasElements: [...canvasElements, ...newElements] },
+        selection,
+        true,
+      ),
     });
   },
   duplicateTimelineSelection: () => {
     const { selectedTimelineClips, selectedTimelineClip, canvasElements, duration } = get();
-    const keys =
-      selectedTimelineClips.length > 0
-        ? selectedTimelineClips
-        : selectedTimelineClip
-          ? [selectedTimelineClip]
-          : [];
+    const keys = resolveTimelineSelectionItems(selectedTimelineClip, selectedTimelineClips);
     if (!keys.length) return;
     const ids = new Set(keys.map((k) => k.clipId));
     const state = get();
@@ -1098,26 +1210,29 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { ...el, id, startTime: newStart, endTime: newStart + dur };
       });
     if (!duped.length) return;
+    const items: TimelineSelectionItem[] = duped.map((el) => ({
+      trackId: (el.trackId ?? 'text') as TimelineTrackId,
+      clipId: el.id,
+    }));
+    const selection = buildTimelineSelection(items, items[0] ?? null);
     set({
       ...pushHistory(state),
       canvasElements: [...canvasElements, ...duped],
-      selectedCanvasElementId: duped[0]?.id ?? null,
-      selectedTimelineClip: duped[0] ? { trackId: 'text', clipId: duped[0].id } : null,
+      ...selectionWithCanvasSync(
+        { ...state, canvasElements: [...canvasElements, ...duped] },
+        selection,
+        true,
+      ),
     });
   },
   deleteTimelineSelection: () => {
     const { selectedTimelineClips, selectedTimelineClip } = get();
-    const keys =
-      selectedTimelineClips.length > 0
-        ? selectedTimelineClips
-        : selectedTimelineClip
-          ? [selectedTimelineClip]
-          : [];
+    const keys = resolveTimelineSelectionItems(selectedTimelineClip, selectedTimelineClips);
     if (!keys.length) return;
     for (const { trackId, clipId } of keys) {
       get().removeTimelineClip(trackId, clipId);
     }
-    set({ selectedTimelineClips: [], selectedTimelineClip: null });
+    get().clearTimelineSelection({ clearCanvas: true });
   },
 
   updateSegment: (index, newText, type) => {
@@ -1157,6 +1272,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   removeTimelineClip: (trackId, clipId) => {
     const state = get();
+    const selectionPatch = selectionAfterRemovingClip(state, clipId);
 
     if (trackId === 'video') {
       set({
@@ -1164,7 +1280,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...withTimelineDuration(state, {
           videoClips: state.videoClips.filter((clip) => clip.id !== clipId),
         }),
-        selectedTimelineClip: null,
+        ...selectionPatch,
       });
       return;
     }
@@ -1175,7 +1291,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...withTimelineDuration(state, {
           audioClips: state.audioClips.filter((clip) => clip.id !== clipId),
         }),
-        selectedTimelineClip: null,
+        ...selectionPatch,
       });
       return;
     }
@@ -1200,14 +1316,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         ...pushHistory(state),
         transcript: removeSegment(segments, index),
-        selectedTimelineClip: null,
+        ...selectionPatch,
       });
     } else {
       const segments = parseSegments(state.translatedText);
       set({
         ...pushHistory(state),
         translatedText: removeSegment(segments, index),
-        selectedTimelineClip: null,
+        ...selectionPatch,
       });
     }
   },
@@ -1220,7 +1336,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const segments = parseSegments(state.translatedText);
       set({
         translatedText: addSegmentAtTime(segments, time, 'Speaker', 'New caption'),
-        selectedTimelineClip: null,
+        ...buildTimelineSelection([]),
+        selectedCanvasElementId: null,
       });
       return;
     }
@@ -1243,11 +1360,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         endTime: Math.min(duration, time + 4),
         trackId: idStr,
       };
+      const item: TimelineSelectionItem = { trackId, clipId: id };
       set({
         ...pushHistory(state),
         canvasElements: [...state.canvasElements, element],
         selectedCanvasElementId: id,
-        selectedTimelineClip: { trackId, clipId: id },
+        ...buildTimelineSelection([item], item),
         canvasTool: 'select',
         activeStudioTool: 'text',
         toolsDrawerOpen: true,
@@ -1323,6 +1441,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const labels = { ...state.timelineTrackLabels };
     delete labels[trackId];
 
+    const selection = pruneTimelineSelection(
+      state.selectedTimelineClip,
+      state.selectedTimelineClips,
+      (c) => c.trackId === trackId,
+    );
+
     if (isCoreTimelineTrack(trackId)) {
       set({
         ...pushHistory(state),
@@ -1332,28 +1456,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         timelineTrackOrder: state.timelineTrackOrder.filter((id) => id !== trackId),
         timelineTrackLabels: labels,
         timelineTrackMuted: muted,
-        selectedTimelineClip:
-          state.selectedTimelineClip?.trackId === trackId ? null : state.selectedTimelineClip,
-        selectedTimelineClips: state.selectedTimelineClips.filter((c) => c.trackId !== trackId),
+        ...selectionWithCanvasSync(state, selection, true),
       });
       return;
     }
 
+    const nextCanvas = state.canvasElements.filter((el) => el.trackId !== trackId);
     set({
       ...pushHistory(state),
       extraTimelineTracks: state.extraTimelineTracks.filter((t) => t.id !== trackId),
       timelineTrackOrder: state.timelineTrackOrder.filter((id) => id !== trackId),
       timelineTrackLabels: labels,
       timelineTrackMuted: muted,
-      canvasElements: state.canvasElements.filter((el) => el.trackId !== trackId),
-      selectedTimelineClip:
-        state.selectedTimelineClip?.trackId === trackId ? null : state.selectedTimelineClip,
-      selectedTimelineClips: state.selectedTimelineClips.filter((c) => c.trackId !== trackId),
-      selectedCanvasElementId:
-        state.canvasElements.find((el) => el.id === state.selectedCanvasElementId)?.trackId ===
-        trackId
-          ? null
-          : state.selectedCanvasElementId,
+      canvasElements: nextCanvas,
+      ...selectionWithCanvasSync({ ...state, canvasElements: nextCanvas }, selection, true),
     });
   },
 
@@ -1379,13 +1495,16 @@ export const useAppStore = create<AppState>((set, get) => ({
               : toTrackId
             : toTrackId
           : toTrackId;
+      const item: TimelineSelectionItem = {
+        trackId: toTrackId as TimelineTrackId,
+        clipId,
+      };
       set({
         ...pushHistory(state),
         canvasElements: state.canvasElements.map((el) =>
           el.id === clipId ? { ...el, trackId: nextTrackId } : el,
         ),
-        selectedTimelineClip: { trackId: toTrackId as TimelineTrackId, clipId },
-        selectedTimelineClips: [{ trackId: toTrackId as TimelineTrackId, clipId }],
+        ...buildTimelineSelection([item], item),
       });
       return;
     }
@@ -1396,11 +1515,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       (fromType === 'audio' || fromType === 'sound') &&
       (toType === 'audio' || toType === 'sound')
     ) {
-      // Single audio pool for now — selection only updates track view
-      set({
-        selectedTimelineClip: { trackId: toTrackId as TimelineTrackId, clipId },
-        selectedTimelineClips: [{ trackId: toTrackId as TimelineTrackId, clipId }],
-      });
+      const item: TimelineSelectionItem = {
+        trackId: toTrackId as TimelineTrackId,
+        clipId,
+      };
+      set(buildTimelineSelection([item], item));
     }
   },
 
@@ -1493,24 +1612,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     const tool: StudioToolId =
       element.type === 'logo' || element.type === 'image' ? 'media' : 'text';
 
-    let selectedTimelineClip: { trackId: TimelineTrackId; clipId: string };
+    let item: TimelineSelectionItem;
     if (element.segmentType === 'translation' || element.templateId) {
-      selectedTimelineClip = { trackId: 'text', clipId: element.id };
+      item = { trackId: 'text', clipId: element.id };
     } else if (element.segmentType === 'transcript') {
-      selectedTimelineClip = { trackId: 'overlay', clipId: element.id };
+      item = { trackId: 'overlay', clipId: element.id };
     } else if (element.type === 'logo' || element.type === 'image' || element.trackId) {
-      selectedTimelineClip = {
+      item = {
         trackId: (element.trackId ?? 'overlay') as TimelineTrackId,
         clipId: element.id,
       };
     } else {
-      selectedTimelineClip = { trackId: 'text', clipId: element.id };
+      item = { trackId: 'text', clipId: element.id };
     }
 
     set({
       selectedCanvasElementId: id,
-      selectedTimelineClip,
-      selectedTimelineClips: [selectedTimelineClip],
+      ...buildTimelineSelection([item], item),
       canvasTool: 'select',
       activeStudioTool: tool,
       activeTab: 'inspector' as EditorTab,
@@ -1695,11 +1813,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       trackId: trackId === 'text' ? undefined : trackId,
     };
 
+    const item: TimelineSelectionItem = {
+      trackId: trackId as TimelineTrackId,
+      clipId: id,
+    };
     set({
       ...pushHistory(state),
       canvasElements: [...state.canvasElements, element],
       selectedCanvasElementId: id,
-      selectedTimelineClip: { trackId: trackId as TimelineTrackId, clipId: id },
+      ...buildTimelineSelection([item], item),
       activeStudioTool: 'text',
       toolsDrawerOpen: true,
       canvasTool: 'select',
@@ -1712,10 +1834,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const element = state.canvasElements.find((el) => el.id === id);
     if (element?.src?.startsWith('blob:')) URL.revokeObjectURL(element.src);
+    const selectionPatch = selectionAfterRemovingClip(state, id);
     set({
       ...pushHistory(state),
       canvasElements: state.canvasElements.filter((el) => el.id !== id),
-      selectedCanvasElementId: state.selectedCanvasElementId === id ? null : state.selectedCanvasElementId,
+      ...selectionPatch,
     });
   },
 
@@ -1773,10 +1896,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!parts) return;
       const [left, right] = parts;
       const nextList = clips.flatMap((item) => (item.id === clip.id ? [left, right] : [item]));
+      const item: TimelineSelectionItem = { trackId, clipId: right.id };
       set({
         ...pushHistory(state),
         ...withTimelineDuration(state, { [listKey]: nextList }),
-        selectedTimelineClip: { trackId, clipId: right.id },
+        ...buildTimelineSelection([item], item),
       });
       return;
     }
@@ -1794,12 +1918,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: `${element.type}-${Date.now()}`,
           startTime: currentTime,
         };
+        const item: TimelineSelectionItem = { trackId, clipId: right.id };
         set({
           ...pushHistory(state),
           canvasElements: state.canvasElements.flatMap((el) =>
             el.id === element.id ? [left, right] : [el],
           ),
-          selectedTimelineClip: { trackId, clipId: right.id },
+          ...buildTimelineSelection([item], item),
           selectedCanvasElementId: right.id,
         });
         return;

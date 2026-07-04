@@ -1,11 +1,11 @@
 import { useRef, useState, type RefObject } from 'react';
 import { useAppStore } from '@/features/project';
-import { isEditableTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
 import { TimelineEditingTools } from '@/features/studio/components/TimelineEditingTools';
 import { TimelinePlaybackControls } from '@/features/studio/components/TimelinePlaybackControls';
 import { TimelineViewTools } from '@/features/studio/components/TimelineViewTools';
+import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
 interface TimelineBarProps {
@@ -24,18 +24,11 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const isSyncPlaying = useAppStore((s) => s.isSyncPlaying);
   const timelineZoom = useAppStore((s) => s.timelineZoom);
   const setTimelineZoom = useAppStore((s) => s.setTimelineZoom);
-  const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
-  const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
   const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
-  const copyTimelineSelection = useAppStore((s) => s.copyTimelineSelection);
-  const cutTimelineSelection = useAppStore((s) => s.cutTimelineSelection);
-  const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
-  const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
-  const timelineClipboard = useAppStore((s) => s.timelineClipboard);
   const togglePreviewFullscreen = useAppStore((s) => s.togglePreviewFullscreen);
   const previewFullscreenOpen = useAppStore((s) => s.previewFullscreenOpen);
   const canvasPreviewAxis = useAppStore((s) => s.canvasPreviewAxis);
@@ -48,37 +41,29 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const transcriptReady = useTranscriptReady();
+  const {
+    primary: selectedTimelineClip,
+    deleteSelection,
+    copySelection,
+    cutSelection,
+    pasteSelection,
+    duplicateSelection,
+    hasClipboard,
+    canDelete,
+    canEditCanvas,
+    canSplit: canSplitTrack,
+  } = useTimelineSelection();
 
   const [barMenu, setBarMenu] = useState<{ x: number; y: number } | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
 
   const isPaused = !isTimelinePlaying;
+  const canSplit = transcriptReady && canSplitTrack;
 
   const openInspector = () => {
     setActiveTab('inspector');
     setEditorOpen(true);
   };
-
-  const handleDeleteSelected = () => {
-    if (!selectedTimelineClip) return;
-    const { trackId, clipId } = selectedTimelineClip;
-    if (isEditableTimelineTrack(trackId)) {
-      removeTimelineClip(trackId, clipId);
-      selectCanvasElement(null);
-    }
-  };
-
-  const canDelete = isEditableTimelineTrack(selectedTimelineClip?.trackId);
-
-  const canSplit =
-    transcriptReady &&
-    (selectedTimelineClip?.trackId === 'text' ||
-      selectedTimelineClip?.trackId === 'video' ||
-      selectedTimelineClip?.trackId === 'audio' ||
-      (selectedTimelineClip?.trackId === 'overlay' &&
-        selectedTimelineClip.clipId &&
-        !selectedTimelineClip.clipId.startsWith('logo-') &&
-        !selectedTimelineClip.clipId.startsWith('image-')));
 
   if (!videoUrl && !projectId) return null;
 
@@ -100,7 +85,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
           canDelete={canDelete}
           processBusy={status !== 'idle'}
           onSplit={splitTimelineAtPlayhead}
-          onDelete={handleDeleteSelected}
+          onDelete={deleteSelection}
           onProcessAll={onProcessAll}
         />
 
@@ -133,11 +118,11 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         onClose={() => setBarMenu(null)}
         onSeek={seekTimeline}
         onSplit={splitTimelineAtPlayhead}
-        onDelete={handleDeleteSelected}
-        onCopy={copyTimelineSelection}
-        onCut={cutTimelineSelection}
-        onPaste={(atTime) => pasteTimelineClipboard(atTime)}
-        onDuplicate={duplicateTimelineSelection}
+        onDelete={deleteSelection}
+        onCopy={copySelection}
+        onCut={cutSelection}
+        onPaste={(atTime) => pasteSelection(atTime)}
+        onDuplicate={duplicateSelection}
         onAddClip={(trackId) => addTimelineClip(trackId, currentTime)}
         onSelectFootage={() => {}}
         onOpenMedia={() => {
@@ -155,8 +140,8 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         }}
         canSplit={canSplit}
         canDelete={canDelete}
-        canEditCanvas={isEditableTimelineTrack(selectedTimelineClip?.trackId)}
-        hasClipboard={Boolean(timelineClipboard?.length)}
+        canEditCanvas={canEditCanvas}
+        hasClipboard={hasClipboard}
       />
     </div>
   );

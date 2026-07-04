@@ -1,4 +1,12 @@
-import { useRef, useState, type CSSProperties, type DragEvent, type RefObject } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type RefObject,
+} from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import {
@@ -10,8 +18,14 @@ import {
   type TextTemplateInput,
 } from '@/features/studio/constants/textTemplates';
 import { CanvasEditorStage } from '@/features/studio/components/CanvasEditorStage';
-import { clampCanvasPoint, clientToCanvas } from '@/features/studio/lib/canvasCoords';
+import {
+  clampCanvasPoint,
+  clientToCanvas,
+  getVideoContentRect,
+} from '@/features/studio/lib/canvasCoords';
+import { findClipAtTime } from '@/features/studio/lib/mediaClips';
 import { computeTemplatePlacement } from '@/features/studio/lib/textTemplatePlacement';
+import { resolveVideoClipLayout } from '@/features/studio/lib/videoClipLayout';
 import { cn } from '@/lib/cn';
 
 interface VideoPreviewFrameProps {
@@ -30,6 +44,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: VideoPreviewFrameProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [dropActive, setDropActive] = useState(false);
+  const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
 
   const videoUrl = useAppStore((s) => s.videoUrl);
   const videoFile = useAppStore((s) => s.videoFile);
@@ -45,15 +60,64 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
   const videoClips = useAppStore((s) => s.videoClips);
   const currentTime = useAppStore((s) => s.currentTime);
   const videoCssFilter = useAppStore((s) => s.getVideoCssFilter());
+  const activeVideoClip = useMemo(
+    () =>
+      videoClips.length === 0
+        ? null
+        : findClipAtTime(videoClips, currentTime),
+    [videoClips, currentTime],
+  );
   const hasActiveVideoClip =
-    videoClips.length === 0
-      ? Boolean(videoUrl)
-      : videoClips.some(
-          (clip) => currentTime >= clip.start && currentTime < clip.start + clip.duration,
-        );
+    videoClips.length === 0 ? Boolean(videoUrl) : Boolean(activeVideoClip);
 
   const displayRatio = getDisplayRatio(aspectRatio, videoWidth, videoHeight);
   const portrait = displayRatio != null && isPortraitRatio(displayRatio);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const update = () => {
+      setFrameSize({
+        width: Math.floor(wrap.offsetWidth),
+        height: Math.floor(wrap.offsetHeight),
+      });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+
+  const contentRect = useMemo(
+    () =>
+      getVideoContentRect(
+        frameSize,
+        { width: videoWidth, height: videoHeight },
+        displayRatio,
+      ),
+    [frameSize, videoWidth, videoHeight, displayRatio],
+  );
+  const videoLayout = useMemo(
+    () => resolveVideoClipLayout(activeVideoClip, contentRect),
+    [activeVideoClip, contentRect],
+  );
+  const composedStyle: CSSProperties | undefined =
+    hasActiveVideoClip && frameSize.width > 0
+      ? {
+          left: videoLayout.x,
+          top: videoLayout.y,
+          width: videoLayout.width,
+          height: videoLayout.height,
+          opacity: videoLayout.opacity,
+          transform:
+            videoLayout.rotation !== 0
+              ? `rotate(${videoLayout.rotation}deg)`
+              : undefined,
+          ...(videoCssFilter !== 'none' ? { filter: videoCssFilter } : {}),
+        }
+      : videoCssFilter !== 'none'
+        ? { filter: videoCssFilter }
+        : undefined;
 
   const togglePlay = () => {
     if (onTogglePlay) {
@@ -136,8 +200,12 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
         <video
           ref={videoRef}
           key={videoUrl ?? undefined}
-          className={cn('studio-video-player', !hasActiveVideoClip && videoUrl && 'studio-video-player--gap')}
-          style={videoCssFilter !== 'none' ? { filter: videoCssFilter } : undefined}
+          className={cn(
+            'studio-video-player',
+            hasActiveVideoClip && frameSize.width > 0 && 'studio-video-player--composed',
+            !hasActiveVideoClip && videoUrl && 'studio-video-player--gap',
+          )}
+          style={composedStyle}
           playsInline
           preload="auto"
           onLoadedMetadata={(e) => {

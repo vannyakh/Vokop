@@ -150,6 +150,17 @@
   max-height: none;
 }
 
+/* Composition layout from MediaClip transform (Konva-editable). */
+.studio-video-player--composed {
+  position: absolute;
+  inset: auto;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  transform-origin: center center;
+  background: #000;
+}
+
 .studio-caption-stage {
   position: absolute;
   inset: 0;

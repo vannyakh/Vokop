@@ -9,6 +9,12 @@ export type TimelineTrackId =
   | 'overlay' // legacy visual track
   | (string & {});
 
+/** Primary / multi-select identity for a timeline clip. */
+export interface TimelineSelectionItem {
+  trackId: TimelineTrackId;
+  clipId: string;
+}
+
 export type TimelineTrackType =
   | 'video'
   | 'text'
@@ -65,6 +71,7 @@ export function isDeletableTimelineTrack(_trackId: string): boolean {
 /**
  * Omniclip-style media clip (source of truth for video/audio tracks).
  * `start`/`duration` are timeline placement; `sourceStart` is the in-point in the media file.
+ * Optional composition transform places the clip inside the preview frame (Konva-editable).
  */
 export interface MediaClip {
   id: string;
@@ -72,6 +79,18 @@ export interface MediaClip {
   duration: number;
   sourceStart: number;
   name: string;
+  /** Composition X in preview-frame pixels (defaults to video content rect). */
+  x?: number;
+  /** Composition Y in preview-frame pixels. */
+  y?: number;
+  /** Composition width in preview-frame pixels. */
+  width?: number;
+  /** Composition height in preview-frame pixels. */
+  height?: number;
+  /** Rotation in degrees. */
+  rotation?: number;
+  /** Opacity 0–1. */
+  opacity?: number;
 }
 
 export interface TimelineClipModel {

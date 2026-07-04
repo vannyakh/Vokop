@@ -82,12 +82,14 @@ export function TimelineClipBlock({
       )}
       style={{ left, width, height }}
       onPointerDown={handlePointerDown}
+      onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onSelect();
         onContextMenu?.(e);
-      }}    >
+      }}
+    >
       {/* Filmstrip for video */}
       {isFootage && filmstripThumbs && filmstripThumbs.length > 0 && (
         <div className="studio-timeline-clip-filmstrip">

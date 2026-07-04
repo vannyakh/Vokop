@@ -14,6 +14,7 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
   const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
   const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
   const deleteTimelineSelection = useAppStore((s) => s.deleteTimelineSelection);
+  const clearTimelineSelection = useAppStore((s) => s.clearTimelineSelection);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -48,8 +49,7 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteTimelineSelection(); return; }
 
       if (e.key === 'Escape') {
-        useAppStore.getState().setSelectedTimelineClip(null);
-        useAppStore.getState().selectCanvasElement(null);
+        clearTimelineSelection({ clearCanvas: true });
         return;
       }
 
@@ -77,5 +77,6 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
     pasteTimelineClipboard,
     duplicateTimelineSelection,
     deleteTimelineSelection,
+    clearTimelineSelection,
   ]);
 }

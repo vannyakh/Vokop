@@ -30,6 +30,8 @@ import {
 import { useVideoFilmstrip } from '@/features/studio/hooks/useVideoFilmstrip';
 import { useTimelineTracks } from '@/features/studio/hooks/useTimelineTracks';
 import { useTimelineClipDrag } from '@/features/studio/hooks/useTimelineClipDrag';
+import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
+import type { TimelineSelectionItem } from '@/features/studio/lib/timelineTypes';
 import { TimelineTrackHeader } from '@/features/studio/components/TimelineTrackHeader';
 import { TimelineClipBlock } from '@/features/studio/components/TimelineClipBlock';
 import { TimelineVoiceWaveform } from '@/features/studio/components/TimelineVoiceWaveform';
@@ -100,13 +102,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const audioBase64 = useAppStore((s) => s.audioBase64);
   const timelineZoom = useAppStore((s) => s.timelineZoom);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
-  const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
-  const selectedTimelineClips = useAppStore((s) => s.selectedTimelineClips);
   const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
-  const setSelectedTimelineClip = useAppStore((s) => s.setSelectedTimelineClip);
-  const setSelectedTimelineClips = useAppStore((s) => s.setSelectedTimelineClips);
-  const addToTimelineSelection = useAppStore((s) => s.addToTimelineSelection);
-  const removeFromTimelineSelection = useAppStore((s) => s.removeFromTimelineSelection);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
@@ -119,16 +115,26 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
-  const timelineClipboard = useAppStore((s) => s.timelineClipboard);
-  const copyTimelineSelection = useAppStore((s) => s.copyTimelineSelection);
-  const cutTimelineSelection = useAppStore((s) => s.cutTimelineSelection);
-  const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
-  const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
+  const {
+    primary: selectedTimelineClip,
+    isSelected,
+    selectClip,
+    selectItems,
+    clearSelection,
+    deleteSelection,
+    copySelection,
+    cutSelection,
+    pasteSelection,
+    duplicateSelection,
+    hasClipboard,
+    canDelete: canDeleteSelection,
+    canEditCanvas,
+    canAddKeyframe,
+    canSplit: canSplitTrack,
+  } = useTimelineSelection();
   const addMediaAssetToTimeline = useAppStore((s) => s.addMediaAssetToTimeline);
   const addTextTemplate = useAppStore((s) => s.addTextTemplate);
   const importMediaFiles = useAppStore((s) => s.importMediaFiles);
-  const setActiveTab = useAppStore((s) => s.setActiveTab);
-  const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const transcriptReady = useTranscriptReady();
 
   const videoSessionId = useAppStore((s) => s.videoSessionId);
@@ -242,9 +248,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       if (e.button !== 0) return;
       const container = tracksContainerRef.current;
       if (!container) return;
-      setSelectedTimelineClips([]);
-      setSelectedTimelineClip(null);
-      selectCanvasElement(null);
+      clearSelection({ clearCanvas: true });
       const rect = container.getBoundingClientRect();
       const scroll = scrollRef.current?.scrollLeft ?? 0;
       const x = e.clientX - rect.left + scroll;
@@ -268,7 +272,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           const my1 = Math.min(m.y1, m.y2);
           const my2 = Math.max(m.y1, m.y2);
           if (mx2 - mx1 > 4 || my2 - my1 > 4) {
-            const hits: { trackId: TimelineTrackId; clipId: string }[] = [];
+            const hits: TimelineSelectionItem[] = [];
             tracks.forEach((t, i) => {
               const top = trackTops[i] + 4;
               const bottom = top + TRACK_HEIGHT[t.type] - 8;
@@ -280,10 +284,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 hits.push({ trackId: t.id as TimelineTrackId, clipId: c.id });
               });
             });
-            if (hits.length) {
-              setSelectedTimelineClips(hits);
-              setSelectedTimelineClip(hits[0] ?? null);
-            }
+            if (hits.length) selectItems(hits, hits[0] ?? null);
           }
         }
         marqueeRef.current = null;
@@ -294,7 +295,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     },
-    [tracks, trackTops, pxPerSec, setSelectedTimelineClips, setSelectedTimelineClip, selectCanvasElement],
+    [tracks, trackTops, pxPerSec, clearSelection, selectItems],
   );
 
   useEffect(() => {
@@ -309,15 +310,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       ) {
         return;
       }
-      if (e.key === 'Escape') {
-        setSelectedTimelineClip(null);
-        setSelectedTimelineClips([]);
-        selectCanvasElement(null);
-      }
+      if (e.key === 'Escape') clearSelection({ clearCanvas: true });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setSelectedTimelineClip, setSelectedTimelineClips, selectCanvasElement]);
+  }, [clearSelection]);
 
   const syncHeaderScroll = () => {
     if (headerColRef.current && scrollRef.current) {
@@ -349,51 +346,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       });
     },
     [timeAtClientX],
-  );
-
-  const openInspector = useCallback(() => {
-    setActiveTab('inspector');
-    setEditorOpen(true);
-  }, [setActiveTab, setEditorOpen]);
-
-  const selectClip = useCallback(
-    (trackId: TimelineTrackId, clipId: string, e?: React.MouseEvent) => {
-      const item = { trackId, clipId };
-      const isMulti = e && (e.shiftKey || e.metaKey || e.ctrlKey);
-      const isCanvasClip = useAppStore
-        .getState()
-        .canvasElements.some((el) => el.id === clipId);
-
-      if (isMulti) {
-        const already = selectedTimelineClips.some(
-          (c) => c.trackId === trackId && c.clipId === clipId,
-        );
-        if (already) {
-          removeFromTimelineSelection(item);
-        } else {
-          addToTimelineSelection(item);
-          setSelectedTimelineClip(item);
-          if (isCanvasClip) selectCanvasElement(clipId);
-          else useAppStore.getState().setSelectedCanvasElementId(null);
-          openInspector();
-        }
-        return;
-      }
-      setSelectedTimelineClips([item]);
-      setSelectedTimelineClip(item);
-      if (isCanvasClip) selectCanvasElement(clipId);
-      else useAppStore.getState().setSelectedCanvasElementId(null);
-      openInspector();
-    },
-    [
-      selectedTimelineClips,
-      setSelectedTimelineClip,
-      setSelectedTimelineClips,
-      addToTimelineSelection,
-      removeFromTimelineSelection,
-      selectCanvasElement,
-      openInspector,
-    ],
   );
 
   const updateExternalDrop = useCallback(
@@ -487,15 +439,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     ],
   );
 
-  const canDeleteSelection = isEditableTimelineTrack(selectedTimelineClip?.trackId);
-
-  const canSplitSelection =
-    transcriptReady &&
-    (selectedTimelineClip?.trackId === 'video' ||
-      selectedTimelineClip?.trackId === 'audio' ||
-      selectedTimelineClip?.trackId === 'text' ||
-      (isVisualTimelineTrack(selectedTimelineClip?.trackId) &&
-        Boolean(selectedTimelineClip?.clipId)));
+  const canSplitSelection = transcriptReady && canSplitTrack;
 
   const hoverTime = hoverX != null ? pxToTime(hoverX, pxPerSec) : null;
 
@@ -504,9 +448,20 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   return (
     <div
       className="studio-timeline-pinned-layout"
-      onClick={() => {
-        setSelectedTimelineClip(null);
-        selectCanvasElement(null);
+      onClick={(e) => {
+        // Clips stop pointerdown but click still bubbles — don't clear on clip hits.
+        const target = e.target as HTMLElement;
+        if (
+          target.closest('.studio-timeline-clip-block') ||
+          target.closest('.studio-track-header') ||
+          target.closest('.studio-track-menu') ||
+          target.closest('.studio-timeline-context-menu') ||
+          target.closest('.ant-dropdown') ||
+          target.closest('.ant-modal-root')
+        ) {
+          return;
+        }
+        clearSelection({ clearCanvas: true });
         setContextMenu(null);
       }}
     >
@@ -724,12 +679,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 {track.clips.map((clip) => {
                   const left = timeToPx(clip.start, pxPerSec);
                   const width = Math.max(28, timeToPx(clip.duration, pxPerSec));
-                  const selected =
-                    (selectedTimelineClip?.clipId === clip.id &&
-                      selectedTimelineClip.trackId === track.id) ||
-                    selectedTimelineClips.some(
-                      (s) => s.clipId === clip.id && s.trackId === track.id,
-                    );
+                  const selected = isSelected(track.id, clip.id);
+                  // Media + canvas clips are always editable; caption segments need transcript.
+                  const canDragClip =
+                    Boolean(clip.mediaKind || clip.canvasKind) ||
+                    (Boolean(clip.segmentType) && transcriptReady);
 
                   return (
                     <TimelineClipBlock
@@ -740,16 +694,13 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       width={width}
                       height={clipHeight}
                       selected={selected}
-                      canDrag={transcriptReady}
+                      canDrag={canDragClip}
                       filmstripThumbs={track.type === 'video' ? thumbnails : undefined}
                       thumbWidth={thumbWidth}
                       onSelect={(e) => selectClip(track.id as TimelineTrackId, clip.id, e)}
                       onDelete={
-                        transcriptReady
-                          ? () => {
-                              removeTimelineClip(track.id, clip.id);
-                              selectCanvasElement(null);
-                            }
+                        canDragClip
+                          ? () => removeTimelineClip(track.id, clip.id)
                           : undefined
                       }
                       onContextMenu={(e) =>
@@ -886,15 +837,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         onClose={() => setContextMenu(null)}
         onSeek={seekTo}
         onSplit={splitTimelineAtPlayhead}
-        onDelete={() => {
-          if (!selectedTimelineClip) return;
-          removeTimelineClip(selectedTimelineClip.trackId, selectedTimelineClip.clipId);
-          selectCanvasElement(null);
-        }}
-        onCopy={copyTimelineSelection}
-        onCut={cutTimelineSelection}
-        onPaste={(atTime) => pasteTimelineClipboard(atTime)}
-        onDuplicate={duplicateTimelineSelection}
+        onDelete={deleteSelection}
+        onCopy={copySelection}
+        onCut={cutSelection}
+        onPaste={(atTime) => pasteSelection(atTime)}
+        onDuplicate={duplicateSelection}
         onAddClip={(trackId) => addTimelineClip(trackId, contextMenu?.time ?? currentTime)}
         onSelectFootage={() => {
           const clipId =
@@ -915,14 +862,17 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         }}
         canSplit={canSplitSelection}
         canDelete={canDeleteSelection}
-        canEditCanvas={isEditableTimelineTrack(selectedTimelineClip?.trackId)}
-        canAddKeyframe={Boolean(
-          (contextMenu?.clipId ?? selectedTimelineClip?.clipId) &&
-            isEditableTimelineTrack(contextMenu?.trackId ?? selectedTimelineClip?.trackId) &&
-            !isAudioLikeTimelineTrack(contextMenu?.trackId ?? selectedTimelineClip?.trackId) &&
-            (contextMenu?.trackId ?? selectedTimelineClip?.trackId) !== 'video',
-        )}
-        hasClipboard={Boolean(timelineClipboard?.length)}
+        canEditCanvas={canEditCanvas}
+        canAddKeyframe={
+          canAddKeyframe ||
+          Boolean(
+            contextMenu?.clipId &&
+              isEditableTimelineTrack(contextMenu.trackId) &&
+              !isAudioLikeTimelineTrack(contextMenu.trackId) &&
+              contextMenu.trackId !== 'video',
+          )
+        }
+        hasClipboard={hasClipboard}
       />
     </div>
   );

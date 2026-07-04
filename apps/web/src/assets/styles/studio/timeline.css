@@ -569,8 +569,6 @@
   cursor: default;
   box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.4);
   transition:
-    left 0.08s linear,
-    width 0.08s linear,
     box-shadow 0.12s ease,
     border-color 0.12s ease,
     opacity 0.12s ease;
@@ -578,6 +576,7 @@
 
 .studio-timeline-clip-block--editable:active {
   transition: none;
+  cursor: grabbing;
 }
 
 .studio-timeline-clip-keyframe {
@@ -812,21 +811,30 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 7px;
+  width: 10px;
   cursor: ew-resize;
-  z-index: 3;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: none;
 }
 
 .studio-timeline-clip-handle::after {
   content: '';
   width: 3px;
-  height: 60%;
+  height: 55%;
+  min-height: 12px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.45);
   box-shadow: 0 0 3px rgba(0, 0, 0, 0.35);
+  transition: background 0.12s ease, height 0.12s ease;
+}
+
+.studio-timeline-clip-block.is-selected .studio-timeline-clip-handle::after,
+.studio-timeline-clip-block:hover .studio-timeline-clip-handle::after {
+  background: rgba(255, 255, 255, 0.92);
+  height: 70%;
 }
 
 .studio-timeline-clip-handle--left {

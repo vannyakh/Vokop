@@ -11,11 +11,17 @@ import { snapDragPosition, type CanvasGuideLine } from '@/features/studio/lib/ca
 import { loadStudioFont } from '@/features/studio/lib/fontLoader';
 import { getEffectProps } from '@/features/studio/constants/textEffects';
 import { sampleElementAtTime } from '@/features/studio/lib/keyframeUtils';
+import { findClipAtTime } from '@/features/studio/lib/mediaClips';
+import {
+  resolveVideoClipLayout,
+  videoProxyId,
+} from '@/features/studio/lib/videoClipLayout';
 import {
   CanvasElementOverlay,
   CanvasInlineTextEditor,
 } from '@/features/studio/components/CanvasElementOverlay';
 import type { CanvasElement } from '@/types/canvas';
+import type { MediaClip } from '@/features/studio/lib/timelineTypes';
 
 interface CanvasEditorStageProps {
   wrapRef: React.RefObject<HTMLDivElement | null>;
@@ -117,6 +123,7 @@ function CanvasElementNode({
 }) {
   const groupRef = useRef<Konva.Group>(null);
   const [dragging, setDragging] = useState(false);
+  const [transforming, setTransforming] = useState(false);
   const currentTime = useAppStore((s) => s.currentTime);
   const isText = element.type === 'text' || element.type === 'overlay';
   const isImage = element.type === 'logo' || element.type === 'image';
@@ -126,7 +133,9 @@ function CanvasElementNode({
   const accent =
     element.type === 'logo' ? '#F4B942' : element.type === 'image' ? '#7EB6FF' : isText ? '#54D6C9' : '#9C8CD8';
   const animated = sampleElementAtTime(element, currentTime);
-  const display = dragging
+  // While focused/editing, use authored props so playback keyframes don't fight drag/resize.
+  const liveEdit = interactive && (selected || dragging || transforming);
+  const display = liveEdit
     ? {
         x: element.x,
         y: element.y,
@@ -177,11 +186,23 @@ function CanvasElementNode({
     <Group
       ref={groupRef}
       id={element.id}
+      name={element.id}
       x={display.x}
       y={display.y}
+      width={display.width}
+      height={boxHeight}
       rotation={display.rotation}
       opacity={display.opacity}
       draggable={interactive}
+      listening={interactive}
+      onMouseDown={(e) => {
+        e.cancelBubble = true;
+        onSelect();
+      }}
+      onTouchStart={(e) => {
+        e.cancelBubble = true;
+        onSelect();
+      }}
       onClick={(e) => {
         e.cancelBubble = true;
         onSelect();
@@ -200,6 +221,7 @@ function CanvasElementNode({
       }}
       onDragStart={() => {
         setDragging(true);
+        onSelect();
         if (canvasPreviewAxis) {
           onDragGuideChange(
             snapDragPosition(
@@ -225,6 +247,10 @@ function CanvasElementNode({
         onChange({ x: node.x(), y: node.y() });
         setDragging(false);
       }}
+      onTransformStart={() => {
+        setTransforming(true);
+        onSelect();
+      }}
       onTransformEnd={() => {
         const node = groupRef.current;
         if (!node) return;
@@ -232,14 +258,17 @@ function CanvasElementNode({
         const scaleY = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-        clampNode(node, elementSize, contentRect);
+        const nextWidth = Math.max(isImage ? 40 : 80, display.width * scaleX);
+        const nextHeight = Math.max(isImage ? 24 : boxHeight, boxHeight * scaleY);
+        clampNode(node, { width: nextWidth, height: nextHeight }, contentRect);
         onChange({
           x: node.x(),
           y: node.y(),
-          width: Math.max(isImage ? 40 : 80, node.width() * scaleX),
-          height: Math.max(isImage ? 24 : boxHeight, node.height() * scaleY),
+          width: nextWidth,
+          height: nextHeight,
           rotation: node.rotation(),
         });
+        setTransforming(false);
       }}
     >
       {isImage ? (
@@ -323,10 +352,114 @@ function CanvasElementNode({
   );
 }
 
+/** Invisible Konva proxy so video clips get the same resize/move handles as overlays. */
+function VideoClipProxyNode({
+  clip,
+  contentRect,
+  selected,
+  interactive,
+  onSelect,
+  onChange,
+}: {
+  clip: MediaClip;
+  contentRect: CanvasRect;
+  selected: boolean;
+  interactive: boolean;
+  onSelect: () => void;
+  onChange: (patch: Partial<MediaClip>) => void;
+}) {
+  const groupRef = useRef<Konva.Group>(null);
+  const [dragging, setDragging] = useState(false);
+  const [transforming, setTransforming] = useState(false);
+  const layout = resolveVideoClipLayout(clip, contentRect);
+  const proxyId = videoProxyId(clip.id);
+  const live = selected || dragging || transforming;
+
+  return (
+    <Group
+      ref={groupRef}
+      id={proxyId}
+      name={proxyId}
+      x={layout.x}
+      y={layout.y}
+      width={layout.width}
+      height={layout.height}
+      rotation={layout.rotation}
+      opacity={1}
+      draggable={interactive}
+      listening={interactive}
+      onMouseDown={(e) => {
+        e.cancelBubble = true;
+        onSelect();
+      }}
+      onTouchStart={(e) => {
+        e.cancelBubble = true;
+        onSelect();
+      }}
+      onClick={(e) => {
+        e.cancelBubble = true;
+        onSelect();
+      }}
+      onTap={(e) => {
+        e.cancelBubble = true;
+        onSelect();
+      }}
+      onDragStart={() => {
+        setDragging(true);
+        onSelect();
+      }}
+      onDragEnd={(e) => {
+        const node = e.target as Konva.Group;
+        onChange({
+          x: node.x(),
+          y: node.y(),
+          width: layout.width,
+          height: layout.height,
+          rotation: node.rotation(),
+        });
+        setDragging(false);
+      }}
+      onTransformStart={() => {
+        setTransforming(true);
+        onSelect();
+      }}
+      onTransformEnd={() => {
+        const node = groupRef.current;
+        if (!node) return;
+        const scaleX = node.scaleX();
+        const scaleY = node.scaleY();
+        node.scaleX(1);
+        node.scaleY(1);
+        const width = Math.max(48, layout.width * scaleX);
+        const height = Math.max(48, layout.height * scaleY);
+        onChange({
+          x: node.x(),
+          y: node.y(),
+          width,
+          height,
+          rotation: node.rotation(),
+        });
+        setTransforming(false);
+      }}
+    >
+      <Rect
+        width={layout.width}
+        height={layout.height}
+        fill={live ? 'rgba(244,185,66,0.06)' : 'rgba(0,0,0,0.01)'}
+        stroke={selected ? '#F4B942' : 'transparent'}
+        strokeWidth={selected ? 1.5 : 0}
+        listening
+      />
+    </Group>
+  );
+}
+
 export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = false }: CanvasEditorStageProps) {
   const currentTime = useAppStore((s) => s.currentTime);
   const canvasElements = useAppStore((s) => s.canvasElements);
   const selectedCanvasElementId = useAppStore((s) => s.selectedCanvasElementId);
+  const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
+  const videoClips = useAppStore((s) => s.videoClips);
   const canvasTool = useAppStore((s) => s.canvasTool);
   const canvasPreviewAxis = useAppStore((s) => s.canvasPreviewAxis);
   const canvasAttachSnap = useAppStore((s) => s.canvasAttachSnap);
@@ -335,6 +468,28 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
   const aspectRatio = useAppStore((s) => s.aspectRatio);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
+  const updateMediaClip = useAppStore((s) => s.updateMediaClip);
+  const selectTimelineClip = useAppStore((s) => s.selectTimelineClip);
+  const clearTimelineSelection = useAppStore((s) => s.clearTimelineSelection);
+  const setTimelinePlaying = useAppStore((s) => s.setTimelinePlaying);
+
+  const focusCanvasElement = (id: string) => {
+    // Pause composition playback so Konva selection / transform stays stable.
+    if (useAppStore.getState().isTimelinePlaying) {
+      setTimelinePlaying(false);
+    }
+    selectCanvasElement(id);
+  };
+
+  const focusVideoClip = (clipId: string) => {
+    if (useAppStore.getState().isTimelinePlaying) {
+      setTimelinePlaying(false);
+    }
+    selectTimelineClip(
+      { trackId: 'video', clipId },
+      { mode: 'replace', syncCanvas: true, openInspector: true },
+    );
+  };
 
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [dragGuides, setDragGuides] = useState<CanvasGuideLine[] | null>(null);
@@ -367,25 +522,51 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
     return () => ro.disconnect();
   }, [wrapRef]);
 
+  const videoClipAtPlayhead = useMemo(
+    () => findClipAtTime(videoClips, currentTime),
+    [videoClips, currentTime],
+  );
+  const videoSelected =
+    selectedTimelineClip?.trackId === 'video' &&
+    videoClipAtPlayhead != null &&
+    selectedTimelineClip.clipId === videoClipAtPlayhead.id;
+  const transformTargetId = selectedCanvasElementId
+    ? selectedCanvasElementId
+    : videoSelected && videoClipAtPlayhead
+      ? videoProxyId(videoClipAtPlayhead.id)
+      : null;
+
   useEffect(() => {
     const tr = transformerRef.current;
     const layer = layerRef.current;
     if (!tr || !layer) return;
 
-    if (previewMode || !selectedCanvasElementId || editingElementId) {
+    if (previewMode || !transformTargetId || editingElementId) {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
     }
 
-    const node = layer.findOne(`#${selectedCanvasElementId}`);
+    // Function matcher avoids CSS selector issues with special characters in ids.
+    const node = layer.findOne(
+      (n) => n.id() === transformTargetId || n.name() === transformTargetId,
+    );
     if (node) {
       tr.nodes([node]);
+      tr.forceUpdate();
       tr.getLayer()?.batchDraw();
     } else {
       tr.nodes([]);
     }
-  }, [selectedCanvasElementId, canvasElements, currentTime, size, previewMode, editingElementId]);
+  }, [
+    transformTargetId,
+    canvasElements,
+    videoClips,
+    size,
+    previewMode,
+    editingElementId,
+    videoSelected,
+  ]);
 
   useEffect(() => {
     if (!selectedCanvasElementId) setEditingElementId(null);
@@ -418,6 +599,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
   const selectedElement = canvasElements.find((el) => el.id === selectedCanvasElementId) ?? null;
   const editingElement = canvasElements.find((el) => el.id === editingElementId) ?? null;
   const interactive = !previewMode;
+  const transformAccent = videoSelected ? '#F4B942' : '#54D6C9';
 
   return (
     <>
@@ -429,11 +611,11 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
           'studio-canvas-stage',
           canvasTool === 'pan' && interactive && 'studio-canvas-stage--pan',
           previewMode && 'studio-canvas-stage--preview',
-          interactive && selectedCanvasElementId && 'studio-canvas-stage--selecting',
+          interactive && transformTargetId && 'studio-canvas-stage--selecting',
         )}
         onMouseDown={(e) => {
           if (e.target === e.target.getStage()) {
-            selectCanvasElement(null);
+            clearTimelineSelection({ clearCanvas: true });
             setEditingElementId(null);
             setDragGuides(null);
             if (canvasTool === 'pan' && interactive) onBackgroundClick?.();
@@ -441,7 +623,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
         }}
         onTouchStart={(e) => {
           if (e.target === e.target.getStage()) {
-            selectCanvasElement(null);
+            clearTimelineSelection({ clearCanvas: true });
             setEditingElementId(null);
           }
         }}
@@ -457,6 +639,20 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
             listening={false}
           />
 
+          {/* Video sits under the stage in the DOM; this proxy receives Konva transform handles. */}
+          {interactive && videoClipAtPlayhead && (
+            <VideoClipProxyNode
+              clip={videoClipAtPlayhead}
+              contentRect={contentRect}
+              selected={videoSelected}
+              interactive={interactive}
+              onSelect={() => focusVideoClip(videoClipAtPlayhead.id)}
+              onChange={(patch) =>
+                updateMediaClip(videoClipAtPlayhead.id, patch, { history: true })
+              }
+            />
+          )}
+
           {dragGuides && <CanvasGuideLines guides={dragGuides} stageSize={size} />}
 
           {visibleElements.map((element) => (
@@ -469,9 +665,9 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
               snapPeers={visibleElements}
               canvasPreviewAxis={canvasPreviewAxis}
               canvasAttachSnap={canvasAttachSnap}
-              onSelect={() => selectCanvasElement(element.id)}
+              onSelect={() => focusCanvasElement(element.id)}
               onEdit={() => {
-                selectCanvasElement(element.id);
+                focusCanvasElement(element.id);
                 setEditingElementId(element.id);
               }}
               onChange={(patch) => updateCanvasElement(element.id, patch)}
@@ -479,7 +675,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
             />
           ))}
 
-          {interactive && selectedCanvasElementId && !editingElementId && (
+          {interactive && transformTargetId && !editingElementId && (
             <Transformer
               ref={transformerRef}
               rotateEnabled
@@ -496,8 +692,8 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
                 return newBox;
               }}
               anchorSize={7}
-              borderStroke="#54D6C9"
-              anchorStroke="#54D6C9"
+              borderStroke={transformAccent}
+              anchorStroke={transformAccent}
               anchorFill="#0B0A08"
             />
           )}
