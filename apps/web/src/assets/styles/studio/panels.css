@@ -527,10 +527,45 @@
   gap: 0.4rem;
 }
 
-.studio-timeline-lane--drop-target {
-  outline: 1px dashed color-mix(in srgb, var(--accent) 65%, transparent);
+/* Timeline external drag-drop feedback */
+.studio-timeline-lane--drop-ok {
+  outline: 2px solid color-mix(in srgb, var(--accent) 80%, #22c55e);
   outline-offset: -2px;
-  background: color-mix(in srgb, var(--accent-soft) 28%, transparent);
+  background: color-mix(in srgb, #22c55e 18%, transparent) !important;
+  border-radius: 5px;
+}
+
+.studio-timeline-lane--drop-blocked {
+  outline: 2px solid rgba(248, 113, 113, 0.7);
+  outline-offset: -2px;
+  background: rgba(248, 113, 113, 0.1) !important;
+  border-radius: 5px;
+}
+
+.studio-timeline-lane--drop-dim {
+  opacity: 0.42;
+}
+
+.studio-timeline-lane--clip-hover {
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.studio-timeline-lane {
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.studio-timeline-scroll--drop-active {
+  outline: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
 }
 
 /* ── Text templates panel ── */

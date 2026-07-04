@@ -10,7 +10,7 @@ import {
   mediaAssetDragPayload,
   type MediaAsset,
 } from '@/features/studio/lib/mediaLibrary';
-import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
+import { mediaKindDragType } from '@/features/studio/lib/timelineDrop';
 
 const ACCEPT =
   'video/*,audio/*,image/*,.mp4,.webm,.mov,.mp3,.wav,.png,.jpg,.jpeg,.webp,.gif';
@@ -24,22 +24,20 @@ function MediaAssetCard({
   onAdd,
   onRemove,
   onSetPrimary,
-  timelineReady,
 }: {
   asset: MediaAsset;
   onAdd: () => void;
   onRemove: () => void;
   onSetPrimary: () => void;
-  timelineReady: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const onDragStart = (e: DragEvent) => {
-    if (!timelineReady) {
-      e.preventDefault();
-      return;
-    }
-    e.dataTransfer.setData(MEDIA_ASSET_DRAG_MIME, mediaAssetDragPayload(asset.id));
+    e.dataTransfer.setData(
+      MEDIA_ASSET_DRAG_MIME,
+      mediaAssetDragPayload(asset.id, asset.kind),
+    );
+    e.dataTransfer.setData(mediaKindDragType(asset.kind), asset.kind);
     e.dataTransfer.effectAllowed = 'copy';
   };
 
@@ -61,15 +59,10 @@ function MediaAssetCard({
       className={cn(
         'media-lib-card',
         asset.isPrimary && 'media-lib-card--primary',
-        !timelineReady && 'media-lib-card--locked',
       )}
-      draggable={timelineReady}
+      draggable
       onDragStart={onDragStart}
-      title={
-        timelineReady
-          ? `${asset.name} — drag to timeline`
-          : `${asset.name} — run Process All to unlock timeline edit`
-      }
+      title={`${asset.name} — drag to timeline`}
     >
       <div
         className="media-lib-card-thumb"
@@ -100,8 +93,7 @@ function MediaAssetCard({
             <button
               type="button"
               className="media-lib-action-btn media-lib-action-btn--add"
-              title={timelineReady ? 'Add to timeline' : 'Unlocks after transcript'}
-              disabled={!timelineReady}
+              title="Add to timeline"
               onClick={onAdd}
             >
               <StudioIcon name="add" size={14} />
@@ -153,8 +145,6 @@ export function MediaLibraryPanel() {
   const removeMediaAsset = useAppStore((s) => s.removeMediaAsset);
   const addMediaAssetToTimeline = useAppStore((s) => s.addMediaAssetToTimeline);
   const setPrimaryVideoAsset = useAppStore((s) => s.setPrimaryVideoAsset);
-  const transcriptReady = useTranscriptReady();
-
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -251,7 +241,6 @@ export function MediaLibraryPanel() {
             <MediaAssetCard
               key={asset.id}
               asset={asset}
-              timelineReady={transcriptReady}
               onAdd={() => addMediaAssetToTimeline(asset.id)}
               onRemove={() => removeMediaAsset(asset.id)}
               onSetPrimary={() => setPrimaryVideoAsset(asset.id)}

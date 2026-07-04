@@ -3,6 +3,7 @@
  * Prefer these over remote or ad-hoc icon sources in studio surfaces.
  */
 import audioIcon from '@/assets/audio.svg';
+import iconIcon from '@/assets/icon1.png';
 import effectIcon from '@/assets/effect.svg';
 import easeIcon from '@/assets/ease.svg';
 import imagesIcon from '@/assets/images.svg';
@@ -35,7 +36,8 @@ export type AssetIconName =
   | 'loading'
   | 'noise'
   | 'ellipse'
-  | 'templatePreview';
+  | 'templatePreview'
+  | 'icon';
 
 export const ASSET_ICONS: Record<AssetIconName, string> = {
   audio: audioIcon,
@@ -54,6 +56,7 @@ export const ASSET_ICONS: Record<AssetIconName, string> = {
   noise: noiseIcon,
   ellipse: ellipseIcon,
   templatePreview: templatePreviewIcon,
+  icon: iconIcon,
 };
 
 /** Map studio tool ids to bundled asset icons. */

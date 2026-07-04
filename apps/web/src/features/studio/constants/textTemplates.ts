@@ -290,4 +290,7 @@ export interface AddTextTemplateOptions {
   y?: number;
   canvasWidth?: number;
   canvasHeight?: number;
+  /** Timeline placement when dropped on a track. */
+  startTime?: number;
+  trackId?: string;
 }

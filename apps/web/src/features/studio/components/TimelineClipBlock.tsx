@@ -27,6 +27,7 @@ function getClipVariant(
 ): string {
   if (clip.canvasKind === 'template') return 'template';
   if (clip.canvasKind === 'logo') return 'logo';
+  if (clip.canvasKind === 'sticker') return 'sticker';
   if (clip.canvasKind === 'image') return 'image';
   if (clip.segmentType === 'translation') return 'translation';
   if (clip.segmentType === 'transcript') return 'transcript';
@@ -51,12 +52,16 @@ export function TimelineClipBlock({
 }: TimelineClipBlockProps) {
   const isEditableTrack =
     track.type === 'text' ||
+    track.type === 'image' ||
+    track.type === 'sticker' ||
+    track.type === 'effect' ||
     track.type === 'overlay' ||
+    track.type === 'sound' ||
     clip.mediaKind === 'video' ||
     clip.mediaKind === 'audio';
   const canEdit = canDrag && isEditableTrack;
   const isFootage = track.type === 'video';
-  const isAudio = track.type === 'audio';
+  const isAudio = track.type === 'audio' || track.type === 'sound';
   const variant = getClipVariant(clip, track.type);
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -101,6 +106,19 @@ export function TimelineClipBlock({
 
       {/* Audio waveform */}
       {isAudio && children}
+
+      {/* EA-style keyframe diamonds */}
+      {(clip.keyframes ?? []).map((kf) => {
+        const pct = clip.duration > 0 ? (kf.offset / clip.duration) * 100 : 0;
+        return (
+          <span
+            key={kf.id}
+            className="studio-timeline-clip-keyframe"
+            style={{ left: `${Math.min(100, Math.max(0, pct))}%` }}
+            title="Keyframe"
+          />
+        );
+      })}
 
       {/* Clip label */}
       {isEditableTrack && (

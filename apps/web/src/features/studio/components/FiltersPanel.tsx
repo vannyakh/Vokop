@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import type { EditorPreset } from '@vokop/shared';
 import { getFilterPreviewImage } from '@/assets/support';
@@ -21,12 +20,7 @@ export function FiltersPanel({
   disabled,
   onSelect,
 }: FiltersPanelProps) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const previewSrc = getFilterPreviewImage();
-
-  const focusId = hoveredId ?? activeId ?? presets[0]?.id ?? null;
-  const focusPreset = presets.find((p) => p.id === focusId) ?? presets[0];
-  const focusFilter = cssFilterFor(focusPreset);
 
   if (!presets.length) {
     return <p className="tools-coming-soon-label">No filters available</p>;
@@ -34,22 +28,6 @@ export function FiltersPanel({
 
   return (
     <div className="filters-panel">
-      <div className="filters-hero">
-        <img
-          src={previewSrc}
-          alt=""
-          className="filters-hero-media"
-          style={{ filter: focusFilter }}
-          draggable={false}
-        />
-        <div className="filters-hero-meta">
-          <span className="filters-hero-label">{focusPreset?.label ?? 'Filter'}</span>
-          {focusPreset?.description && (
-            <span className="filters-hero-desc">{focusPreset.description}</span>
-          )}
-        </div>
-      </div>
-
       <div className="filters-grid" role="listbox" aria-label="Color filters">
         {presets.map((preset) => {
           const active = activeId === preset.id;
@@ -65,10 +43,6 @@ export function FiltersPanel({
               disabled={disabled}
               title={preset.description ?? preset.label}
               onClick={() => onSelect(preset.id)}
-              onMouseEnter={() => setHoveredId(preset.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              onFocus={() => setHoveredId(preset.id)}
-              onBlur={() => setHoveredId(null)}
             >
               <span className="filters-card-thumb">
                 <img

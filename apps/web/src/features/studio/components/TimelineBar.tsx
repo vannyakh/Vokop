@@ -1,12 +1,11 @@
 import { useRef, useState, type RefObject } from 'react';
-import { Sparkles, Loader2, Mic2, Mic, AlignCenter, Magnet } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
-import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import { isEditableTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
-import { Button, StudioIcon } from '@vokop/ui';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
+import { TimelineEditingTools } from '@/features/studio/components/TimelineEditingTools';
+import { TimelinePlaybackControls } from '@/features/studio/components/TimelinePlaybackControls';
+import { TimelineViewTools } from '@/features/studio/components/TimelineViewTools';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
 interface TimelineBarProps {
@@ -48,17 +47,17 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const seekTimeline = useAppStore((s) => s.seekTimeline);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
-  const isPaused = !isTimelinePlaying;
   const transcriptReady = useTranscriptReady();
+
+  const [barMenu, setBarMenu] = useState<{ x: number; y: number } | null>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+
+  const isPaused = !isTimelinePlaying;
 
   const openInspector = () => {
     setActiveTab('inspector');
     setEditorOpen(true);
   };
-  const [barMenu, setBarMenu] = useState<{ x: number; y: number } | null>(null);
-  const dockRef = useRef<HTMLDivElement>(null);
-
-  const togglePlay = () => toggleTimelinePlaying();
 
   const handleDeleteSelected = () => {
     if (!selectedTimelineClip) return;
@@ -96,126 +95,35 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
       }}
     >
       <div className="studio-playback-bar">
-        <div className="studio-playback-cluster">
-          <button
-            type="button"
-            className="studio-playback-icon-btn"
-            title={
-              transcriptReady
-                ? 'Split at playhead'
-                : 'Split unlocks after transcript is ready'
-            }
-            disabled={!transcriptReady}
-            onClick={splitTimelineAtPlayhead}
-          >
-            <StudioIcon name="scissors" size={15} />
-          </button>
-          <button
-            type="button"
-            className="studio-playback-icon-btn"
-            title="Delete selected clip"
-            disabled={!canDelete}
-            onClick={handleDeleteSelected}
-          >
-            <StudioIcon name="bin" size={15} />
-          </button>
-          <Button size="md" onClick={onProcessAll} disabled={status !== 'idle'} className="studio-playback-process">
-            {status === 'idle' ? <Sparkles size={14} /> : <Loader2 size={14} className="animate-spin" />}
-            Process All
-          </Button>
-        </div>
+        <TimelineEditingTools
+          canSplit={canSplit}
+          canDelete={canDelete}
+          processBusy={status !== 'idle'}
+          onSplit={splitTimelineAtPlayhead}
+          onDelete={handleDeleteSelected}
+          onProcessAll={onProcessAll}
+        />
 
-        <div className="studio-playback-center">
-          <button
-            type="button"
-            onClick={togglePlay}
-            className="studio-playback-play"
-            title={isPaused ? 'Play' : 'Pause'}
-          >
-            {isPaused ? (
-              <StudioIcon name="play" size={13} className="ml-0.5" />
-            ) : (
-              <StudioIcon name="pause" size={13} />
-            )}
-          </button>
-          <span className="studio-playback-time font-mono">
-            <span className="studio-playback-time-current">{formatStudioTimecode(currentTime)}</span>
-            <span className="studio-playback-time-sep">|</span>
-            <span className="studio-playback-time-total">{formatStudioTimecode(duration)}</span>
-          </span>
-        </div>
+        <TimelinePlaybackControls
+          isPaused={isPaused}
+          currentTime={currentTime}
+          duration={duration}
+          onTogglePlay={toggleTimelinePlaying}
+        />
 
-        <div className="studio-playback-cluster">
-          <button type="button" className="studio-playback-icon-btn" title="Record voiceover">
-            <Mic size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={onToggleSyncPlayback}
-            disabled={!audioBase64}
-            className={cn('studio-playback-icon-btn studio-playback-ai', isSyncPlaying && 'active')}
-            title="Live preview"
-          >
-            {isSyncPlaying ? <StudioIcon name="pause" size={14} /> : <Mic2 size={14} />}
-          </button>
-          <div className="studio-playback-divider" />
-          <button
-            type="button"
-            className={cn('studio-playback-icon-btn', canvasPreviewAxis && 'studio-playback-icon-btn--active')}
-            onClick={toggleCanvasPreviewAxis}
-            title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} preview axis (S)`}
-            aria-pressed={canvasPreviewAxis}
-          >
-            <AlignCenter size={15} />
-          </button>
-          <button
-            type="button"
-            className={cn('studio-playback-icon-btn', canvasAttachSnap && 'studio-playback-icon-btn--active')}
-            onClick={toggleCanvasAttachSnap}
-            title={`${canvasAttachSnap ? 'Turn off' : 'Turn on'} Attach (N)`}
-            aria-pressed={canvasAttachSnap}
-          >
-            <Magnet size={15} />
-          </button>
-          <div className="studio-playback-divider" />
-          <button
-            type="button"
-            className="studio-playback-icon-btn"
-            onClick={() => setTimelineZoom(timelineZoom - 25)}
-            title="Zoom out"
-          >
-            <StudioIcon name="zoomOut" size={15} />
-          </button>
-          <input
-            type="range"
-            min={25}
-            max={400}
-            step={25}
-            value={timelineZoom}
-            onChange={(e) => setTimelineZoom(Number(e.target.value))}
-            className="studio-playback-zoom-slider"
-            aria-label="Timeline zoom"
-          />
-          <span className="studio-playback-zoom-label font-mono">{timelineZoom}%</span>
-          <button
-            type="button"
-            className="studio-playback-icon-btn"
-            onClick={() => setTimelineZoom(timelineZoom + 25)}
-            title="Zoom in"
-          >
-            <StudioIcon name="zoomIn" size={15} />
-          </button>
-          <div className="studio-playback-divider" />
-          <button
-            type="button"
-            className="studio-playback-icon-btn"
-            onClick={togglePreviewFullscreen}
-            title={previewFullscreenOpen ? 'Exit fullscreen preview' : 'Fullscreen preview'}
-            aria-pressed={previewFullscreenOpen}
-          >
-            <StudioIcon name="fullscreen" size={15} />
-          </button>
-        </div>
+        <TimelineViewTools
+          hasVoiceover={Boolean(audioBase64)}
+          isSyncPlaying={isSyncPlaying}
+          canvasPreviewAxis={canvasPreviewAxis}
+          canvasAttachSnap={canvasAttachSnap}
+          timelineZoom={timelineZoom}
+          previewFullscreenOpen={previewFullscreenOpen}
+          onToggleSyncPlayback={onToggleSyncPlayback}
+          onTogglePreviewAxis={toggleCanvasPreviewAxis}
+          onToggleAttachSnap={toggleCanvasAttachSnap}
+          onZoomChange={setTimelineZoom}
+          onToggleFullscreen={togglePreviewFullscreen}
+        />
       </div>
 
       <StudioTimeline videoRef={videoRef} isPlaying={!isPaused} />

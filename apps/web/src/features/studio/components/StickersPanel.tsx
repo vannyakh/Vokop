@@ -172,6 +172,7 @@ export function StickersPanel() {
         width: size.width,
         height: size.height,
         keepStudioTool: true,
+        trackId: 'sticker',
       });
     },
     [addCanvasImageFromUrl],

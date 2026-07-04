@@ -33,6 +33,7 @@ export {
   Menu,
   Drawer,
   Spin,
+  Tabs,
   message,
   theme,
 } from 'antd';
@@ -49,4 +50,5 @@ export type {
   DropdownProps,
   MenuProps,
   DrawerProps,
+  TabsProps,
 } from 'antd';

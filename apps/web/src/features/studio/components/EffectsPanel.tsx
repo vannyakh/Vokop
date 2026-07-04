@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Tabs } from '@vokop/ui/antd';
 import { cn } from '@/lib/cn';
 import {
   EFFECT_CATALOG_CATEGORIES,
@@ -181,13 +182,44 @@ export function EffectsPanel({
     activeId ?? 'none',
   );
   const [viewAllCategory, setViewAllCategory] = useState<string | null>(null);
+  const categoryTabsRef = useRef<HTMLDivElement>(null);
 
+  const activeCategoryKey = viewAllCategory ?? tag;
   const currentActive = activeId ?? selectedApplyId;
 
   const handleSelect = (item: EffectCatalogItem) => {
     setSelectedApplyId(item.applyId);
     onSelect(item.applyId);
   };
+
+  /** Keep the active pill visible in the horizontal tab scroller. */
+  useEffect(() => {
+    const root = categoryTabsRef.current;
+    if (!root) return;
+    const activeTab = root.querySelector<HTMLElement>('.ant-tabs-tab-active');
+    activeTab?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    });
+  }, [activeCategoryKey]);
+
+  /** Map vertical wheel to horizontal scroll on the category row. */
+  useEffect(() => {
+    const root = categoryTabsRef.current;
+    const wrap = root?.querySelector<HTMLElement>('.ant-tabs-nav-wrap');
+    if (!wrap) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      if (wrap.scrollWidth <= wrap.clientWidth) return;
+      event.preventDefault();
+      wrap.scrollLeft += event.deltaY;
+    };
+
+    wrap.addEventListener('wheel', onWheel, { passive: false });
+    return () => wrap.removeEventListener('wheel', onWheel);
+  }, [tab]);
 
   const filteredItems = useMemo(() => {
     const searched = searchEffectCatalog(query);
@@ -247,25 +279,21 @@ export function EffectsPanel({
             />
           </form>
 
-          <div className="effects-tags" role="tablist" aria-label="Effect categories">
-            {EFFECT_QUICK_TAGS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={tag === item.id && !viewAllCategory}
-                className={cn(
-                  'effects-tag',
-                  tag === item.id && !viewAllCategory && 'is-active',
-                )}
-                onClick={() => {
-                  setTag(item.id);
-                  setViewAllCategory(null);
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div ref={categoryTabsRef} className="effects-category-tabs-wrap">
+            <Tabs
+              className="effects-category-tabs"
+              activeKey={activeCategoryKey}
+              tabBarGutter={0}
+              moreIcon={null}
+              onChange={(key) => {
+                setTag(key);
+                setViewAllCategory(null);
+              }}
+              items={EFFECT_QUICK_TAGS.map((item) => ({
+                key: item.id,
+                label: item.label,
+              }))}
+            />
           </div>
 
           {viewAllCategory && (

@@ -639,59 +639,6 @@
   padding: 0.75rem 0.7rem 1rem;
 }
 
-.transitions-hero,
-.filters-hero {
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #050505;
-  aspect-ratio: 16 / 10;
-}
-
-.transitions-hero-media,
-.transitions-hero-fallback,
-.filters-hero-media {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.transitions-hero-fallback {
-  background: linear-gradient(
-    135deg,
-    #1a1a1a 0%,
-    color-mix(in srgb, var(--accent) 18%, #111) 100%
-  );
-}
-
-.transitions-hero-meta,
-.filters-hero-meta {
-  position: absolute;
-  inset: auto 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 1.4rem 0.65rem 0.55rem;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), transparent);
-}
-
-.transitions-hero-label,
-.filters-hero-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: 0.01em;
-}
-
-.transitions-hero-desc,
-.filters-hero-desc {
-  font-size: 0.62rem;
-  line-height: 1.35;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .transitions-panel-hint {
   margin: 0;
   padding: 0.45rem 0.55rem;
@@ -856,9 +803,14 @@
 .effects-stickers {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
   padding: 0.75rem 0.7rem 1rem;
   min-height: 0;
+}
+
+.effects-category-tabs-wrap {
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .effects-search {
@@ -893,32 +845,105 @@
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.effects-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+/* Ant Design Tabs — single flex row, horizontal scroll */
+.effects-category-tabs.ant-tabs {
+  margin: 0;
+  position: relative;
 }
 
-.effects-tag {
-  padding: 0.28rem 0.55rem;
+.effects-category-tabs .ant-tabs-nav {
+  margin: 0;
+}
+
+.effects-category-tabs .ant-tabs-nav::before {
+  display: none;
+}
+
+.effects-category-tabs .ant-tabs-nav-wrap {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 12px,
+    #000 calc(100% - 12px),
+    transparent
+  );
+}
+
+.effects-category-tabs .ant-tabs-nav-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.effects-category-tabs .ant-tabs-nav-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  transform: none !important;
+  width: max-content;
+  min-width: 100%;
+  padding: 0.05rem 0.1rem;
+}
+
+.effects-category-tabs .ant-tabs-nav-operations {
+  display: none !important;
+}
+
+.effects-category-tabs .ant-tabs-ink-bar {
+  display: none !important;
+}
+
+.effects-category-tabs .ant-tabs-tab {
+  flex: 0 0 auto;
+  margin: 0 !important;
+  padding: 0.32rem 0.65rem !important;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-muted);
   font-size: 0.62rem;
   font-weight: 600;
-  cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease;
 }
 
-.effects-tag:hover {
+.effects-category-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin: 0 !important;
+}
+
+.effects-category-tabs .ant-tabs-tab:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-.effects-tag.is-active {
-  color: var(--accent-ink);
-  background: var(--accent);
-  border-color: var(--accent);
+.effects-category-tabs .ant-tabs-tab-btn {
+  color: inherit;
+  text-shadow: none !important;
+}
+
+.effects-category-tabs .ant-tabs-tab-active {
+  color: var(--accent-ink) !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.effects-category-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--accent-ink) !important;
+  text-shadow: none !important;
+}
+
+.effects-category-tabs .ant-tabs-content-holder {
+  display: none;
 }
 
 .effects-empty {
@@ -930,7 +955,8 @@
 .effects-section {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .effects-section-head {

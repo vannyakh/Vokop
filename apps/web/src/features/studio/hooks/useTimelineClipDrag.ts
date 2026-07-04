@@ -2,8 +2,13 @@ import { useCallback, useRef, useState } from 'react';
 import { useAppStore } from '@/features/project';
 import { clampClip } from '@/features/studio/lib/timelineClipUtils';
 import { timeToPx } from '@/features/studio/lib/timelineUtils';
-import type { TimelineClipModel, TimelineTrackId } from '@/features/studio/lib/timelineTypes';
-import { isTranscriptReady } from '@/features/studio/lib/transcriptReady';
+import type {
+  TimelineClipModel,
+  TimelineTrackId,
+  TimelineTrackModel,
+} from '@/features/studio/lib/timelineTypes';
+import { TRACK_HEIGHT } from '@/features/studio/lib/timelineTypes';
+import { clipCanMoveToTrack } from '@/features/studio/lib/timelineTrackUtils';
 
 type DragMode = 'move' | 'left' | 'right';
 
@@ -14,6 +19,7 @@ interface DragState {
   clip: TimelineClipModel;
   mode: DragMode;
   startClientX: number;
+  startClientY: number;
   origStart: number;
   origDuration: number;
   trackClips: TimelineClipModel[];
@@ -25,9 +31,15 @@ export interface TimelineDragSnap {
   trackId: TimelineTrackId;
 }
 
-export function useTimelineClipDrag(pxPerSec: number, duration: number) {
+export function useTimelineClipDrag(
+  pxPerSec: number,
+  duration: number,
+  tracks: TimelineTrackModel[],
+  tracksContainerRef: React.RefObject<HTMLDivElement | null>,
+) {
   const dragRef = useRef<DragState | null>(null);
   const [snapIndicator, setSnapIndicator] = useState<TimelineDragSnap | null>(null);
+  const [hoverTrackId, setHoverTrackId] = useState<string | null>(null);
 
   const updateSegmentTime = useAppStore((s) => s.updateSegmentTime);
   const updateSegmentDuration = useAppStore((s) => s.updateSegmentDuration);
@@ -36,6 +48,24 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
   const commitProjectHistory = useAppStore((s) => s.commitProjectHistory);
   const setSelectedTimelineClip = useAppStore((s) => s.setSelectedTimelineClip);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
+  const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
+
+  const resolveTrackAtY = useCallback(
+    (clientY: number): TimelineTrackModel | null => {
+      const el = tracksContainerRef.current;
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      let y = clientY - rect.top;
+      if (y < 0) return tracks[0] ?? null;
+      for (const track of tracks) {
+        const h = TRACK_HEIGHT[track.type];
+        if (y <= h) return track;
+        y -= h;
+      }
+      return tracks[tracks.length - 1] ?? null;
+    },
+    [tracks, tracksContainerRef],
+  );
 
   const computeSnap = useCallback(
     (
@@ -59,9 +89,17 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
       const anchorEnd = rawStart + clipDuration;
       for (const edge of edges) {
         const dS = Math.abs(rawStart - edge);
-        if (dS < bestDist) { bestDist = dS; bestStart = edge; bestEdge = edge; }
+        if (dS < bestDist) {
+          bestDist = dS;
+          bestStart = edge;
+          bestEdge = edge;
+        }
         const dE = Math.abs(anchorEnd - edge);
-        if (dE < bestDist) { bestDist = dE; bestStart = edge - clipDuration; bestEdge = edge; }
+        if (dE < bestDist) {
+          bestDist = dE;
+          bestStart = edge - clipDuration;
+          bestEdge = edge;
+        }
       }
 
       return {
@@ -148,6 +186,24 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
 
       const deltaSec = (e.clientX - d.startClientX) / pxPerSec;
 
+      // Cross-track move for canvas-backed clips
+      if (d.mode === 'move' && (d.clip.canvasKind || d.clip.mediaKind === 'audio')) {
+        const over = resolveTrackAtY(e.clientY);
+        if (over && String(over.id) !== String(d.trackId)) {
+          if (clipCanMoveToTrack(d.clip, String(over.id), over.type)) {
+            moveTimelineClipToTrack(d.clip.id, String(d.trackId), String(over.id));
+            d.trackId = over.id as TimelineTrackId;
+            d.trackClips = over.clips;
+            setHoverTrackId(String(over.id));
+            setSelectedTimelineClip({ trackId: over.id as TimelineTrackId, clipId: d.clip.id });
+          } else {
+            setHoverTrackId(null);
+          }
+        } else {
+          setHoverTrackId(over ? String(over.id) : null);
+        }
+      }
+
       if (d.mode === 'move') {
         const { start: snapped, snapX } = computeSnap(
           d.origStart + deltaSec,
@@ -170,12 +226,21 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
         setSnapIndicator(null);
       }
     },
-    [pxPerSec, duration, applyClipPatch, computeSnap],
+    [
+      pxPerSec,
+      duration,
+      applyClipPatch,
+      computeSnap,
+      resolveTrackAtY,
+      moveTimelineClipToTrack,
+      setSelectedTimelineClip,
+    ],
   );
 
   const onDragEnd = useCallback(() => {
     dragRef.current = null;
     setSnapIndicator(null);
+    setHoverTrackId(null);
     window.removeEventListener('pointermove', onDragMove);
     window.removeEventListener('pointerup', onDragEnd);
   }, [onDragMove]);
@@ -190,14 +255,10 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
     ) => {
       if (!clip.segmentType && !clip.canvasKind && !clip.mediaKind) return;
 
-      const state = useAppStore.getState();
-      if (!isTranscriptReady(state.transcript, state.status)) return;
-
       e.stopPropagation();
-      // Snapshot pre-drag state once (Omniclip-style project history).
       commitProjectHistory();
       setSelectedTimelineClip({ trackId, clipId: clip.id });
-      if (trackId === 'text' || trackId === 'overlay' || String(trackId).startsWith('overlay-')) {
+      if (clip.canvasKind) {
         selectCanvasElement(clip.id);
       }
 
@@ -206,6 +267,7 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
         clip,
         mode,
         startClientX: e.clientX,
+        startClientY: e.clientY,
         origStart: clip.start,
         origDuration: clip.duration,
         trackClips,
@@ -217,5 +279,5 @@ export function useTimelineClipDrag(pxPerSec: number, duration: number) {
     [commitProjectHistory, onDragMove, onDragEnd, setSelectedTimelineClip, selectCanvasElement],
   );
 
-  return { beginClipDrag, snapIndicator };
+  return { beginClipDrag, snapIndicator, hoverTrackId };
 }

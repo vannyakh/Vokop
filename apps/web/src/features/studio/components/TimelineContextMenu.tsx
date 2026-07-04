@@ -11,6 +11,7 @@ import {
   Copy,
   ClipboardPaste,
   Clipboard,
+  Diamond,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
@@ -37,9 +38,11 @@ interface TimelineContextMenuProps {
   onSelectFootage: () => void;
   onOpenMedia: () => void;
   onEditCanvas: () => void;
+  onAddKeyframe?: () => void;
   canSplit: boolean;
   canDelete: boolean;
   canEditCanvas: boolean;
+  canAddKeyframe?: boolean;
   hasClipboard: boolean;
 }
 
@@ -67,9 +70,11 @@ export function TimelineContextMenu({
   onSelectFootage,
   onOpenMedia,
   onEditCanvas,
+  onAddKeyframe,
   canSplit,
   canDelete,
   canEditCanvas,
+  canAddKeyframe,
   hasClipboard,
 }: TimelineContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -98,9 +103,21 @@ export function TimelineContextMenu({
   const { trackId, clipId, time } = target;
   const isClip = Boolean(clipId && trackId);
   const isVideo = trackId === 'video';
-  const isText = trackId === 'text';
-  const isOverlay = trackId === 'overlay';
-  const isAudio = trackId === 'audio';
+  const isText = trackId === 'text' || String(trackId ?? '').startsWith('text-');
+  const isOverlay =
+    trackId === 'overlay' ||
+    trackId === 'image' ||
+    trackId === 'sticker' ||
+    trackId === 'effect' ||
+    String(trackId ?? '').startsWith('overlay-') ||
+    String(trackId ?? '').startsWith('image-') ||
+    String(trackId ?? '').startsWith('sticker-') ||
+    String(trackId ?? '').startsWith('effect-');
+  const isAudio =
+    trackId === 'audio' ||
+    trackId === 'sound' ||
+    String(trackId ?? '').startsWith('audio-') ||
+    String(trackId ?? '').startsWith('sound-');
 
   const run = (fn: () => void) => {
     fn();
@@ -174,6 +191,15 @@ export function TimelineContextMenu({
     });
   }
 
+  if (isClip && canAddKeyframe && onAddKeyframe) {
+    items.push({
+      id: 'keyframe',
+      label: 'Add keyframe (EA)',
+      icon: Diamond,
+      onClick: () => run(onAddKeyframe),
+    });
+  }
+
   if (canSplit) {
     items.push({
       id: 'split',
@@ -185,13 +211,19 @@ export function TimelineContextMenu({
 
   if (!isClip && trackId) {
     const addLabel =
-      trackId === 'text'
-        ? 'Add caption here'
-        : trackId === 'overlay'
-          ? 'Add overlay here'
-          : trackId === 'audio'
-            ? 'Add voice line here'
-            : 'Add at playhead';
+      isText
+        ? 'Add text here'
+        : trackId === 'image' || String(trackId).startsWith('image-')
+          ? 'Add image here'
+          : trackId === 'sticker' || String(trackId).startsWith('sticker-')
+            ? 'Add sticker here'
+            : trackId === 'effect' || String(trackId).startsWith('effect-')
+              ? 'Add effect here'
+              : trackId === 'sound' || String(trackId).startsWith('sound-')
+                ? 'Add sound here'
+                : isAudio
+                  ? 'Add audio here'
+                  : 'Add at playhead';
     items.push({
       id: 'add',
       label: addLabel,
@@ -220,10 +252,16 @@ export function TimelineContextMenu({
         onClick: () => run(() => onAddClip('text')),
       },
       {
-        id: 'add-overlay',
-        label: 'Add overlay line',
+        id: 'add-image',
+        label: 'Add image',
         icon: Layers,
-        onClick: () => run(() => onAddClip('overlay')),
+        onClick: () => run(() => onAddClip('image')),
+      },
+      {
+        id: 'add-sticker',
+        label: 'Add sticker',
+        icon: Layers,
+        onClick: () => run(() => onAddClip('sticker')),
       },
     );
   }

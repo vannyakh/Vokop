@@ -90,14 +90,15 @@ export function probeMediaMeta(
   return Promise.resolve({ duration: 0 });
 }
 
-export function mediaAssetDragPayload(assetId: string): string {
-  return JSON.stringify({ assetId });
+export function mediaAssetDragPayload(assetId: string, kind?: MediaAssetKind): string {
+  return JSON.stringify({ assetId, kind });
 }
 
-export function parseMediaAssetDrag(data: string): string | null {
+export function parseMediaAssetDrag(data: string): { assetId: string; kind?: MediaAssetKind } | null {
   try {
-    const parsed = JSON.parse(data) as { assetId?: string };
-    return parsed.assetId ?? null;
+    const parsed = JSON.parse(data) as { assetId?: string; kind?: MediaAssetKind };
+    if (!parsed.assetId) return null;
+    return { assetId: parsed.assetId, kind: parsed.kind };
   } catch {
     return null;
   }

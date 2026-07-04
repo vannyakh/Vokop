@@ -9,7 +9,11 @@ import {
   type DragEvent as ReactDragEvent,
   type RefObject,
 } from 'react';
-import type { TimelineClipModel, TimelineTrackId } from '@/features/studio/lib/timelineTypes';
+import type {
+  TimelineClipModel,
+  TimelineTrackId,
+  TimelineTrackType,
+} from '@/features/studio/lib/timelineTypes';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import {
@@ -18,6 +22,7 @@ import {
   timeToPx,
 } from '@/features/studio/lib/timelineUtils';
 import {
+  ADDABLE_TRACK_TYPES,
   TIMELINE_BASE_PX_PER_SEC,
   TIMELINE_RULER_HEIGHT,
   TRACK_HEIGHT,
@@ -32,18 +37,50 @@ import {
   TimelineContextMenu,
   type TimelineContextMenuTarget,
 } from '@/features/studio/components/TimelineContextMenu';
-import { Plus } from 'lucide-react';
-import { isEditableTimelineTrack, isOverlayTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
+import {
+  ImageIcon,
+  Mic2,
+  Music2,
+  Plus,
+  Sparkles,
+  Sticker,
+  Type,
+} from 'lucide-react';
+import { Dropdown } from '@vokop/ui/antd';
+import {
+  clipCanMoveToTrack,
+  isAudioLikeTimelineTrack,
+  isEditableTimelineTrack,
+  isVisualTimelineTrack,
+} from '@/features/studio/lib/timelineTrackUtils';
 import {
   MEDIA_ASSET_DRAG_MIME,
   parseMediaAssetDrag,
 } from '@/features/studio/lib/mediaLibrary';
+import {
+  TEXT_TEMPLATE_DRAG_MIME,
+  type TextTemplateInput,
+} from '@/features/studio/constants/textTemplates';
+import {
+  dropHintForTrack,
+  isTimelineExternalDrag,
+  trackAcceptsDrop,
+} from '@/features/studio/lib/timelineDrop';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
 interface StudioTimelineProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   isPlaying?: boolean;
 }
+
+const ADD_TRACK_ICONS = {
+  image: ImageIcon,
+  sticker: Sticker,
+  text: Type,
+  effect: Sparkles,
+  sound: Music2,
+  audio: Mic2,
+} as const;
 
 function formatRulerTick(seconds: number): string {
   if (seconds < 3600) {
@@ -74,6 +111,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
   const addTimelineTrack = useAppStore((s) => s.addTimelineTrack);
+  const removeTimelineTrack = useAppStore((s) => s.removeTimelineTrack);
+  const reorderTimelineTracks = useAppStore((s) => s.reorderTimelineTracks);
+  const renameTimelineTrack = useAppStore((s) => s.renameTimelineTrack);
+  const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
+  const addClipKeyframe = useAppStore((s) => s.addClipKeyframe);
   const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
@@ -83,13 +125,22 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
   const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
   const addMediaAssetToTimeline = useAppStore((s) => s.addMediaAssetToTimeline);
+  const addTextTemplate = useAppStore((s) => s.addTextTemplate);
   const importMediaFiles = useAppStore((s) => s.importMediaFiles);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const transcriptReady = useTranscriptReady();
 
   const videoSessionId = useAppStore((s) => s.videoSessionId);
-  const [dropTrackId, setDropTrackId] = useState<string | null>(null);
+  const [dragTrackId, setDragTrackId] = useState<string | null>(null);
+  const [dropHeaderTrackId, setDropHeaderTrackId] = useState<string | null>(null);
+  const [externalDrop, setExternalDrop] = useState<{
+    trackId: string;
+    allowed: boolean;
+    time: number;
+    x: number;
+    hint: string;
+  } | null>(null);
   const tracks = useTimelineTracks();
   const { thumbnails, loading: filmstripLoading, progress: filmstripProgress, thumbWidth } =
     useVideoFilmstrip(videoFile, duration, videoSessionId);
@@ -108,7 +159,12 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const timelineContentWidth = Math.max(640, timeToPx(duration || 1, pxPerSec) + 80);
   const playheadX = timeToPx(currentTime, pxPerSec);
 
-  const { beginClipDrag, snapIndicator } = useTimelineClipDrag(pxPerSec, duration);
+  const { beginClipDrag, snapIndicator, hoverTrackId } = useTimelineClipDrag(
+    pxPerSec,
+    duration,
+    tracks,
+    tracksContainerRef,
+  );
 
   const rulerTicks = useMemo(() => {
     if (!duration) return [0];
@@ -340,32 +396,65 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     ],
   );
 
-  const onLaneDragOver = useCallback(
-    (e: ReactDragEvent, trackId: string) => {
-      if (!transcriptReady) return;
-      const hasAsset = e.dataTransfer.types.includes(MEDIA_ASSET_DRAG_MIME);
-      const hasFiles = e.dataTransfer.types.includes('Files');
-      if (!hasAsset && !hasFiles) return;
+  const updateExternalDrop = useCallback(
+    (e: ReactDragEvent, trackId: string, trackType: TimelineTrackType) => {
+      const types = Array.from(e.dataTransfer.types);
+      if (!isTimelineExternalDrag(types)) return false;
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      setDropTrackId(trackId);
+      e.stopPropagation();
+      const allowed = trackAcceptsDrop(trackId, trackType, types);
+      e.dataTransfer.dropEffect = allowed ? 'copy' : 'none';
+      const time = Math.max(0, timeAtClientX(e.clientX));
+      const x = Math.max(0, timeToPx(time, pxPerSec));
+      setExternalDrop({
+        trackId,
+        allowed,
+        time,
+        x,
+        hint: dropHintForTrack(trackId, trackType, types),
+      });
+      return true;
     },
-    [transcriptReady],
+    [pxPerSec, timeAtClientX],
+  );
+
+  const clearExternalDrop = useCallback(() => {
+    setExternalDrop(null);
+  }, []);
+
+  const onLaneDragOver = useCallback(
+    (e: ReactDragEvent, trackId: string, trackType: TimelineTrackType) => {
+      updateExternalDrop(e, trackId, trackType);
+    },
+    [updateExternalDrop],
   );
 
   const onLaneDrop = useCallback(
-    async (e: ReactDragEvent, trackId: TimelineTrackId) => {
+    async (e: ReactDragEvent, trackId: TimelineTrackId, trackType: TimelineTrackType) => {
       e.preventDefault();
       e.stopPropagation();
-      setDropTrackId(null);
-      if (!transcriptReady) return;
+      const types = Array.from(e.dataTransfer.types);
       const atTime = Math.max(0, timeAtClientX(e.clientX));
+      const allowed = trackAcceptsDrop(String(trackId), trackType, types);
+      clearExternalDrop();
+      if (!allowed) return;
+
+      const templateRaw = e.dataTransfer.getData(TEXT_TEMPLATE_DRAG_MIME);
+      if (templateRaw) {
+        try {
+          const template = JSON.parse(templateRaw) as TextTemplateInput;
+          addTextTemplate(template, { startTime: atTime, trackId: String(trackId) });
+        } catch {
+          /* ignore invalid payload */
+        }
+        return;
+      }
 
       const assetRaw = e.dataTransfer.getData(MEDIA_ASSET_DRAG_MIME);
       if (assetRaw) {
-        const assetId = parseMediaAssetDrag(assetRaw);
-        if (assetId) {
-          addMediaAssetToTimeline(assetId, atTime);
+        const parsed = parseMediaAssetDrag(assetRaw);
+        if (parsed?.assetId) {
+          addMediaAssetToTimeline(parsed.assetId, atTime, { trackId: String(trackId) });
           return;
         }
       }
@@ -375,15 +464,27 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         await importMediaFiles(files);
         const assets = useAppStore.getState().mediaAssets;
         const newest = [...assets].reverse().find((asset) => {
-          if (trackId === 'video') return asset.kind === 'video';
-          if (trackId === 'audio') return asset.kind === 'audio';
-          if (isOverlayTimelineTrack(trackId)) return asset.kind === 'image';
+          if (trackId === 'video' || trackType === 'video') return asset.kind === 'video';
+          if (isAudioLikeTimelineTrack(trackId) || trackType === 'audio' || trackType === 'sound') {
+            return asset.kind === 'audio';
+          }
+          if (isVisualTimelineTrack(trackId) || trackType === 'image' || trackType === 'sticker') {
+            return asset.kind === 'image';
+          }
           return true;
         });
-        if (newest) addMediaAssetToTimeline(newest.id, atTime);
+        if (newest) {
+          addMediaAssetToTimeline(newest.id, atTime, { trackId: String(trackId) });
+        }
       }
     },
-    [addMediaAssetToTimeline, importMediaFiles, timeAtClientX, transcriptReady],
+    [
+      addMediaAssetToTimeline,
+      addTextTemplate,
+      clearExternalDrop,
+      importMediaFiles,
+      timeAtClientX,
+    ],
   );
 
   const canDeleteSelection = isEditableTimelineTrack(selectedTimelineClip?.trackId);
@@ -393,7 +494,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     (selectedTimelineClip?.trackId === 'video' ||
       selectedTimelineClip?.trackId === 'audio' ||
       selectedTimelineClip?.trackId === 'text' ||
-      (isOverlayTimelineTrack(selectedTimelineClip?.trackId) &&
+      (isVisualTimelineTrack(selectedTimelineClip?.trackId) &&
         Boolean(selectedTimelineClip?.clipId)));
 
   const hoverTime = hoverX != null ? pxToTime(hoverX, pxPerSec) : null;
@@ -415,30 +516,89 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           className="studio-timeline-header-spacer"
           style={{ height: TIMELINE_RULER_HEIGHT }}
         />
-        {tracks.map((track) => (
+        {tracks.map((track, index) => (
           <TimelineTrackHeader
             key={track.id}
             track={track}
+            index={index}
             height={TRACK_HEIGHT[track.type]}
             muted={timelineTrackMuted[track.id] ?? false}
+            dragging={dragTrackId === track.id}
+            dropTarget={dropHeaderTrackId === track.id && dragTrackId !== track.id}
             onToggleMute={() => toggleTimelineTrackMuted(track.id)}
             onAddClip={() => addTimelineClip(track.id as TimelineTrackId, currentTime)}
+            onDelete={() => removeTimelineTrack(String(track.id))}
+            onRename={(label) => renameTimelineTrack(String(track.id), label)}
+            hasSelectedClip={selectedTimelineClip?.trackId === track.id}
+            onAddKeyframe={
+              selectedTimelineClip?.trackId === track.id && selectedTimelineClip.clipId
+                ? () => addClipKeyframe(selectedTimelineClip.clipId, currentTime)
+                : undefined
+            }
+            moveTargets={(() => {
+              if (selectedTimelineClip?.trackId !== track.id) return [];
+              const clip = track.clips.find((c) => c.id === selectedTimelineClip.clipId);
+              if (!clip) return [];
+              return tracks
+                .filter(
+                  (t) =>
+                    t.id !== track.id &&
+                    clipCanMoveToTrack(clip, String(t.id), t.type),
+                )
+                .map((t) => ({ id: String(t.id), label: t.label }));
+            })()}
+            onMoveClipToTrack={
+              selectedTimelineClip?.trackId === track.id && selectedTimelineClip.clipId
+                ? (toId) =>
+                    moveTimelineClipToTrack(
+                      selectedTimelineClip.clipId,
+                      String(track.id),
+                      toId,
+                    )
+                : undefined
+            }
+            onDragStart={(id) => setDragTrackId(id)}
+            onDragOver={(id) => setDropHeaderTrackId(id)}
+            onDragEnd={() => {
+              setDragTrackId(null);
+              setDropHeaderTrackId(null);
+            }}
+            onDrop={(toId) => {
+              if (dragTrackId) reorderTimelineTracks(dragTrackId, toId);
+              setDragTrackId(null);
+              setDropHeaderTrackId(null);
+            }}
           />
         ))}
-        <button
-          type="button"
-          className="studio-track-add-row"
-          onClick={() => addTimelineTrack()}
-          title="Add overlay track"
+        <Dropdown
+          trigger={['click']}
+          placement="topLeft"
+          menu={{
+            className: 'studio-track-menu',
+            items: ADDABLE_TRACK_TYPES.map((opt) => {
+              const Icon = ADD_TRACK_ICONS[opt.type];
+              return {
+                key: opt.type,
+                icon: <Icon size={14} />,
+                label: opt.label,
+                onClick: () => addTimelineTrack(opt.type),
+              };
+            }),
+          }}
         >
-          <Plus size={12} />
-          <span>Add track</span>
-        </button>
+          <button type="button" className="studio-track-add-row" title="Add track">
+            <Plus size={12} />
+            <span>Add track</span>
+          </button>
+        </Dropdown>
       </div>
 
       {/* Scrollable timeline content */}
       <div
-        className="studio-timeline-scroll"
+        className={cn(
+          'studio-timeline-scroll',
+          externalDrop && 'studio-timeline-scroll--drop-active',
+        )}
         ref={scrollRef}
         onScroll={syncHeaderScroll}
         onContextMenu={(e) => openContextMenu(e)}
@@ -449,6 +609,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           setHoverX(e.clientX - rect.left + scroll.scrollLeft);
         }}
         onMouseLeave={() => setHoverX(null)}
+        onDragLeave={(e) => {
+          if (!scrollRef.current?.contains(e.relatedTarget as Node)) {
+            clearExternalDrop();
+          }
+        }}
         style={{ ['--timeline-grid' as string]: `${pxPerSec}px` }}
       >
         <div className="studio-timeline-content" style={{ width: timelineContentWidth }}>
@@ -501,9 +666,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               }
             }}
           >
-          {tracks.map((track) => {
+          {tracks.map((track, trackIndex) => {
             const laneHeight = TRACK_HEIGHT[track.type];
             const muted = timelineTrackMuted[track.id] ?? false;
+            const clipHeight =
+              track.type === 'text' ? Math.max(22, laneHeight - 4) : laneHeight - 4;
 
             return (
               <div
@@ -511,9 +678,19 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 className={cn(
                   'studio-timeline-lane',
                   `studio-timeline-lane--${track.type}`,
-                  dropTrackId === track.id && 'studio-timeline-lane--drop-target',
+                  externalDrop?.trackId === track.id &&
+                    externalDrop.allowed &&
+                    'studio-timeline-lane--drop-ok',
+                  externalDrop?.trackId === track.id &&
+                    !externalDrop.allowed &&
+                    'studio-timeline-lane--drop-blocked',
+                  externalDrop &&
+                    externalDrop.trackId !== track.id &&
+                    'studio-timeline-lane--drop-dim',
+                  hoverTrackId === track.id && 'studio-timeline-lane--clip-hover',
                 )}
-                style={{ height: laneHeight, opacity: muted ? 0.4 : 1 }}
+                style={{ height: laneHeight, opacity: muted ? 0.45 : 1 }}
+                data-track-index={trackIndex}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.studio-timeline-clip-block')) return;
                   seekFromLaneClick(e.clientX);
@@ -522,14 +699,28 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                   if ((e.target as HTMLElement).closest('.studio-timeline-clip-block')) return;
                   openContextMenu(e, { trackId: track.id as TimelineTrackId });
                 }}
-                onDragOver={(e) => onLaneDragOver(e, track.id)}
+                onDragOver={(e) => onLaneDragOver(e, String(track.id), track.type)}
                 onDragLeave={(e) => {
                   const related = e.relatedTarget as Node | null;
                   if (related && e.currentTarget.contains(related)) return;
-                  setDropTrackId((id) => (id === track.id ? null : id));
+                  setExternalDrop((prev) =>
+                    prev?.trackId === track.id ? null : prev,
+                  );
                 }}
-                onDrop={(e) => void onLaneDrop(e, track.id as TimelineTrackId)}
+                onDrop={(e) => void onLaneDrop(e, track.id as TimelineTrackId, track.type)}
               >
+                {/* Omniclip-style inter-track add indicator (drop zone between lanes) */}
+                {trackIndex > 0 && (
+                  <div
+                    className="studio-timeline-add-track-indicator"
+                    data-indicate={
+                      externalDrop?.trackId === track.id && externalDrop.allowed
+                        ? 'true'
+                        : undefined
+                    }
+                    aria-hidden
+                  />
+                )}
                 {track.clips.map((clip) => {
                   const left = timeToPx(clip.start, pxPerSec);
                   const width = Math.max(28, timeToPx(clip.duration, pxPerSec));
@@ -547,7 +738,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       track={track}
                       left={left}
                       width={width}
-                      height={laneHeight - 8}
+                      height={clipHeight}
                       selected={selected}
                       canDrag={transcriptReady}
                       filmstripThumbs={track.type === 'video' ? thumbnails : undefined}
@@ -595,15 +786,50 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             );
           })}
 
-          <button
-            type="button"
-            className="studio-timeline-add-lane"
-            onClick={() => addTimelineTrack()}
-            title="Add overlay track"
+          {externalDrop && (
+            <>
+              <div
+                className={cn(
+                  'studio-timeline-drop-caret',
+                  !externalDrop.allowed && 'is-blocked',
+                )}
+                style={{ left: externalDrop.x }}
+                aria-hidden
+              />
+              <div
+                className={cn(
+                  'studio-timeline-drop-hint',
+                  !externalDrop.allowed && 'is-blocked',
+                )}
+                style={{ left: Math.max(8, externalDrop.x - 60) }}
+              >
+                <span className="font-mono">{formatStudioTimecode(externalDrop.time)}</span>
+                <span>{externalDrop.hint}</span>
+              </div>
+            </>
+          )}
+
+          <Dropdown
+            trigger={['click']}
+            placement="topLeft"
+            menu={{
+              className: 'studio-track-menu',
+              items: ADDABLE_TRACK_TYPES.map((opt) => {
+                const Icon = ADD_TRACK_ICONS[opt.type];
+                return {
+                  key: opt.type,
+                  icon: <Icon size={14} />,
+                  label: opt.label,
+                  onClick: () => addTimelineTrack(opt.type),
+                };
+              }),
+            }}
           >
-            <Plus size={14} />
-            Add overlay track
-          </button>
+            <button type="button" className="studio-timeline-add-lane" title="Add track">
+              <Plus size={14} />
+              Add track
+            </button>
+          </Dropdown>
 
           {/* Marquee selection box */}
           {marquee && (
@@ -682,9 +908,20 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         onEditCanvas={() => {
           if (selectedTimelineClip) selectCanvasElement(selectedTimelineClip.clipId);
         }}
+        onAddKeyframe={() => {
+          const clipId = contextMenu?.clipId ?? selectedTimelineClip?.clipId;
+          if (!clipId) return;
+          addClipKeyframe(clipId, contextMenu?.time ?? currentTime);
+        }}
         canSplit={canSplitSelection}
         canDelete={canDeleteSelection}
         canEditCanvas={isEditableTimelineTrack(selectedTimelineClip?.trackId)}
+        canAddKeyframe={Boolean(
+          (contextMenu?.clipId ?? selectedTimelineClip?.clipId) &&
+            isEditableTimelineTrack(contextMenu?.trackId ?? selectedTimelineClip?.trackId) &&
+            !isAudioLikeTimelineTrack(contextMenu?.trackId ?? selectedTimelineClip?.trackId) &&
+            (contextMenu?.trackId ?? selectedTimelineClip?.trackId) !== 'video',
+        )}
         hasClipboard={Boolean(timelineClipboard?.length)}
       />
     </div>

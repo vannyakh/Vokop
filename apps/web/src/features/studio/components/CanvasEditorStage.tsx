@@ -10,6 +10,7 @@ import { getDisplayRatio } from '@/features/studio/constants/aspectRatios';
 import { snapDragPosition, type CanvasGuideLine } from '@/features/studio/lib/canvasSnap';
 import { loadStudioFont } from '@/features/studio/lib/fontLoader';
 import { getEffectProps } from '@/features/studio/constants/textEffects';
+import { sampleElementAtTime } from '@/features/studio/lib/keyframeUtils';
 import {
   CanvasElementOverlay,
   CanvasInlineTextEditor,
@@ -115,6 +116,8 @@ function CanvasElementNode({
   onDragGuideChange: (guides: CanvasGuideLine[] | null) => void;
 }) {
   const groupRef = useRef<Konva.Group>(null);
+  const [dragging, setDragging] = useState(false);
+  const currentTime = useAppStore((s) => s.currentTime);
   const isText = element.type === 'text' || element.type === 'overlay';
   const isImage = element.type === 'logo' || element.type === 'image';
   const { image, failed } = useCanvasImage(isImage ? element.src : undefined);
@@ -122,7 +125,18 @@ function CanvasElementNode({
   const effectProps = getEffectProps(element.textEffect);
   const accent =
     element.type === 'logo' ? '#F4B942' : element.type === 'image' ? '#7EB6FF' : isText ? '#54D6C9' : '#9C8CD8';
-  const boxHeight = isImage ? element.height : element.fontSize * 1.6;
+  const animated = sampleElementAtTime(element, currentTime);
+  const display = dragging
+    ? {
+        x: element.x,
+        y: element.y,
+        opacity: element.opacity,
+        rotation: element.rotation,
+        width: element.width,
+        height: element.height,
+      }
+    : animated;
+  const boxHeight = isImage ? display.height : element.fontSize * 1.6;
   const displayText =
     style?.textTransform === 'uppercase' ? element.text.toUpperCase() : element.text;
 
@@ -137,7 +151,7 @@ function CanvasElementNode({
     }
   }, [element.fontFamily]);
 
-  const elementSize = { width: element.width, height: boxHeight };
+  const elementSize = { width: display.width, height: boxHeight };
 
   const applySnap = (node: Konva.Group) => {
     if (!canvasPreviewAxis && !canvasAttachSnap) {
@@ -163,10 +177,10 @@ function CanvasElementNode({
     <Group
       ref={groupRef}
       id={element.id}
-      x={element.x}
-      y={element.y}
-      rotation={element.rotation}
-      opacity={element.opacity}
+      x={display.x}
+      y={display.y}
+      rotation={display.rotation}
+      opacity={display.opacity}
       draggable={interactive}
       onClick={(e) => {
         e.cancelBubble = true;
@@ -185,6 +199,7 @@ function CanvasElementNode({
         if (isText) onEdit();
       }}
       onDragStart={() => {
+        setDragging(true);
         if (canvasPreviewAxis) {
           onDragGuideChange(
             snapDragPosition(
@@ -208,6 +223,7 @@ function CanvasElementNode({
         clampNode(node, elementSize, contentRect);
         onDragGuideChange(null);
         onChange({ x: node.x(), y: node.y() });
+        setDragging(false);
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
@@ -231,14 +247,14 @@ function CanvasElementNode({
           {image ? (
             <KonvaImage
               image={image}
-              width={element.width}
-              height={element.height}
+              width={display.width}
+              height={display.height}
               listening
             />
           ) : (
             <Rect
-              width={element.width}
-              height={element.height}
+              width={display.width}
+              height={display.height}
               fill={failed ? 'rgba(232,116,106,0.12)' : 'rgba(255,255,255,0.06)'}
               stroke={failed ? '#e8746a' : 'rgba(255,255,255,0.15)'}
               strokeWidth={1}
@@ -248,8 +264,8 @@ function CanvasElementNode({
           )}
           {selected && (
             <Rect
-              width={element.width}
-              height={element.height}
+              width={display.width}
+              height={display.height}
               stroke={accent}
               strokeWidth={1.5}
               listening={false}
@@ -260,7 +276,7 @@ function CanvasElementNode({
         <>
           {style?.background && (
             <Rect
-              width={element.width}
+              width={display.width}
               height={boxHeight}
               fill={style.background}
               cornerRadius={8}
@@ -268,7 +284,7 @@ function CanvasElementNode({
             />
           )}
           <Rect
-            width={element.width}
+            width={display.width}
             height={boxHeight}
             fill={isText && !style?.background ? 'rgba(84,214,201,0.06)' : 'rgba(156,140,216,0.06)'}
             stroke={selected ? accent : 'transparent'}
@@ -279,7 +295,7 @@ function CanvasElementNode({
           />
           <Text
             text={displayText}
-            width={element.width}
+            width={display.width}
             y={4}
             align={style?.align ?? 'center'}
             fontSize={element.fontSize}

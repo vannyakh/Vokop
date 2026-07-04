@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import type { EditorPreset } from '@vokop/shared';
 import { getTransitionPreview } from '@/assets/support';
@@ -18,37 +17,12 @@ export function TransitionsPanel({
   clipSelected,
   onSelect,
 }: TransitionsPanelProps) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-
-  const focusId = hoveredId ?? activeId ?? presets[0]?.id ?? null;
-  const focusPreset = presets.find((p) => p.id === focusId) ?? presets[0];
-  const focusPreview = focusPreset ? getTransitionPreview(focusPreset.id) : undefined;
-
   if (!presets.length) {
     return <p className="tools-coming-soon-label">No transitions available</p>;
   }
 
   return (
     <div className="transitions-panel">
-      <div className="transitions-hero">
-        {focusPreview ? (
-          <img
-            src={focusPreview}
-            alt=""
-            className="transitions-hero-media"
-            draggable={false}
-          />
-        ) : (
-          <div className="transitions-hero-fallback" />
-        )}
-        <div className="transitions-hero-meta">
-          <span className="transitions-hero-label">{focusPreset?.label ?? 'Transition'}</span>
-          {focusPreset?.description && (
-            <span className="transitions-hero-desc">{focusPreset.description}</span>
-          )}
-        </div>
-      </div>
-
       {!clipSelected && (
         <p className="transitions-panel-hint">Select a timeline clip to apply a transition</p>
       )}
@@ -72,10 +46,6 @@ export function TransitionsPanel({
               disabled={disabled || !clipSelected}
               title={preset.description}
               onClick={() => onSelect(preset.id)}
-              onMouseEnter={() => setHoveredId(preset.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              onFocus={() => setHoveredId(preset.id)}
-              onBlur={() => setHoveredId(null)}
             >
               <span className="transitions-card-thumb">
                 {preview ? (

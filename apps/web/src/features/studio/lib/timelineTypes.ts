@@ -1,11 +1,65 @@
-export type TimelineTrackId = 'video' | 'text' | 'overlay' | 'audio' | (string & {});
+export type TimelineTrackId =
+  | 'video'
+  | 'text'
+  | 'image'
+  | 'sticker'
+  | 'effect'
+  | 'sound'
+  | 'audio'
+  | 'overlay' // legacy visual track
+  | (string & {});
 
-export type TimelineTrackType = 'video' | 'text' | 'overlay' | 'audio';
+export type TimelineTrackType =
+  | 'video'
+  | 'text'
+  | 'image'
+  | 'sticker'
+  | 'effect'
+  | 'sound'
+  | 'audio'
+  | 'overlay';
+
+/** User-created tracks (core tracks stay built-in). */
+export type ExtraTrackType =
+  | 'text'
+  | 'image'
+  | 'sticker'
+  | 'effect'
+  | 'sound'
+  | 'audio';
 
 export interface ExtraTimelineTrack {
   id: string;
-  type: 'overlay';
+  type: ExtraTrackType;
   label: string;
+}
+
+export const CORE_TRACK_IDS = [
+  'video',
+  'text',
+  'image',
+  'sticker',
+  'effect',
+  'sound',
+  'audio',
+] as const;
+
+export const ADDABLE_TRACK_TYPES: { type: ExtraTrackType; label: string }[] = [
+  { type: 'image', label: 'Image track' },
+  { type: 'sticker', label: 'Sticker track' },
+  { type: 'text', label: 'Text track' },
+  { type: 'effect', label: 'Effect track' },
+  { type: 'sound', label: 'Sound track' },
+  { type: 'audio', label: 'Audio track' },
+];
+
+export function isCoreTimelineTrack(trackId: string): boolean {
+  return (CORE_TRACK_IDS as readonly string[]).includes(trackId);
+}
+
+/** All tracks can be removed from the timeline (core tracks are hidden, extras deleted). */
+export function isDeletableTimelineTrack(_trackId: string): boolean {
+  return true;
 }
 
 /**
@@ -28,10 +82,12 @@ export interface TimelineClipModel {
   segmentIndex?: number;
   segmentType?: 'translation' | 'transcript';
   /** Canvas logo / image / template text linked to this clip */
-  canvasKind?: 'logo' | 'image' | 'template';
+  canvasKind?: 'logo' | 'image' | 'template' | 'sticker';
   /** Video/audio media clip (Omniclip-style) */
   mediaKind?: 'video' | 'audio';
   sourceStart?: number;
+  /** Keyframe markers (offset seconds from clip start). */
+  keyframes?: { id: string; offset: number }[];
 }
 
 export interface TimelineTrackModel {
@@ -39,20 +95,72 @@ export interface TimelineTrackModel {
   type: TimelineTrackType;
   label: string;
   clips: TimelineClipModel[];
-  /** Extra overlay row (not the default overlay track) */
+  /** User-created track (can be deleted / renamed freely). */
   isExtra?: boolean;
+  /** Core tracks cannot be deleted. */
+  locked?: boolean;
 }
 
-export const TRACK_HEADER_WIDTH = 132;
+export const DEFAULT_TIMELINE_TRACK_ORDER: string[] = [
+  'video',
+  'text',
+  'image',
+  'sticker',
+  'effect',
+  'sound',
+  'audio',
+];
+
+/** Track header column width (room for label + menu). */
+export const TRACK_HEADER_WIDTH = 188;
 export const TIMELINE_RULER_HEIGHT = 26;
 export const TIMELINE_BASE_PX_PER_SEC = 80;
 export const TIMELINE_MIN_CLIP_SEC = 0.4;
 
+/**
+ * Lane heights aligned with Omniclip track rows:
+ * default effects lane ~50px, text-only lanes ~30px.
+ * @see https://github.com/omni-media/omniclip
+ */
 export const TRACK_HEIGHT: Record<TimelineTrackType, number> = {
-  video: 56,
-  text: 40,
-  overlay: 40,
-  audio: 48,
+  video: 50,
+  text: 30,
+  image: 50,
+  sticker: 50,
+  effect: 50,
+  sound: 50,
+  audio: 50,
+  overlay: 50,
 };
 
-export const TRACK_ORDER: TimelineTrackId[] = ['video', 'text', 'overlay', 'audio'];
+export const TRACK_ORDER: TimelineTrackId[] = [
+  'video',
+  'text',
+  'image',
+  'sticker',
+  'effect',
+  'sound',
+  'audio',
+];
+
+export const TRACK_TYPE_LABELS: Record<TimelineTrackType, string> = {
+  video: 'Video',
+  text: 'Text',
+  image: 'Image',
+  sticker: 'Sticker',
+  effect: 'Effect',
+  sound: 'Sound',
+  audio: 'Audio',
+  overlay: 'Overlay',
+};
+
+export const TRACK_TYPE_PREFIX: Record<TimelineTrackType, string> = {
+  video: 'V',
+  text: 'T',
+  image: 'I',
+  sticker: 'S',
+  effect: 'E',
+  sound: 'M',
+  audio: 'A',
+  overlay: 'O',
+};
