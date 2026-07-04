@@ -11,14 +11,18 @@ alwaysApply: false
 1. Define Zod schema in `packages/api/src/schemas/`
 2. Add route constant in `packages/api/src/routes.ts`
 3. Extend `ApiClient` in `packages/api/src/client.ts`
-4. Implement handler in the owning service (`video-tools`, `auth`, or `ai-content`)
-5. Register proxy in `services/gateway/src/index.ts` if new top-level path
+4. Implement handler in the owning service (`auth`, `studio`, `admin`, `video-tools`, or `ai-content`)
+5. Register proxy in `services/gateway/src/proxy/routes.ts` if new top-level path
 
 ## Service map
 
 | Service | Owns |
 |---------|------|
-| `video-tools` | FFmpeg sessions, filmstrip jobs, editor apply/preview |
+| `auth` | Account & security (login, register, JWT, me) |
+| `studio` | Studio projects (CRUD, soft-delete, trash) |
+| `admin` (`@vokop/admin-service`) | Admin RBAC, menus, users |
+| `video-tools` | FFmpeg sessions, filmstrip jobs, editor apply/preview — uses `@vokop/pipeline` |
+| `gateway` | Proxies `/api/v1/*` via `src/proxy/routes.ts` |
 | `auth` | Login/register, RBAC, projects CRUD |
 | `ai-content` (planned) | FunClip-inspired ASR, subtitles, LLM clip suggestions |
 

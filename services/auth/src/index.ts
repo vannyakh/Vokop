@@ -7,8 +7,6 @@ import { healthResponseSchema, toApiResponse } from '@vokop/api';
 import { DEV_PORTS } from '@vokop/shared';
 import { seedAuthData } from './lib/seed.js';
 import { createAuthRouter } from './routes/auth.js';
-import { createAdminRouter } from './routes/admin.js';
-import { createProjectsRouter } from './routes/projects.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
@@ -30,9 +28,8 @@ app.get('/health', async (_req, res) => {
   res.status(ok ? 200 : 503).json(payload);
 });
 
+/** Account & security only — projects → studio, admin console → admin-service */
 app.use('/auth', createAuthRouter());
-app.use('/admin', createAdminRouter());
-app.use('/projects', createProjectsRouter());
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });

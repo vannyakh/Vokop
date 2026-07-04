@@ -5,13 +5,11 @@ import type { RoleDoc, UserDoc } from '../lib/mappers.js';
 
 export const USERS = 'users';
 export const ROLES = 'roles';
-export const ADMIN_MENUS = 'admin_menus';
 
 export async function ensureAuthIndexes(): Promise<void> {
   const db = getMongo();
   await db.collection(USERS).createIndex({ email: 1 }, { unique: true });
   await db.collection(ROLES).createIndex({ slug: 1 }, { unique: true });
-  await db.collection(ADMIN_MENUS).createIndex({ path: 1 }, { unique: true });
 }
 
 export function usersCol() {

@@ -1,11 +1,11 @@
 /**
- * FFmpeg spawn wrapper with progress parsing.
- * Moved from src/ffmpeg.ts and extended with duration-based progress.
+ * video-tools FFmpeg helpers on top of `@vokop/pipeline`.
+ * Filmstrip / waveform PNG stay here (API returns base64 data URLs).
  */
 
-import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { runFFmpeg } from '@vokop/pipeline';
 import { withTmpDir } from './tmp.js';
 
 export interface FfmpegProgressEvent {
@@ -19,58 +19,45 @@ export type FfmpegProgressCallback = (event: FfmpegProgressEvent) => void | Prom
 
 interface RunFfmpegOptions {
   args: string[];
-  /** Total duration in seconds — used to compute percent from `out_time_ms`. */
   durationSec?: number;
   onProgress?: FfmpegProgressCallback;
 }
 
-/** Spawn ffmpeg and optionally parse -progress pipe output. */
+/** Spawn ffmpeg via `@vokop/pipeline` (progress is 0–100 for callers). */
 export async function runFfmpeg(opts: RunFfmpegOptions | string[]): Promise<void> {
-  // Backward-compat: accept plain string[] from existing callers
   const { args, durationSec, onProgress } = Array.isArray(opts)
     ? { args: opts, durationSec: undefined, onProgress: undefined }
     : opts;
 
-  const hasProgress = Boolean(onProgress && durationSec);
-  const finalArgs = hasProgress
-    ? ['-progress', 'pipe:2', '-nostats', ...args]
-    : args;
+  // Strip flags the package injects so callers can keep legacy argv lists.
+  const cleaned = stripInjectedFlags(args);
 
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn('ffmpeg', finalArgs, { stdio: ['ignore', 'ignore', 'pipe'] });
-    let stderr = '';
-
-    proc.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      stderr += text;
-
-      if (hasProgress && onProgress) {
-        // -progress writes key=value lines to stderr/pipe
-        const lines = text.split('\n');
-        for (const line of lines) {
-          const match = line.match(/^out_time_ms=(\d+)/);
-          if (match && durationSec) {
-            const timeSec = Number(match[1]) / 1_000_000;
-            const percent = Math.min(99, Math.round((timeSec / durationSec) * 100));
-            void onProgress({ percent, time: timeSec });
-          }
+  await runFFmpeg({
+    args: cleaned,
+    totalDurationSec: durationSec,
+    onProgress: onProgress
+      ? (p) => {
+          void onProgress({
+            percent: p.percent >= 0 ? Math.min(99, Math.round(p.percent * 100)) : 0,
+            time: p.outTimeSec,
+          });
         }
-      }
-    });
-
-    proc.on('error', (err) => {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        reject(new Error('ffmpeg is not installed. Install ffmpeg to use server-side video tools.'));
-      } else {
-        reject(err);
-      }
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`));
-    });
+      : undefined,
   });
+}
+
+function stripInjectedFlags(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '-hide_banner' || a === '-nostats' || a === '-y') continue;
+    if (a === '-progress') {
+      i += 1;
+      continue;
+    }
+    out.push(a!);
+  }
+  return out;
 }
 
 export function extensionForFilename(name: string): string {
@@ -101,8 +88,8 @@ export async function generateFilmstrip(
     const pattern = path.join(workDir, 'thumb_%03d.jpg');
 
     await runFfmpeg([
-      '-hide_banner', '-loglevel', 'error',
-      '-threads', '0', '-y',
+      '-loglevel', 'error',
+      '-threads', '0',
       '-i', inputPath,
       '-an', '-sn',
       '-vf', `${scaleFilter},fps=${fps}`,
@@ -139,7 +126,7 @@ export async function generateWaveform(
   return withTmpDir('vokop-waveform-', async (workDir) => {
     const outPath = path.join(workDir, 'waveform.png');
     await runFfmpeg([
-      '-hide_banner', '-loglevel', 'error', '-y',
+      '-loglevel', 'error',
       '-i', inputPath,
       '-filter_complex', `aformat=channel_layouts=mono,compand,showwavespic=s=${widthPx}x${heightPx}:colors=#6c63ff`,
       '-frames:v', '1',

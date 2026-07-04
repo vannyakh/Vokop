@@ -2,7 +2,8 @@ import { ObjectId } from 'mongodb';
 import { getMongo } from '@vokop/db';
 import type { PermissionSlug } from '@vokop/shared';
 import type { AdminMenuDoc } from '../lib/mappers.js';
-import { ADMIN_MENUS } from './users.js';
+
+export const ADMIN_MENUS = 'admin_menus';
 
 export function menusCol() {
   return getMongo().collection<AdminMenuDoc>(ADMIN_MENUS);
@@ -76,4 +77,8 @@ export async function deleteMenu(id: string): Promise<boolean> {
   if (!ObjectId.isValid(id)) return false;
   const result = await menusCol().deleteOne({ _id: new ObjectId(id) });
   return result.deletedCount === 1;
+}
+
+export async function ensureAdminIndexes(): Promise<void> {
+  await menusCol().createIndex({ path: 1 }, { unique: true });
 }

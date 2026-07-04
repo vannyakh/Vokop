@@ -1,8 +1,9 @@
+import { ObjectId } from 'mongodb';
 import { PERMISSIONS } from '@vokop/shared';
 import { buildMenuTree, mapMenu, mapRole, mapUser } from '../lib/mappers.js';
 import { createMenu, deleteMenu, listMenus, updateMenu } from '../db/adminMenus.js';
 import { createRole, deleteRole, listRoles, updateRole } from '../db/roles.js';
-import { listUsers, resolvePermissions, updateUser, findUserById } from '../db/users.js';
+import { findUserById, listUsers, resolvePermissions, updateUser } from '../db/users.js';
 
 export async function getPermissionsCatalog() {
   return PERMISSIONS;
@@ -31,7 +32,12 @@ export async function createRoleRecord(input: {
 
 export async function updateRoleRecord(
   id: string,
-  input: Partial<{ slug: string; label: string; description: string; permissions: Parameters<typeof createRole>[0]['permissions'] }>,
+  input: Partial<{
+    slug: string;
+    label: string;
+    description: string;
+    permissions: Parameters<typeof createRole>[0]['permissions'];
+  }>,
 ) {
   const role = await updateRole(id, input);
   if (!role) throw new Error('Role not found');
@@ -61,7 +67,6 @@ export async function updateUserRecord(
   id: string,
   input: { roleIds?: string[]; status?: 'active' | 'disabled' | 'pending' },
 ) {
-  const { ObjectId } = await import('mongodb');
   const user = await updateUser(id, {
     status: input.status,
     roleIds: input.roleIds?.map((rid) => new ObjectId(rid)),

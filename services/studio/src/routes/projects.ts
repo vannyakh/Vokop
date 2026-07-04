@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, type AuthedRequest } from '../middleware/auth.js';
+import { authenticate, type AuthedRequest } from '@vokop/service-auth';
 import {
   createUserProject,
   emptyUserTrash,

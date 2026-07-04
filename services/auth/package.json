@@ -13,6 +13,7 @@
   "dependencies": {
     "@vokop/api": "workspace:*",
     "@vokop/db": "workspace:*",
+    "@vokop/service-auth": "workspace:*",
     "@vokop/shared": "workspace:*",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.3",

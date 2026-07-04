@@ -18,15 +18,17 @@ Browser-based video studio (CapCut-like): timeline editing, canvas overlays, AI 
 ## Architecture (read before large changes)
 
 ```
-Browser (apps/web) — own CapCut-style UI/UX
+Browser (apps/web, apps/admin) — CapCut-style UI / admin console
   → /api proxy → gateway :4000
-    → video-tools :4001 (FFmpeg, sessions, jobs, editor apply/preview)
-    → auth :4002 (users, projects)
-    → ai-content :4003 (FunClip-inspired ASR, subtitles, LLM clip assist)
+    → video-tools :4001 (FFmpeg, sessions, jobs, presets)
+    → auth :4002 (account & security only)
+    → studio :4003 (projects CRUD + trash)
+    → admin-service :4004 (RBAC, menus, users)
+    → ai-content (planned)
     → MongoDB + Redis (packages/db, docker-compose)
 ```
 
-Shared contracts: `@vokop/api` (Zod + client), `@vokop/shared` (types/constants), `@vokop/ui` (components).
+Shared contracts: `@vokop/api` (Zod + client), `@vokop/shared` (types/constants), `@vokop/ui` (components), `@vokop/service-auth` (JWT verify middleware for studio/admin), `@vokop/pipeline` (FFmpeg timeline/probe/render used by `video-tools`).
 
 ## Reference projects (do not fork UI)
 

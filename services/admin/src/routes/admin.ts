@@ -9,7 +9,7 @@ import {
   upsertRoleRequestSchema,
   usersListResponseSchema,
 } from '@vokop/api';
-import { authenticate, requirePermission, type AuthedRequest } from '../middleware/auth.js';
+import { authenticate, requirePermission, type AuthedRequest } from '@vokop/service-auth';
 import {
   createMenuRecord,
   createRoleRecord,

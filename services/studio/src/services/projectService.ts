@@ -19,6 +19,7 @@ import {
 } from '../db/projects.js';
 import { mapProject } from '../lib/mappers.js';
 
+
 export async function getUserProjects(userId: string) {
   const projects = await listProjectsByUser(userId, { trash: false });
   return toApiResponse(projectsListResponseSchema, {

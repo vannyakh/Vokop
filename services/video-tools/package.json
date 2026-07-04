@@ -18,6 +18,7 @@
     "@aws-sdk/s3-request-presigner": "^3.840.0",
     "@vokop/api": "workspace:*",
     "@vokop/db": "workspace:*",
+    "@vokop/pipeline": "workspace:*",
     "@vokop/shared": "workspace:*",
     "bullmq": "^5.56.3",
     "dotenv": "^17.2.3",

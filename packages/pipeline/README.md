@@ -1,8 +1,9 @@
 # @vokop/pipeline
 
 Shared FFmpeg pipeline for Vokop. One codebase compiles timeline JSON into
-deterministic ffmpeg commands, so the cloud render workers
-(`services/video-tools`) and the Electron desktop app produce identical output.
+deterministic ffmpeg commands. `services/video-tools` depends on this package
+for probe, render, and ffmpeg process management (adapters live under
+`workers/pipeline/`).
 
 Pure TypeScript + `node:child_process`. Only runtime dependency: `zod`.
 Requires ffmpeg/ffprobe binaries (system, docker image, or bundled in Electron —

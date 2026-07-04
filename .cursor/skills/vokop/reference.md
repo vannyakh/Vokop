@@ -53,9 +53,11 @@ Legacy (re-uploads file): `POST /api/v1/video/probe`, `POST /api/v1/video/filmst
 | Service | Role |
 |---------|------|
 | `gateway` | Single API entry; proxies `/api/v1/*` (`src/config`, `src/proxy`, `src/routes`, `src/ws`) |
-| `video-tools` | FFmpeg sessions, filmstrip jobs, editor apply/preview |
-| Web `@omnimedia/omnitool` | Browser video tools (filmstrip/timeline/export) via `apps/web/src/features/studio/lib/omniTool/` |
-| `auth` | Auth, RBAC, projects CRUD |
+| `auth` | Account & security only (login, register, JWT, me) — port 4002 |
+| `studio` | Studio projects CRUD + soft-delete/trash — port 4003 |
+| `admin-service` | Admin RBAC, menus, users — port 4004 |
+| `video-tools` | FFmpeg sessions, filmstrip, presets, assets — port 4001 |
+| Web `@omnimedia/omnitool` | Browser video tools via `apps/web/src/features/studio/lib/omniTool/` |
 | `ai-content` (planned) | FunClip-inspired ASR, subtitles, LLM clip assist |
 
 ## Web app entry points

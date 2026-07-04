@@ -15,8 +15,10 @@ alwaysApply: true
 | `apps/admin` | Admin console (port 3001) |
 | `services/gateway` | API entry, proxies `/api/v1/*` (port 4000) |
 | `services/video-tools` | FFmpeg, sessions, jobs, editor presets (port 4001) |
-| `services/auth` | Auth, RBAC, projects (port 4002) |
-| `services/ai-content` | Planned FunClip-inspired AI generate-content (port 4003) |
+| `services/auth` | Account & security only (port 4002) |
+| `services/studio` | Studio projects CRUD + trash (port 4003) |
+| `services/admin` | Admin RBAC, menus, users (port 4004) |
+| `services/ai-content` | Planned FunClip-inspired AI generate-content |
 | `packages/shared` | Config, constants, types, preferences provider |
 | `packages/api` | Zod schemas, routes, typed `ApiClient` |
 | `packages/ui` | Shared React components (`Button`, `LaunchButton`, …) |

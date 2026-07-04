@@ -39,7 +39,7 @@ export const routes = {
     textEffectPreviews: `${API_PREFIX}/media/text-effects/previews`,
   },
 
-  /** auth — studio project records (soft-delete / trash) */
+  /** studio service — project records (soft-delete / trash) */
   projects: {
     list: `${API_PREFIX}/projects`,
     create: `${API_PREFIX}/projects`,
@@ -68,7 +68,7 @@ export const routes = {
     job: (jobId: string) => `${API_PREFIX}/ai/jobs/${jobId}`,
   },
 
-  /** auth service */
+  /** auth service — account & security only */
   auth: {
     login: `${API_PREFIX}/auth/login`,
     lookup: `${API_PREFIX}/auth/lookup`,
@@ -78,7 +78,7 @@ export const routes = {
     me: `${API_PREFIX}/auth/me`,
   },
 
-  /** auth service — admin console */
+  /** admin-service — console RBAC */
   admin: {
     menus: `${API_PREFIX}/admin/menus`,
     menu: (id: string) => `${API_PREFIX}/admin/menus/${id}`,

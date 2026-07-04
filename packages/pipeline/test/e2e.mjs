@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert";
 import {
   parseTimeline,
@@ -14,7 +16,7 @@ import {
   atempoChain,
 } from "../dist/index.js";
 
-const dir = "/home/claude/pipeline/test/out";
+const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "out");
 mkdirSync(dir, { recursive: true });
 
 // --- 1. generate two source assets with ffmpeg testsrc ---

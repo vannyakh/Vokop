@@ -1,27 +1,28 @@
 {
   "name": "@vokop/pipeline",
+  "private": true,
   "version": "0.1.0",
-  "description": "Shared FFmpeg pipeline: timeline JSON -> filtergraph, proxy generation, probing, segment-parallel rendering. Used by video-tools workers and the desktop app.",
+  "description": "Shared FFmpeg pipeline: timeline JSON -> filtergraph, proxy generation, probing, segment-parallel rendering.",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+    ".": "./src/index.ts"
   },
-  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test:e2e": "pnpm build && node test/e2e.mjs",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
-    "@types/node": "^22.5.0"
+    "@types/node": "^22.5.0",
+    "@vokop/tsconfig": "workspace:*"
   },
   "engines": {
     "node": ">=20"

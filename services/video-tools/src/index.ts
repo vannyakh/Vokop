@@ -175,9 +175,15 @@ app.post('/probe', upload.single('video'), async (req, res) => {
     const { writeFile } = await import('node:fs/promises');
     await writeFile(inputPath, file.buffer);
     const result = await probeVideo(inputPath);
-    const payload = toApiResponse(videoProbeResponseSchema, result);
+    const payload = toApiResponse(videoProbeResponseSchema, {
+      duration: result.duration,
+      width: result.width,
+      height: result.height,
+      codec: result.codec,
+      fps: result.fps,
+    });
     await getRedis().setEx(`vokop:legacy:probe:${file.originalname}:${file.size}`, CACHE_TTL_SEC, JSON.stringify(payload));
-    await logVideoJob('probe', file.originalname, file.size, 'completed', result);
+    await logVideoJob('probe', file.originalname, file.size, 'completed', payload);
     res.json(payload);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Probe failed';

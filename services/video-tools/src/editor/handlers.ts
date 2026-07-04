@@ -3,7 +3,7 @@ import path from 'node:path';
 import { findEditorPreset, getEditorCatalog } from '@vokop/shared';
 import type { ApplyEditorEditResponse } from '@vokop/api';
 import type { StudioToolId } from '@vokop/shared';
-import { runFfmpeg } from '../ffmpeg.js';
+import { runFfmpeg } from '../workers/pipeline/ffmpeg.js';
 import { getVideoSession } from '../lib/sessionStore.js';
 
 export function getCatalogResponse() {

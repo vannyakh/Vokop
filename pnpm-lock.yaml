@@ -429,8 +429,45 @@ importers:
       '@types/node':
         specifier: ^22.5.0
         version: 22.20.0
+      '@vokop/tsconfig':
+        specifier: workspace:*
+        version: link:../../internal/tsconfig
       typescript:
         specifier: ^5.5.4
+        version: 5.8.3
+
+  packages/service-auth:
+    dependencies:
+      '@vokop/db':
+        specifier: workspace:*
+        version: link:../db
+      '@vokop/shared':
+        specifier: workspace:*
+        version: link:../shared
+      express:
+        specifier: ^4.21.2
+        version: 4.22.2
+      jsonwebtoken:
+        specifier: ^9.0.2
+        version: 9.0.3
+      mongodb:
+        specifier: ^6.20.0
+        version: 6.21.0
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.0
+      '@vokop/tsconfig':
+        specifier: workspace:*
+        version: link:../../internal/tsconfig
+      typescript:
+        specifier: ~5.8.2
         version: 5.8.3
 
   packages/shared:
@@ -495,6 +532,46 @@ importers:
         specifier: ~5.8.2
         version: 5.8.3
 
+  services/admin:
+    dependencies:
+      '@vokop/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@vokop/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@vokop/service-auth':
+        specifier: workspace:*
+        version: link:../../packages/service-auth
+      '@vokop/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.4.2
+      express:
+        specifier: ^4.21.2
+        version: 4.22.2
+      mongodb:
+        specifier: ^6.20.0
+        version: 6.21.0
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.0
+      '@vokop/tsconfig':
+        specifier: workspace:*
+        version: link:../../internal/tsconfig
+      tsx:
+        specifier: ^4.21.0
+        version: 4.22.4
+      typescript:
+        specifier: ~5.8.2
+        version: 5.8.3
+
   services/auth:
     dependencies:
       '@vokop/api':
@@ -503,6 +580,9 @@ importers:
       '@vokop/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@vokop/service-auth':
+        specifier: workspace:*
+        version: link:../../packages/service-auth
       '@vokop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -593,6 +673,46 @@ importers:
         specifier: ~5.8.2
         version: 5.8.3
 
+  services/studio:
+    dependencies:
+      '@vokop/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@vokop/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@vokop/service-auth':
+        specifier: workspace:*
+        version: link:../../packages/service-auth
+      '@vokop/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.4.2
+      express:
+        specifier: ^4.21.2
+        version: 4.22.2
+      mongodb:
+        specifier: ^6.20.0
+        version: 6.21.0
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.0
+      '@vokop/tsconfig':
+        specifier: workspace:*
+        version: link:../../internal/tsconfig
+      tsx:
+        specifier: ^4.21.0
+        version: 4.22.4
+      typescript:
+        specifier: ~5.8.2
+        version: 5.8.3
+
   services/video-tools:
     dependencies:
       '@aws-sdk/client-s3':
@@ -607,6 +727,9 @@ importers:
       '@vokop/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@vokop/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       '@vokop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
