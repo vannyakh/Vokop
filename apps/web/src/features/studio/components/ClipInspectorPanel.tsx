@@ -1,6 +1,7 @@
-import { Film, Type, Music2, Layers, Clock } from 'lucide-react';
+import { Film, Type, Music2, Clock } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import { CanvasElementPanel } from '@/features/studio/components/CanvasElementPanel';
+import { RightPanelEmpty } from '@/features/studio/components/RightPanelEmpty';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
 import { Label, Slider, StudioIcon } from '@vokop/ui';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
@@ -290,58 +291,6 @@ function SegmentInspector({
   );
 }
 
-function TrackDefaultsInspector() {
-  const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
-  const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
-  const aspectRatio = useAppStore((s) => s.aspectRatio);
-  const duration = useAppStore((s) => s.duration);
-  const mediaDuration = useAppStore((s) => s.mediaDuration);
-  const videoClips = useAppStore((s) => s.videoClips);
-  const audioClips = useAppStore((s) => s.audioClips);
-  const canvasElements = useAppStore((s) => s.canvasElements);
-  const projectEditor = useAppStore((s) => s.projectEditor);
-
-  return (
-    <InspectorDock title="Project" icon={<Layers size={12} className="text-accent" />}>
-      <InspectorSection id="project-info" title="Overview" defaultOpen>
-        <div className="clip-inspector-grid">
-          <Field label="Aspect" value={aspectRatio} />
-          <Field label="Timeline" value={formatStudioTimecode(duration)} />
-          <Field label="Media" value={formatStudioTimecode(mediaDuration)} />
-          <Field label="Filter" value={projectEditor.videoFilterId ?? 'None'} />
-        </div>
-        <div className="clip-inspector-grid" style={{ marginTop: 10 }}>
-          <Field label="Video clips" value={String(videoClips.length)} />
-          <Field label="Audio clips" value={String(audioClips.length)} />
-          <Field label="Overlays" value={String(canvasElements.length)} />
-        </div>
-      </InspectorSection>
-
-      <InspectorSection id="project-tracks" title="Tracks" defaultOpen>
-        <div className="space-y-2">
-          {(['video', 'text', 'overlay', 'audio'] as const).map((trackId) => {
-            const muted = timelineTrackMuted[trackId] ?? false;
-            return (
-              <button
-                key={trackId}
-                type="button"
-                className="studio-tools-action-btn w-full"
-                onClick={() => toggleTimelineTrackMuted(trackId)}
-              >
-                {muted ? <StudioIcon name="volumeSlash" size={13} /> : <StudioIcon name="volume" size={13} />}
-                <span className="capitalize">{trackId}</span>
-                <span className="text-faint ml-auto">{muted ? 'Muted' : 'Active'}</span>
-              </button>
-            );
-          })}
-        </div>
-      </InspectorSection>
-
-      <p className="clip-inspector-hint">Select a clip on the timeline to edit its settings.</p>
-    </InspectorDock>
-  );
-}
-
 function isSegmentClipId(clipId: string): boolean {
   return /^(translation|transcript)-\d+$/.test(clipId);
 }
@@ -352,7 +301,7 @@ export function ClipInspectorPanel() {
   const canvasElements = useAppStore((s) => s.canvasElements);
 
   if (!selectedTimelineClip && !selectedCanvasElementId) {
-    return <TrackDefaultsInspector />;
+    return <RightPanelEmpty message="Select an item to make adjustment" />;
   }
 
   const trackId = selectedTimelineClip?.trackId;
@@ -376,5 +325,5 @@ export function ClipInspectorPanel() {
     return <CanvasElementPanel />;
   }
 
-  return <TrackDefaultsInspector />;
+  return <RightPanelEmpty message="Select an item to make adjustment" />;
 }

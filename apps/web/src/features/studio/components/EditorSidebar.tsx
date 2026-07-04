@@ -25,7 +25,7 @@ const TABS: { id: EditorTab; label: string; icon: React.ReactNode }[] = [
 
 const RIGHT_PANEL_MIN = 280;
 const RIGHT_PANEL_MAX = 560;
-const RIGHT_PANEL_DEFAULT = 400;
+const RIGHT_PANEL_DEFAULT = 360;
 
 export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorSidebarProps) {
   const editorOpen = useAppStore((s) => s.editorOpen);
@@ -67,16 +67,14 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
     }
   };
 
-  const activeLabel = TABS.find((t) => t.id === activeTab)?.label;
-
   return (
-    <aside className="studio-editor-dock" aria-label="Editor panels">
+    <aside className="studio-right-dock" aria-label="Editor panels">
       {editorOpen && (
         <>
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize inspector panel"
+            aria-label="Resize properties panel"
             aria-valuenow={Math.round(panelWidth)}
             aria-valuemin={minWidth}
             aria-valuemax={maxWidth}
@@ -93,12 +91,20 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
             </span>
           </div>
 
-          <div className="studio-editor-panel" style={{ width: panelWidth }}>
-            <div className="studio-tools-panel-titlebar">
-              <span className="studio-tools-panel-title">{activeLabel}</span>
+          <div className="studio-right-panel" style={{ width: panelWidth }}>
+            <div className="studio-right-panel-titlebar">
+              <button
+                type="button"
+                className="studio-right-panel-close"
+                onClick={() => setEditorOpen(false)}
+                title="Close panel"
+                aria-label="Close panel"
+              >
+                <StudioIcon name="xMark" size={16} />
+              </button>
             </div>
 
-            <div className="studio-sidebar-body studio-scrollbar">
+            <div className="studio-right-panel-body studio-scrollbar">
               {activeTab === 'inspector' && <ClipInspectorPanel />}
               {activeTab === 'translate' && (
                 <SegmentList
@@ -130,7 +136,7 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
         </>
       )}
 
-      <div className="studio-tools-rail studio-editor-rail">
+      <nav className="studio-right-rail" aria-label="Editor tabs">
         {TABS.map((tab) => {
           const count = tabCounts[tab.id];
           const active = activeTab === tab.id && editorOpen;
@@ -140,19 +146,19 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
               type="button"
               title={tab.label}
               onClick={() => selectTab(tab.id)}
-              className={cn('studio-tools-rail-btn', active && 'active')}
+              className={cn('studio-right-rail-btn', active && 'active')}
             >
-              <span className="studio-editor-rail-icon">
+              <span className="studio-right-rail-icon">
                 {tab.icon}
                 {count != null && count > 0 && (
-                  <span className="studio-editor-rail-count">{count}</span>
+                  <span className="studio-right-rail-count">{count}</span>
                 )}
               </span>
-              <span className="studio-tools-rail-label">{tab.label}</span>
+              <span className="studio-right-rail-label">{tab.label}</span>
             </button>
           );
         })}
-      </div>
+      </nav>
     </aside>
   );
 }
