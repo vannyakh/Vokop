@@ -1,0 +1,270 @@
+.studio-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.studio-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.375rem;
+  border-radius: 0.625rem;
+  border: 1px solid transparent;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.studio-tab:hover {
+  color: var(--text-muted);
+  background: var(--surface-hi);
+}
+
+.studio-tab.active {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.studio-tab-count {
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-tab.active .studio-tab-count {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.studio-tab:not(.active) .studio-tab-count {
+  background: var(--surface-hi);
+  color: var(--text-muted);
+}
+
+.studio-float {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.studio-user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(155deg, var(--accent), #c97a1e);
+  color: var(--accent-ink);
+  box-shadow: 0 4px 14px -4px rgba(232, 163, 61, 0.45);
+  cursor: pointer;
+}
+
+.studio-user-avatar:hover {
+  box-shadow: 0 6px 18px -4px rgba(232, 163, 61, 0.55);
+}
+
+.studio-brand-logo {
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.studio-brand-logo--round {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.studio-brand-logo:hover {
+  box-shadow: none;
+}
+
+.studio-float-action {
+  border-radius: 10px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.studio-float-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.studio-float-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-studio-border);
+  flex-shrink: 0;
+}
+
+.studio-glass {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+}
+
+.studio-panel {
+  background: color-mix(in srgb, var(--surface-hi) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  padding: 1rem;
+}
+
+/*
+ * UI rule: no card-in-card inside tool drawers / sidebars.
+ * Sections sit flush on the panel surface; dividers separate blocks.
+ */
+.studio-tools-panel .studio-panel,
+.studio-right-panel .studio-panel,
+.studio-sidebar .studio-panel {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0.85rem 0.9rem;
+}
+
+.studio-tools-panel .tools-section-stack > .studio-panel + .studio-panel,
+.studio-right-panel .tools-section-stack > .studio-panel + .studio-panel,
+.studio-sidebar .tools-section-stack > .studio-panel + .studio-panel {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.studio-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.studio-segment-card {
+  padding: 0.75rem;
+  border-radius: 0.875rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-hi) 50%, transparent);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.studio-segment-card:hover {
+  background: var(--surface-hi);
+  border-color: var(--border-strong);
+}
+
+.studio-segment-card.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.studio-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.studio-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
+  color: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.studio-empty-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.studio-empty-desc {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--text-faint);
+  max-width: 16rem;
+}
+
+.studio-live-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.studio-live-preview:not(:disabled) {
+  background: var(--surface-hi);
+  color: var(--text-muted);
+}
+
+.studio-live-preview:not(:disabled):hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.studio-live-preview:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.studio-live-preview.active {
+  background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2) 35%, transparent);
+  color: var(--accent-2);
+}
+
+.studio-caption {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.4));
+  backdrop-filter: blur(8px);
+}
+
+@keyframes studio-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.studio-pulse {
+  animation: studio-pulse 2s ease-in-out infinite;
+}

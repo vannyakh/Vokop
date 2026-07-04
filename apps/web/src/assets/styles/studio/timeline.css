@@ -1,0 +1,972 @@
+/* ── Playback bar (timeline transport) ── */
+.studio-playback-bar {
+  flex-shrink: 0;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 1.125rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-hi) 70%, transparent);
+}
+
+.studio-playback-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.studio-playback-process {
+  margin-left: 0.375rem;
+}
+
+.studio-playback-center {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.studio-playback-play {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.studio-playback-time {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.studio-playback-time-current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.studio-playback-time-sep {
+  margin: 0 0.375rem;
+  color: var(--text-faint);
+}
+
+.studio-playback-icon-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.studio-playback-icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-hi) 80%, transparent);
+}
+
+.studio-playback-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.studio-playback-icon-btn.studio-playback-ai {
+  background: color-mix(in srgb, var(--accent-2, #54d6c9) 88%, transparent);
+  color: var(--bg);
+}
+
+.studio-playback-icon-btn.studio-playback-ai.active {
+  background: color-mix(in srgb, var(--accent-2, #54d6c9) 70%, transparent);
+}
+
+.studio-playback-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--border);
+  margin: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.studio-playback-zoom-slider {
+  width: 4.375rem;
+  height: 3px;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.studio-playback-zoom-label {
+  font-size: 0.6875rem;
+  color: var(--text-faint);
+  width: 2.125rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── Pinned multi-track timeline ── */
+.studio-timeline-pinned-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  user-select: none;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.studio-timeline-header-col {
+  width: 132px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-hi) 65%, transparent);
+}
+
+.studio-timeline-header-spacer {
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.studio-track-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0 0.625rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.studio-track-header-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.studio-track-header-icon--video { color: var(--accent); }
+.studio-track-header-icon--text { color: var(--accent-2, #54d6c9); }
+.studio-track-header-icon--overlay { color: #9c8cd8; }
+.studio-track-header-icon--audio { color: var(--accent-2, #54d6c9); }
+
+.studio-track-header-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-track-header-btn {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.studio-track-header-btn:hover {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-hi) 80%, transparent);
+}
+
+.studio-track-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: 100%;
+  min-height: 2rem;
+  margin-top: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.studio-track-add-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.studio-timeline-add-lane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: 100%;
+  height: 2.25rem;
+  margin-top: 0.25rem;
+  border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--surface-hi) 40%, transparent);
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.studio-timeline-add-lane:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.studio-timeline-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+}
+
+.studio-timeline-content {
+  position: relative;
+  min-height: 100%;
+}
+
+.studio-timeline-ruler {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.studio-timeline-ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.3125rem;
+  pointer-events: none;
+}
+
+.studio-timeline-ruler-tick-line {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 0.375rem;
+  background: var(--border-strong);
+}
+
+.studio-timeline-ruler-tick-label {
+  margin-left: 0.3125rem;
+  font-size: 0.625rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.studio-timeline-lane {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent calc(var(--timeline-grid, 80px) - 1px),
+      color-mix(in srgb, var(--border) 50%, transparent) calc(var(--timeline-grid, 80px) - 1px),
+      color-mix(in srgb, var(--border) 50%, transparent) var(--timeline-grid, 80px)
+    );
+  cursor: pointer;
+}
+
+.studio-timeline-lane--video {
+  background: color-mix(in srgb, var(--surface-hi) 45%, transparent);
+}
+
+/* ── CapCut-style clip blocks ── */
+.studio-timeline-clip-block {
+  position: absolute;
+  top: 4px;
+  border-radius: 5px;
+  overflow: visible;
+  border: 1.5px solid transparent;
+  cursor: default;
+  box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.1s ease, border-color 0.1s ease;
+}
+
+.studio-timeline-clip-block--editable {
+  cursor: grab;
+}
+
+.studio-timeline-clip-block--editable:active {
+  cursor: grabbing;
+}
+
+.studio-timeline-clip-block.is-selected {
+  z-index: 3;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18), 0 2px 10px -2px rgba(0, 0, 0, 0.5);
+}
+
+/* Video track */
+.studio-timeline-clip-block--video {
+  background: transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  border-color: transparent;
+}
+
+.studio-timeline-clip-block--video.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 2px 8px -2px rgba(0, 0, 0, 0.45);
+}
+
+/* Filmstrip */
+.studio-timeline-clip-block--footage .studio-timeline-clip-filmstrip,
+.studio-timeline-filmstrip-thumb {
+  pointer-events: none;
+  user-select: none;
+}
+
+.studio-timeline-clip-footage-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.2rem 0.45rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 0 0 4px 4px;
+}
+
+.studio-timeline-clip-footage-label span {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* ── Clip variant colors ── */
+
+/* Translation / text segment → teal */
+.studio-timeline-clip-block--text,
+.studio-timeline-clip-variant--translation {
+  background: linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%);
+  border-color: transparent;
+  overflow: hidden;
+}
+
+.studio-timeline-clip-variant--translation.is-selected,
+.studio-timeline-clip-block--text.is-selected {
+  border-color: #fff;
+}
+
+/* Template text → CapCut orange */
+.studio-timeline-clip-variant--template {
+  background: linear-gradient(135deg, #FB923C 0%, #EA580C 100%);
+  border-color: transparent;
+  overflow: hidden;
+}
+
+.studio-timeline-clip-variant--template.is-selected {
+  border-color: #fff;
+}
+
+/* Transcript / overlay → purple */
+.studio-timeline-clip-block--overlay,
+.studio-timeline-clip-variant--transcript {
+  background: linear-gradient(135deg, #A78BFA 0%, #7C3AED 100%);
+  border-color: transparent;
+  overflow: hidden;
+}
+
+.studio-timeline-clip-variant--transcript.is-selected,
+.studio-timeline-clip-block--overlay.is-selected {
+  border-color: #fff;
+}
+
+/* Logo */
+.studio-timeline-clip-variant--logo {
+  background: linear-gradient(135deg, #FCD34D 0%, #D97706 100%);
+  overflow: hidden;
+}
+
+.studio-timeline-clip-variant--logo.is-selected {
+  border-color: #fff;
+}
+
+/* Image overlay */
+.studio-timeline-clip-variant--image {
+  background: linear-gradient(135deg, #93C5FD 0%, #2563EB 100%);
+  overflow: hidden;
+}
+
+.studio-timeline-clip-variant--image.is-selected {
+  border-color: #fff;
+}
+
+/* Audio */
+.studio-timeline-clip-block--audio {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border-color: color-mix(in srgb, #54d6c9 25%, transparent);
+  overflow: hidden;
+}
+
+.studio-timeline-clip-block--audio.is-selected {
+  border-color: #54d6c9;
+}
+
+/* Clip inner layout */
+.studio-timeline-clip-inner {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.625rem;
+  overflow: hidden;
+}
+
+.studio-timeline-clip-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.studio-timeline-clip-grip {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  display: flex;
+}
+
+.studio-timeline-clip-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 4;
+  transition: background 0.12s ease;
+}
+
+.studio-timeline-clip-delete:hover {
+  background: #ef4444;
+}
+
+/* Resize handles — CapCut style: semi-transparent white grip */
+.studio-timeline-clip-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-timeline-clip-handle::after {
+  content: '';
+  width: 3px;
+  height: 60%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.35);
+}
+
+.studio-timeline-clip-handle--left {
+  left: 0;
+}
+
+.studio-timeline-clip-handle--right {
+  right: 0;
+}
+
+/* ── Snap indicator (vertical teal line) ── */
+.studio-timeline-snap-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #54D6C9;
+  box-shadow: 0 0 6px rgba(84, 214, 201, 0.8);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Hover cursor line ── */
+.studio-timeline-hover-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Hover time tooltip on ruler ── */
+.studio-timeline-ruler-hover-time {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 0.5625rem;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* Old label-wrap compat */
+.studio-timeline-clip-label-wrap {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.5rem;
+}
+
+.studio-timeline-clip-label-wrap--logo,
+.studio-timeline-clip-label-wrap--image {
+  border-left: none;
+}
+
+.studio-timeline-context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 11.5rem;
+  padding: 0.375rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.studio-timeline-context-menu-label {
+  margin: 0;
+  padding: 0.375rem 0.5rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.25rem;
+}
+
+.studio-timeline-context-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.studio-timeline-context-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-hi) 85%, transparent);
+}
+
+.studio-timeline-context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.studio-timeline-context-menu-item--danger {
+  color: #e8746a;
+}
+
+.studio-timeline-context-menu-item--danger:hover:not(:disabled) {
+  background: rgba(232, 116, 106, 0.12);
+}
+
+.studio-timeline-context-menu-shortcut {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-faint);
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+/* Marquee selection box */
+.studio-timeline-marquee {
+  position: absolute;
+  z-index: 8;
+  pointer-events: none;
+  background: rgba(84, 214, 201, 0.1);
+  border: 1px solid rgba(84, 214, 201, 0.6);
+  border-radius: 3px;
+}
+
+/* old clip color rules removed — see CapCut-style section above */
+
+.studio-timeline-clip-filmstrip {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.studio-timeline-clip-label-wrap {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.5rem;
+}
+
+.studio-timeline-clip-label {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-timeline-clip-delete {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8746a;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.studio-timeline-clip-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+
+.studio-timeline-clip-handle--left { left: 0; }
+.studio-timeline-clip-handle--right { right: 0; }
+
+.studio-timeline-voice-wave {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.studio-timeline-voice-wave-inner {
+  width: 100%;
+  height: 100%;
+}
+
+.studio-timeline-filmstrip-thumb {
+  height: 100%;
+  object-fit: cover;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.studio-timeline-filmstrip-loading {
+  position: absolute;
+  inset: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--text-faint);
+}
+
+.studio-timeline-filmstrip-progress {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.studio-timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  margin-left: -6px;
+  z-index: 8;
+  cursor: ew-resize;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.studio-timeline-playhead-knob {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #ef4444;
+  filter: drop-shadow(0 1px 3px rgba(239,68,68,0.55));
+}
+
+.studio-timeline-playhead-line {
+  position: absolute;
+  top: 7px;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.5px;
+  background: #ef4444;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.45);
+}
+
+.studio-timeline-playhead.is-dragging .studio-timeline-playhead-knob {
+  border-top-color: #f97316;
+}
+
+.studio-timeline-playhead.is-dragging .studio-timeline-playhead-line {
+  background: #f97316;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.55);
+}
+
+/* Lane hover highlight */
+.studio-timeline-lane:hover {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent calc(var(--timeline-grid, 80px) - 1px),
+      color-mix(in srgb, var(--border) 60%, transparent) calc(var(--timeline-grid, 80px) - 1px),
+      color-mix(in srgb, var(--border) 60%, transparent) var(--timeline-grid, 80px)
+    );
+}
+
+.studio-timeline-lane--video:hover {
+  background-image: none;
+}
+
+.studio-audio-waveforms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.studio-audio-waveform-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.studio-audio-waveform-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.studio-audio-waveform-canvas {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-hi) 60%, transparent);
+}
+
+.studio-audio-waveform-canvas wave {
+  display: block;
+}
+
+.studio-transport {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem 1.125rem;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+}
+
+.studio-transport-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.studio-transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.studio-transport-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  border: 1px solid var(--border);
+  background: var(--surface-hi);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.studio-transport-btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-hi) 85%, var(--accent-soft));
+}
+
+.studio-transport-play {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 18px -6px rgba(232, 163, 61, 0.5);
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.studio-transport-play:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 8px 22px -6px rgba(232, 163, 61, 0.55);
+}
+
+.studio-transport-time {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-transport-time-current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.studio-transport-time-total {
+  color: var(--text-faint);
+}
+
+.studio-transport-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.studio-scrubber {
+  position: relative;
+  height: 0.375rem;
+  margin-top: 0.875rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--surface-hi) 80%, var(--border));
+  cursor: pointer;
+  overflow: visible;
+}
+
+.studio-scrubber-fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 70%, transparent),
+    color-mix(in srgb, var(--accent-2) 80%, transparent)
+  );
+  transition: width 75ms linear;
+}
+
+.studio-scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: -0.375rem;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  background: var(--text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.studio-scrubber:hover .studio-scrubber-thumb {
+  opacity: 1;
+}
+
+.studio-scrubber-marker {
+  position: absolute;
+  top: -0.125rem;
+  bottom: -0.125rem;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--text) 25%, transparent);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.studio-scrubber-marker:hover {
+  background: var(--accent);
+}

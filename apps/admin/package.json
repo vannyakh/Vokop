@@ -16,6 +16,7 @@
     "@vokop/api": "workspace:*",
     "@vokop/i18n": "workspace:*",
     "@vokop/shared": "workspace:*",
+    "@vokop/tailwind-config": "workspace:*",
     "@vokop/ui": "workspace:*",
     "antd": "^6.5.0",
     "dayjs": "^1.11.21",

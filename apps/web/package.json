@@ -24,6 +24,7 @@
     "@vokop/editor": "workspace:*",
     "@vokop/i18n": "workspace:*",
     "@vokop/shared": "workspace:*",
+    "@vokop/tailwind-config": "workspace:*",
     "@vokop/ui": "workspace:*",
     "@wavesurfer/react": "^1.0.12",
     "clsx": "^2.1.1",

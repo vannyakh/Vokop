@@ -1,7 +1,3 @@
-@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "./launch-button.css";
-
-@source "../components";
-@source "../shadcn";

@@ -5,8 +5,8 @@ import { AppRouter } from '@/routes/AppRouter';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { QueryProvider } from '@/components/layout/QueryProvider';
 import i18n from '@/i18n';
-import '@vokop/ui/styles.css';
 import './index.css';
+import '@vokop/ui/styles.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

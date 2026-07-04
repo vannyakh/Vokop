@@ -1,0 +1,21 @@
+{
+  "name": "@vokop/tailwind-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Tailwind CSS v4 entry, sources, and base styles for Vokop apps",
+  "exports": {
+    ".": "./src/index.css",
+    "./base.css": "./src/base.css",
+    "./theme.css": "./src/theme.css"
+  },
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "tailwindcss": "^4.1.14"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.1.14"
+  }
+}

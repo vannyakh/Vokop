@@ -1,0 +1,21 @@
+/**
+ * Shared Tailwind theme bridges.
+ * Apps define the underlying CSS variables (--accent, --bg, …).
+ */
+@theme inline {
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-surface: var(--surface);
+  --color-surface-hi: var(--surface-hi);
+  --color-studio-bg: var(--bg);
+  --color-studio-surface: var(--surface);
+  --color-studio-panel: var(--surface-hi);
+  --color-studio-border: var(--border);
+  --color-studio-accent: var(--accent);
+  --color-studio-muted: var(--text-muted);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}

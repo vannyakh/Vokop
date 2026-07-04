@@ -1,0 +1,36 @@
+.landing-page {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.text-accent { color: var(--accent); }
+.text-accent-2 { color: var(--accent-2); }
+.text-muted { color: var(--text-muted); }
+.text-faint { color: var(--text-faint); }
+
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  border: none;
+  border-radius: 100px;
+  box-shadow: 0 6px 18px -6px rgba(232, 163, 61, 0.5);
+  transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-accent:hover {
+  background: var(--accent-hover);
+}

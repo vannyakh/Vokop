@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "@fontsource-variable/geist";
-
-@source "./";
+@import "@vokop/tailwind-config";
 
 @custom-variant dark (&:is(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *, [data-theme="dim"], [data-theme="dim"] *));
 
@@ -12,6 +11,8 @@
 
 :root {
   --bg: #0a0a0f;
+  --surface: #0f0f17;
+  --surface-hi: #181824;
   --panel: #0f0f17;
   --panel-solid: #0f0f17;
   --panel-solid-even: #12121c;
@@ -24,8 +25,12 @@
   --sidebar-active-text: #ffffff;
   --sidebar-active-ring: rgba(99, 102, 241, 0.15);
   --text: #e4e4ec;
+  --text-muted: #9090a8;
   --text-dim: #6b6b80;
   --text-mid: #9090a8;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-2: #c9a86a;
   --gold: #c9a86a;
   --antd-select-bg: rgba(255, 255, 255, 0.04);
   --antd-select-bg-focus: rgba(255, 255, 255, 0.06);
@@ -34,6 +39,10 @@
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --t-fast: 0.15s;
   --t-base: 0.2s;
+  --scrollbar-size: 5px;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+  --scrollbar-track: transparent;
 
   /* Liquid glass tokens */
   --c-glass: #9090a8;

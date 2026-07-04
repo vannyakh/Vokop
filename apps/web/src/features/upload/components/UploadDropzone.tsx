@@ -215,14 +215,14 @@ export function UploadDropzone() {
 
       <FloatGroup
         theme={floatTheme}
-        className="pointer-events-auto fixed top-5 left-5 sm:left-8 z-40 pl-2 pr-4 py-1.5 gap-3"
+        className="pointer-events-auto fixed top-5 left-5 sm:left-8 z-40 h-12 pl-3 pr-4"
       >
         <img
           src={horizontalLogoSrc}
           alt="Vokop"
           width={2489}
           height={347}
-          className="block h-auto w-40 sm:w-44 max-w-[calc(100vw-8rem)] select-none"
+          className="block h-6 w-auto max-w-[calc(100vw-8rem)] select-none"
           draggable={false}
         />
         {/* <div className="float-brand-text pr-1">

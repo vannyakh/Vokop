@@ -35,8 +35,8 @@ export function PricingSection({ onHighlightPro }: PricingSectionProps) {
           >
             Annually
           </button>
-        </div>
         <span className="landing-save-badge">Save 20%</span>
+        </div>
       </div>
 
       <div className={`landing-pricing-grid${annual ? ' annual' : ''}`}>

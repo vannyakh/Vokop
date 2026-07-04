@@ -29,6 +29,9 @@ importers:
       '@vokop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@vokop/tailwind-config':
+        specifier: workspace:*
+        version: link:../../internal/tailwind-config
       '@vokop/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -223,6 +226,9 @@ importers:
       '@vokop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@vokop/tailwind-config':
+        specifier: workspace:*
+        version: link:../../internal/tailwind-config
       '@vokop/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -323,6 +329,12 @@ importers:
       typescript:
         specifier: ~5.8.2
         version: 5.8.3
+
+  internal/tailwind-config:
+    devDependencies:
+      tailwindcss:
+        specifier: ^4.1.14
+        version: 4.3.2
 
   internal/tsconfig: {}
 
@@ -5298,7 +5310,7 @@ packages:
 
   uuid@2.0.1:
     resolution: {integrity: sha512-nWg9+Oa3qD2CQzHIP4qKUqwNfzKn8P0LtFhotaCTFchsV7ZfDhAybeip/HZVeMIpZi9JgY1E3nUlwaCmZT1sEg==}
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    deprecated: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
 
   validate-npm-package-name@7.0.2:
     resolution: {integrity: sha512-hVDIBwsRruT73PbK7uP5ebUt+ezEtCmzZz3F59BSr2F6OVFnJ/6h8liuvdLrQ88Xmnk6/+xGGuq+pG9WwTuy3A==}

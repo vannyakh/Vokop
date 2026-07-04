@@ -34,7 +34,7 @@ export function UploadTopActions({ onLoginRequest }: UploadTopActionsProps) {
 
   return (
     <>
-      <FloatGroup theme={floatTheme} className="pointer-events-auto px-1.5 py-1">
+      <FloatGroup theme={floatTheme} className="pointer-events-auto h-12 px-1.5">
         <div ref={langRef} className="relative">
           <FloatIconButton
             active={langOpen}

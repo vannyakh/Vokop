@@ -1,0 +1,71 @@
+/* ── Vokop design tokens (dark default) ── */
+:root,
+[data-theme='dark'] {
+  --bg: #100e0b;
+  --surface: #1b1712;
+  --surface-hi: #231e17;
+  --border: rgba(245, 241, 232, 0.09);
+  --border-strong: rgba(245, 241, 232, 0.18);
+  --text: #f5f1e8;
+  --text-muted: #a69c87;
+  --text-faint: #71695a;
+  --accent: #e8a33d;
+  --accent-hover: #d4922f;
+  --accent-ink: #241a08;
+  --accent-2: #54d6c9;
+  --accent-soft: rgba(232, 163, 61, 0.14);
+  --accent-2-soft: rgba(84, 214, 201, 0.13);
+  --grid-line: rgba(245, 241, 232, 0.055);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35), 0 20px 44px -20px rgba(0, 0, 0, 0.6);
+  --scrollbar-size: 5px;
+  --scrollbar-thumb: rgba(245, 241, 232, 0.16);
+  --scrollbar-thumb-hover: rgba(245, 241, 232, 0.32);
+  --scrollbar-track: transparent;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #f7f4ec;
+  --surface: #ffffff;
+  --surface-hi: #fbf8f0;
+  --border: rgba(20, 18, 15, 0.09);
+  --border-strong: rgba(20, 18, 15, 0.16);
+  --text: #1a1712;
+  --text-muted: #6e6656;
+  --text-faint: #9c927c;
+  --accent: #b9701a;
+  --accent-hover: #9a5e14;
+  --accent-ink: #ffffff;
+  --accent-2: #0e8f82;
+  --accent-soft: rgba(185, 112, 26, 0.1);
+  --accent-2-soft: rgba(14, 143, 130, 0.13);
+  --grid-line: rgba(20, 18, 15, 0.06);
+  --shadow-soft: 0 1px 2px rgba(20, 18, 15, 0.05), 0 20px 44px -22px rgba(20, 18, 15, 0.22);
+  --scrollbar-size: 5px;
+  --scrollbar-thumb: rgba(26, 23, 18, 0.18);
+  --scrollbar-thumb-hover: rgba(26, 23, 18, 0.32);
+  --scrollbar-track: transparent;
+  color-scheme: light;
+}
+
+/* Legacy aliases (landing section CSS) */
+:root,
+[data-theme='light'],
+[data-theme='dark'] {
+  --landing-bg: var(--bg);
+  --landing-surface: var(--surface);
+  --landing-surface-hi: var(--surface-hi);
+  --landing-border: var(--border);
+  --landing-border-strong: var(--border-strong);
+  --landing-text: var(--text);
+  --landing-text-muted: var(--text-muted);
+  --landing-text-faint: var(--text-faint);
+  --landing-accent: var(--accent);
+  --landing-accent-hover: var(--accent-hover);
+  --landing-accent-ink: var(--accent-ink);
+  --landing-accent-2: var(--accent-2);
+  --landing-accent-soft: var(--accent-soft);
+  --landing-accent-2-soft: var(--accent-2-soft);
+  --landing-grid-line: var(--grid-line);
+  --landing-shadow: var(--shadow-soft);
+}

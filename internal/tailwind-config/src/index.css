@@ -1,0 +1,13 @@
+/**
+ * Shared Tailwind v4 entry for Vokop apps (web, admin, …).
+ *
+ * Apps should import this once, before app-specific styles:
+ *   @import "@vokop/tailwind-config";
+ */
+@import "tailwindcss";
+
+/* Shared UI package — monorepo sources outside each app root */
+@source "../../../packages/ui/src";
+
+@import "./theme.css";
+@import "./base.css";
