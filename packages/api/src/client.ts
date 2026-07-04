@@ -179,7 +179,7 @@ export class ApiClient {
   }
 
   async getEditorCatalog(): Promise<EditorCatalogResponse> {
-    return this.get(editorCatalogResponseSchema, routes.video.editorCatalog, 'Failed to load editor catalog');
+    return this.get(editorCatalogResponseSchema, routes.presets.catalog, 'Failed to load editor catalog');
   }
 
   async applyEditorEdit(
@@ -190,7 +190,7 @@ export class ApiClient {
   ): Promise<ApplyEditorEditResponse> {
     return this.postJson(
       applyEditorEditResponseSchema,
-      routes.video.editorApply,
+      routes.presets.apply,
       { sessionId, tool, presetId, clipId },
       'Failed to apply edit',
     );
@@ -204,7 +204,7 @@ export class ApiClient {
   ): Promise<EditorPreviewResponse> {
     return this.postJson(
       editorPreviewResponseSchema,
-      routes.video.editorPreview,
+      routes.presets.preview,
       { sessionId, tool, presetId, atTime },
       'Preview failed',
     );
@@ -343,6 +343,48 @@ export class ApiClient {
     );
   }
 
+  /** Soft-delete: move project to trash. */
+  async deleteProject(id: string): Promise<z.infer<typeof projectResponseSchema>> {
+    return apiRequest(
+      this.http,
+      projectResponseSchema,
+      { method: 'DELETE', url: routes.projects.delete(id) },
+      'Failed to move project to trash',
+    );
+  }
+
+  async listTrashProjects(): Promise<z.infer<typeof projectsListResponseSchema>> {
+    return this.get(projectsListResponseSchema, routes.projects.trash, 'Failed to load trash');
+  }
+
+  async restoreProject(id: string): Promise<z.infer<typeof projectResponseSchema>> {
+    return this.postJson(
+      projectResponseSchema,
+      routes.projects.restore(id),
+      {},
+      'Failed to restore project',
+    );
+  }
+
+  /** Permanent delete — project must already be in trash. */
+  async permanentDeleteProject(id: string): Promise<z.infer<typeof okResponseSchema>> {
+    return apiRequest(
+      this.http,
+      okResponseSchema,
+      { method: 'DELETE', url: routes.projects.permanentDelete(id) },
+      'Failed to permanently delete project',
+    );
+  }
+
+  async emptyTrash(): Promise<z.infer<typeof okResponseSchema>> {
+    return apiRequest(
+      this.http,
+      okResponseSchema,
+      { method: 'DELETE', url: routes.projects.emptyTrash },
+      'Failed to empty trash',
+    );
+  }
+
   async getAdminMenus(): Promise<z.infer<typeof adminMenusResponseSchema>> {
     return this.get(adminMenusResponseSchema, routes.admin.menus, 'Failed to load admin menus');
   }
@@ -411,7 +453,7 @@ export class ApiClient {
     return apiRequest(
       this.http,
       adminMenuResponseSchema,
-      { method: 'PATCH', url: `${routes.admin.menus}/${id}`, data: input },
+      { method: 'PATCH', url: routes.admin.menu(id), data: input },
       'Failed to update menu',
     );
   }
@@ -420,7 +462,7 @@ export class ApiClient {
     return apiRequest(
       this.http,
       okResponseSchema,
-      { method: 'DELETE', url: `${routes.admin.menus}/${id}` },
+      { method: 'DELETE', url: routes.admin.menu(id) },
       'Failed to delete menu',
     );
   }

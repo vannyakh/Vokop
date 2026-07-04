@@ -12,6 +12,11 @@ export async function getFFmpeg(): Promise<FFmpeg> {
 
   if (!loadPromise) {
     loadPromise = (async () => {
+      if (typeof crossOriginIsolated !== 'undefined' && !crossOriginIsolated) {
+        console.warn(
+          '[ffmpeg] Page is not cross-origin isolated. Enable coi-serviceworker or COOP/COEP headers for SharedArrayBuffer.',
+        );
+      }
       const ffmpeg = new FFmpeg();
       await ffmpeg.load({
         coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),

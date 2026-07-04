@@ -33,6 +33,11 @@ import {
   storeMediaFile,
   type MediaAsset,
 } from '@/features/studio/lib/mediaLibrary';
+import {
+  hydrateMediaFromOpfs,
+  persistMediaToOpfs,
+  removeMediaFromOpfs,
+} from '@/features/studio/lib/opfsMediaCache';
 import { isTranscriptReady } from '@/features/studio/lib/transcriptReady';
 import {
   cloneProjectSnapshot,
@@ -244,6 +249,8 @@ interface AppState {
   removeMediaAsset: (id: string) => void;
   addMediaAssetToTimeline: (assetId: string, atTime?: number) => void;
   setPrimaryVideoAsset: (assetId: string) => void;
+  /** Restore media library from OPFS (survives reload). */
+  hydrateMediaLibrary: () => Promise<void>;
   resetProject: () => void;
   setProjectId: (projectId: string | null) => void;
   hydrateProject: (input: {
@@ -503,6 +510,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       isTimelinePlaying: false,
       currentTime: 0,
     });
+
+    void persistMediaToOpfs(primaryAsset, file).catch(() => undefined);
   },
 
   importMediaFiles: async (files) => {
@@ -543,6 +552,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         height: meta.height,
       };
       set((s) => ({ mediaAssets: [...s.mediaAssets, asset] }));
+      void persistMediaToOpfs(asset, file).catch(() => undefined);
     }
   },
 
@@ -558,6 +568,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!stillUsed) URL.revokeObjectURL(asset.url);
     forgetMediaFile(id);
     set({ mediaAssets: state.mediaAssets.filter((item) => item.id !== id) });
+    void removeMediaFromOpfs(id).catch(() => undefined);
+  },
+
+  hydrateMediaLibrary: async () => {
+    if (get().mediaAssets.length > 0) return;
+    try {
+      const assets = await hydrateMediaFromOpfs(storeMediaFile);
+      if (!assets.length) return;
+      set({ mediaAssets: assets });
+
+      const primary = assets.find((asset) => asset.isPrimary);
+      if (primary && !get().videoUrl) {
+        const mediaFile = getMediaFile(primary.id);
+        if (!mediaFile) return;
+        set({
+          videoFile: mediaFile,
+          videoUrl: primary.url,
+          mediaDuration: primary.duration,
+          duration: computeTimelineDuration(
+            primary.duration,
+            get().videoClips,
+            primary.duration || 30,
+          ),
+          videoWidth: primary.width ?? 0,
+          videoHeight: primary.height ?? 0,
+        });
+      }
+    } catch {
+      // OPFS unavailable (private mode / unsupported) — ignore
+    }
   },
 
   setPrimaryVideoAsset: (assetId) => {

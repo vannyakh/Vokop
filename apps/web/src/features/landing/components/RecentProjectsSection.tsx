@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ArrowRight,
   Clock,
@@ -5,7 +6,10 @@ import {
   Loader2,
   Play,
   RotateCcw,
+  Trash2,
+  Undo2,
 } from 'lucide-react';
+import { Popconfirm } from '@vokop/ui/antd';
 import { useRecentProjects } from '@/features/projects/hooks/useRecentProjects';
 import { useProjectNavigation } from '@/features/project/hooks/useProjectNavigation';
 
@@ -16,7 +20,19 @@ const STATUS_LABELS = {
 } as const;
 
 export function RecentProjectsSection() {
-  const { projects, isMock, isLoading, isError } = useRecentProjects();
+  const [showTrash, setShowTrash] = useState(false);
+  const {
+    projects,
+    isMock,
+    isLoading,
+    isError,
+    trashCount,
+    moveToTrash,
+    restoreProject,
+    permanentDelete,
+    emptyTrash,
+    isMutating,
+  } = useRecentProjects({ trash: showTrash });
   const { openProject } = useProjectNavigation();
 
   return (
@@ -24,69 +40,172 @@ export function RecentProjectsSection() {
       <div className="landing-section-head-row">
         <div>
           <span className="landing-section-eyebrow">Your library</span>
-          <h2 className="landing-section-title font-display">Recent projects</h2>
+          <h2 className="landing-section-title font-display">
+            {showTrash ? 'Trash' : 'Recent projects'}
+          </h2>
         </div>
-        <button type="button" className="landing-view-all" disabled={isMock}>
-          View all
-          <ArrowRight size={14} />
-        </button>
+        <div className="landing-history-actions">
+          {!isMock && (
+            <button
+              type="button"
+              className="landing-view-all"
+              disabled={isMutating}
+              onClick={() => setShowTrash((v) => !v)}
+            >
+              {showTrash ? 'Back to projects' : `Trash${trashCount > 0 ? ` (${trashCount})` : ''}`}
+            </button>
+          )}
+          {showTrash && !isMock && projects.length > 0 && (
+            <Popconfirm
+              title="Empty trash?"
+              description="All projects in trash will be permanently deleted. This cannot be undone."
+              okText="Empty trash"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true, loading: isMutating }}
+              disabled={isMutating}
+              onConfirm={() => emptyTrash()}
+            >
+              <button
+                type="button"
+                className="landing-view-all landing-view-all--danger"
+                disabled={isMutating}
+              >
+                Empty trash
+              </button>
+            </Popconfirm>
+          )}
+          {!showTrash && (
+            <button type="button" className="landing-view-all" disabled={isMock}>
+              View all
+              <ArrowRight size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="landing-history-list">
         {isLoading ? (
           <div className="landing-history-empty">
             <Loader2 size={18} className="animate-spin" />
-            <span>Loading your projects…</span>
+            <span>{showTrash ? 'Loading trash…' : 'Loading your projects…'}</span>
           </div>
         ) : isError ? (
-          <div className="landing-history-empty">Could not load your projects.</div>
+          <div className="landing-history-empty">
+            {showTrash ? 'Could not load trash.' : 'Could not load your projects.'}
+          </div>
         ) : projects.length === 0 ? (
           <div className="landing-history-empty">
-            No projects yet. Upload a video to start your first project.
+            {showTrash
+              ? 'Trash is empty.'
+              : 'No projects yet. Upload a video to start your first project.'}
           </div>
         ) : (
           projects.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              className="landing-history-row"
-              disabled={isMock}
-              onClick={() => !isMock && openProject(project.id)}
-            >
-              <div className={`landing-thumb landing-thumb-${project.thumb}`} data-dur={project.duration}>
-                <Play size={15} fill="currentColor" />
-              </div>
-              <div className="landing-row-main">
-                <div className="landing-row-title">{project.title}</div>
-                <div className="landing-row-meta">
-                  <span className="landing-row-lang">{project.lang}</span>
-                  <span className="landing-row-sep">·</span>
-                  <span>{project.meta}</span>
-                </div>
-              </div>
-              <span className={`landing-row-status landing-row-status-${project.status}`}>
-                <span className="dot" />
-                {STATUS_LABELS[project.status]}
-              </span>
-              <span
-                className="landing-row-action"
-                aria-label={
-                  project.status === 'failed'
-                    ? 'Retry'
-                    : project.status === 'processing'
-                      ? 'View progress'
-                      : 'Download'
-                }
+            <div key={project.id} className="landing-history-row-wrap">
+              <button
+                type="button"
+                className="landing-history-row"
+                disabled={isMock || showTrash}
+                onClick={() => !isMock && !showTrash && openProject(project.id)}
               >
-                {project.status === 'failed' ? (
-                  <RotateCcw size={15} />
-                ) : project.status === 'processing' ? (
-                  <Clock size={15} />
-                ) : (
-                  <Download size={15} />
+                <div
+                  className={`landing-thumb landing-thumb-${project.thumb}`}
+                  data-dur={project.duration}
+                >
+                  <Play size={15} fill="currentColor" />
+                </div>
+                <div className="landing-row-main">
+                  <div className="landing-row-title">{project.title}</div>
+                  <div className="landing-row-meta">
+                    <span className="landing-row-lang">{project.lang}</span>
+                    <span className="landing-row-sep">·</span>
+                    <span>{project.meta}</span>
+                  </div>
+                </div>
+                {!showTrash && (
+                  <span className={`landing-row-status landing-row-status-${project.status}`}>
+                    <span className="dot" />
+                    {STATUS_LABELS[project.status]}
+                  </span>
                 )}
-              </span>
-            </button>
+                {!showTrash && (
+                  <span
+                    className="landing-row-action"
+                    aria-label={
+                      project.status === 'failed'
+                        ? 'Retry'
+                        : project.status === 'processing'
+                          ? 'View progress'
+                          : 'Download'
+                    }
+                  >
+                    {project.status === 'failed' ? (
+                      <RotateCcw size={15} />
+                    ) : project.status === 'processing' ? (
+                      <Clock size={15} />
+                    ) : (
+                      <Download size={15} />
+                    )}
+                  </span>
+                )}
+              </button>
+
+              {!isMock && (
+                <div className="landing-row-ops">
+                  {showTrash ? (
+                    <>
+                      <button
+                        type="button"
+                        className="landing-row-ops-btn"
+                        title="Restore"
+                        disabled={isMutating}
+                        onClick={() => void restoreProject(project.id)}
+                      >
+                        <Undo2 size={14} />
+                      </button>
+                      <Popconfirm
+                        title="Delete permanently?"
+                        description={`“${project.title}” will be permanently deleted. This cannot be undone.`}
+                        okText="Delete"
+                        cancelText="Cancel"
+                        okButtonProps={{ danger: true, loading: isMutating }}
+                        disabled={isMutating}
+                        onConfirm={() => permanentDelete(project.id)}
+                      >
+                        <button
+                          type="button"
+                          className="landing-row-ops-btn landing-row-ops-btn--danger"
+                          title="Delete permanently"
+                          disabled={isMutating}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </Popconfirm>
+                    </>
+                  ) : (
+                    <Popconfirm
+                      title="Move to trash?"
+                      description={`“${project.title}” will be moved to trash. You can restore it later.`}
+                      okText="Move to trash"
+                      cancelText="Cancel"
+                      okButtonProps={{ danger: true, loading: isMutating }}
+                      disabled={isMutating}
+                      onConfirm={() => moveToTrash(project.id)}
+                    >
+                      <button
+                        type="button"
+                        className="landing-row-ops-btn"
+                        title="Move to trash"
+                        disabled={isMutating}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </Popconfirm>
+                  )}
+                </div>
+              )}
+            </div>
           ))
         )}
       </div>

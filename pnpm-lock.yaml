@@ -232,9 +232,15 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      coi-serviceworker:
+        specifier: ^0.1.7
+        version: 0.1.7
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2
+      gl-transitions:
+        specifier: ^1.71.0
+        version: 1.71.0
       i18next:
         specifier: ^26.3.4
         version: 26.3.4(typescript@5.8.3)
@@ -247,6 +253,9 @@ importers:
       motion:
         specifier: ^12.23.24
         version: 12.42.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      opfs-tools:
+        specifier: ^0.7.4
+        version: 0.7.4
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -411,6 +420,19 @@ importers:
         specifier: ~5.8.2
         version: 5.8.3
 
+  packages/pipeline:
+    dependencies:
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.5.0
+        version: 22.20.0
+      typescript:
+        specifier: ^5.5.4
+        version: 5.8.3
+
   packages/shared:
     dependencies:
       '@vokop/i18n':
@@ -524,9 +546,6 @@ importers:
 
   services/gateway:
     dependencies:
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
       '@vokop/api':
         specifier: workspace:*
         version: link:../../packages/api
@@ -561,6 +580,9 @@ importers:
       '@types/node':
         specifier: ^22.14.0
         version: 22.20.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       '@vokop/tsconfig':
         specifier: workspace:*
         version: link:../../internal/tsconfig
@@ -2826,6 +2848,9 @@ packages:
   code-block-writer@13.0.3:
     resolution: {integrity: sha512-Oofo0pq3IKnsFtuHqSF7TqBfr71aeyZDVJ0HpmqB7FBM2qEigL0iPONSCZSO9pE9dZTAxANe5XHG9Uy0YMv8cg==}
 
+  coi-serviceworker@0.1.7:
+    resolution: {integrity: sha512-bjSUqEngCPOkErY2vbyWsaIGCNRODYzlNycaREVw5s12/C8SM+RnRUUeX6pZbTtov6C52ZLY/+tvHK+BDxuUuA==}
+
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
     engines: {node: '>=7.0.0'}
@@ -4350,6 +4375,9 @@ packages:
   open@8.4.2:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
+
+  opfs-tools@0.7.4:
+    resolution: {integrity: sha512-DJgQnXyPcCj3q8pKa8SjP4HfNBPffj8kO6W1nc2zQydTqu5G/AxOuIjmWnRxZ84nE1EOpzZzhj8MYCZP1jRR9A==}
 
   ora@8.2.0:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
@@ -7682,6 +7710,8 @@ snapshots:
 
   code-block-writer@13.0.3: {}
 
+  coi-serviceworker@0.1.7: {}
+
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
@@ -9242,6 +9272,8 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
+
+  opfs-tools@0.7.4: {}
 
   ora@8.2.0:
     dependencies:

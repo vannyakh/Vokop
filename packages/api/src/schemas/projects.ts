@@ -66,6 +66,8 @@ export const projectSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   durationSec: z.number().nonnegative().optional(),
   editorState: projectEditorStateSchema.optional(),
+  /** ISO timestamp when soft-deleted; omitted/null when active. */
+  deletedAt: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

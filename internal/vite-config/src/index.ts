@@ -14,6 +14,10 @@ export interface ReactAppViteOptions {
   /** Extra Vite `define` entries — values are read from loaded env by key. */
   defineEnv?: Record<string, string>;
   optimizeDeps?: UserConfig['optimizeDeps'];
+  /** Extra Vite plugins appended after React/Tailwind. */
+  plugins?: UserConfig['plugins'];
+  /** Extra headers for the Vite dev server (e.g. COOP/COEP for ffmpeg.wasm). */
+  serverHeaders?: Record<string, string>;
   /** Proxy /api to gateway. Default true. */
   proxyApi?: boolean;
 }
@@ -32,7 +36,16 @@ function resolveGatewayTarget(env: Record<string, string>): string {
 }
 
 export function createReactAppViteConfig(options: ReactAppViteOptions) {
-  const { dirname, portEnvKey, defaultPort, defineEnv, optimizeDeps, proxyApi = true } = options;
+  const {
+    dirname,
+    portEnvKey,
+    defaultPort,
+    defineEnv,
+    optimizeDeps,
+    plugins = [],
+    serverHeaders,
+    proxyApi = true,
+  } = options;
 
   return defineConfig(({ mode }) => {
     const envDir = getMonorepoEnvDir(dirname);
@@ -48,7 +61,7 @@ export function createReactAppViteConfig(options: ReactAppViteOptions) {
 
     return {
       envDir,
-      plugins: [react(), tailwindcss()],
+      plugins: [react(), tailwindcss(), ...plugins],
       define: Object.keys(define).length > 0 ? define : undefined,
       resolve: {
         alias: {
@@ -61,6 +74,7 @@ export function createReactAppViteConfig(options: ReactAppViteOptions) {
         strictPort: true,
         host: '0.0.0.0',
         hmr: process.env.DISABLE_HMR !== 'true',
+        headers: serverHeaders,
         proxy: proxyApi
           ? {
               '/api': {

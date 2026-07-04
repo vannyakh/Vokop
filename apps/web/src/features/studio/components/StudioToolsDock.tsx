@@ -30,6 +30,7 @@ import { MediaLibraryPanel } from '@/features/studio/components/MediaLibraryPane
 import { TextTemplatesPanel } from '@/features/studio/components/TextTemplatesPanel';
 import { StickersPanel } from '@/features/studio/components/StickersPanel';
 import { EditorPresetGrid } from '@/features/studio/components/EditorPresetGrid';
+import { TransitionPreview } from '@/features/studio/components/TransitionPreview';
 import { useEditorCatalog } from '@/features/studio/hooks/useEditorCatalog';
 import { useEditorActions } from '@/features/studio/hooks/useEditorActions';
 import type { StudioToolId } from '@/types';
@@ -383,6 +384,24 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
                   ) : (
                     <p className="tools-coming-soon-label">Select a timeline clip to apply a transition</p>
                   )}
+                </StudioPanel>
+                <StudioPanel title="Live preview" icon={<Layers size={12} className="text-accent" />}>
+                  <TransitionPreview
+                    presetId={
+                      selectedTimelineClip
+                        ? projectEditor.clipEdits[selectedTimelineClip.clipId]?.transitionInId
+                        : 'dissolve'
+                    }
+                    label={
+                      selectedTimelineClip
+                        ? presetsFor('transitions').find(
+                            (p) =>
+                              p.id ===
+                              projectEditor.clipEdits[selectedTimelineClip.clipId]?.transitionInId,
+                          )?.label
+                        : 'Dissolve'
+                    }
+                  />
                 </StudioPanel>
               </div>
             )}

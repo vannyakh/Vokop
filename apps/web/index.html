@@ -9,7 +9,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      COI service worker: production only.
+      Localhost uses Vite COOP/COEP headers instead (see vite.config.ts).
+      On localhost we also deregister any previously installed SW.
+    -->
+    <script>
+      (function () {
+        var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        window.coi = {
+          shouldRegister: function () { return !isLocal; },
+          shouldDeregister: function () { return isLocal; },
+          coepCredentialless: function () { return true; },
+          quiet: true,
+        };
+        // Force-unregister stale COI workers left from earlier sessions.
+        if (isLocal && navigator.serviceWorker) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (reg) { reg.unregister(); });
+          });
+        }
+      })();
+    </script>
+    <script src="/coi-serviceworker.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

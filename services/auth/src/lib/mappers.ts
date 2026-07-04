@@ -37,6 +37,8 @@ export interface ProjectDoc {
   progress?: number;
   durationSec?: number;
   editorState?: Project['editorState'];
+  /** Soft-delete timestamp; null/undefined = active. */
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -112,6 +114,7 @@ export function mapProject(doc: ProjectDoc): Project {
     progress: doc.progress ?? undefined,
     durationSec: doc.durationSec ?? undefined,
     editorState: doc.editorState ?? undefined,
+    deletedAt: doc.deletedAt ? toIso(doc.deletedAt) : null,
     createdAt: toIso(doc.createdAt),
     updatedAt: toIso(doc.updatedAt),
   };

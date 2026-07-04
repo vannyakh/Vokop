@@ -1748,8 +1748,28 @@ span.whats-new-play {
   cursor: pointer;
 }
 
-.landing-view-all:hover {
+.landing-view-all:hover:not(:disabled) {
   color: var(--landing-accent-2);
+}
+
+.landing-view-all:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.landing-view-all--danger {
+  color: #f87171;
+}
+
+.landing-view-all--danger:hover:not(:disabled) {
+  color: #fca5a5;
+}
+
+.landing-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 /* History */
@@ -1777,28 +1797,70 @@ span.whats-new-play {
   color: var(--text-muted);
 }
 
+.landing-history-row-wrap {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--landing-border);
+}
+
+.landing-history-row-wrap:last-child {
+  border-bottom: none;
+}
+
+.landing-history-row-wrap:hover {
+  background: var(--landing-surface-hi);
+}
+
 .landing-history-row {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--landing-border);
   transition: background 0.15s ease;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: none;
-  border-left: none;
-  border-right: none;
-  border-top: none;
+  border: none;
   text-align: left;
   cursor: pointer;
 }
 
-.landing-history-row:last-child {
-  border-bottom: none;
+.landing-history-row:disabled {
+  cursor: default;
 }
 
-.landing-history-row:hover {
-  background: var(--landing-surface-hi);
+.landing-row-ops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 10px;
+  flex-shrink: 0;
+}
+
+.landing-row-ops-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--landing-text-muted);
+  cursor: pointer;
+}
+
+.landing-row-ops-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--landing-border) 80%, transparent);
+  color: var(--landing-text);
+}
+
+.landing-row-ops-btn--danger:hover:not(:disabled) {
+  color: #f87171;
+}
+
+.landing-row-ops-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .landing-thumb {
@@ -3848,6 +3910,56 @@ table.landing-compare th.col-pro {
 .studio-tools-action-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* ── Transition live preview (gl-transitions) ── */
+.transition-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.transition-preview-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 0.55rem;
+  border: 1px solid var(--border);
+  background: #000;
+  display: block;
+}
+
+.transition-preview-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.transition-preview-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.transition-preview-shader {
+  font-size: 0.58rem;
+  color: var(--faint);
+}
+
+.transition-preview-error {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #f87171;
+}
+
+.transition-preview--cut {
+  display: grid;
+  place-items: center;
+  min-height: 100px;
+  border-radius: 0.55rem;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .studio-tools-action-btn--danger {

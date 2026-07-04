@@ -19,6 +19,7 @@ export type { UiTheme, UiThemeContextValue, UiThemeTokens } from './types.js';
 /** Shared Ant Design primitives — import from `@vokop/ui/antd`, not `antd` directly in apps. */
 export {
   Popover,
+  Popconfirm,
   ConfigProvider,
   Select,
   Tooltip,
@@ -38,6 +39,7 @@ export {
 
 export type {
   PopoverProps,
+  PopconfirmProps,
   SelectProps,
   TooltipProps,
   ModalProps,

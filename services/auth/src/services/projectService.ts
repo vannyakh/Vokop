@@ -1,5 +1,6 @@
 import {
   createProjectRequestSchema,
+  okResponseSchema,
   projectsListResponseSchema,
   projectResponseSchema,
   toApiResponse,
@@ -8,14 +9,25 @@ import {
 } from '@vokop/api';
 import {
   createProjectRecord,
+  emptyTrashForUser,
   findProjectByIdForUser,
   listProjectsByUser,
+  permanentDeleteProjectRecord,
+  restoreProjectRecord,
+  softDeleteProjectRecord,
   updateProjectRecord,
 } from '../db/projects.js';
 import { mapProject } from '../lib/mappers.js';
 
 export async function getUserProjects(userId: string) {
-  const projects = await listProjectsByUser(userId);
+  const projects = await listProjectsByUser(userId, { trash: false });
+  return toApiResponse(projectsListResponseSchema, {
+    projects: projects.map(mapProject),
+  });
+}
+
+export async function getUserTrashProjects(userId: string) {
+  const projects = await listProjectsByUser(userId, { trash: true });
   return toApiResponse(projectsListResponseSchema, {
     projects: projects.map(mapProject),
   });
@@ -60,6 +72,28 @@ export async function updateUserProject(
   const project = await updateProjectRecord(userId, projectId, input);
   if (!project) return null;
   return toApiResponse(projectResponseSchema, { project: mapProject(project) });
+}
+
+/** Soft-delete: move to trash. */
+export async function trashUserProject(userId: string, projectId: string) {
+  const project = await softDeleteProjectRecord(userId, projectId);
+  if (!project) return null;
+  return toApiResponse(projectResponseSchema, { project: mapProject(project) });
+}
+
+export async function restoreUserProject(userId: string, projectId: string) {
+  const project = await restoreProjectRecord(userId, projectId);
+  if (!project) return null;
+  return toApiResponse(projectResponseSchema, { project: mapProject(project) });
+}
+
+export async function permanentDeleteUserProject(userId: string, projectId: string) {
+  return permanentDeleteProjectRecord(userId, projectId);
+}
+
+export async function emptyUserTrash(userId: string) {
+  await emptyTrashForUser(userId);
+  return toApiResponse(okResponseSchema, { ok: true as const });
 }
 
 export function parseCreateProjectBody(body: unknown) {

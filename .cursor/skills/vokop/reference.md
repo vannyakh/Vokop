@@ -52,7 +52,7 @@ Legacy (re-uploads file): `POST /api/v1/video/probe`, `POST /api/v1/video/filmst
 
 | Service | Role |
 |---------|------|
-| `gateway` | Single API entry; proxies `/api/v1/*` |
+| `gateway` | Single API entry; proxies `/api/v1/*` (`src/config`, `src/proxy`, `src/routes`, `src/ws`) |
 | `video-tools` | FFmpeg sessions, filmstrip jobs, editor apply/preview |
 | Web `@omnimedia/omnitool` | Browser video tools (filmstrip/timeline/export) via `apps/web/src/features/studio/lib/omniTool/` |
 | `auth` | Auth, RBAC, projects CRUD |
@@ -109,6 +109,14 @@ VITE_API_URL  # optional; dev uses Vite proxy
 - Use for: client filmstrip, timeline build/playback/export (WebCodecs / mediabunny).
 - Vokop mapping: `apps/web/src/features/studio/lib/omniTool/` (filmstrip fallback in `useVideoFilmstrip`).
 - Server FFmpeg stays in `services/video-tools` — do not run Omnitool in Node.
+
+### Omniclip-aligned browser deps (web)
+
+| Package | Role | Vokop path |
+|---------|------|------------|
+| `gl-transitions` | Live GLSL transition previews | `lib/glTransitions.ts`, `TransitionPreview` |
+| `opfs-tools` | Persist media library in OPFS | `lib/opfsMediaCache.ts`, `hydrateMediaLibrary` |
+| `coi-serviceworker` | COOP/COEP for ffmpeg.wasm | `public/coi-serviceworker.js` + Vite headers |
 
 ### FunClip — AI generate content service
 

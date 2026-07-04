@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PanelRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
@@ -25,12 +25,17 @@ export function StudioWorkspace() {
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
   const isExporting = useAppStore((s) => s.isExporting);
+  const hydrateMediaLibrary = useAppStore((s) => s.hydrateMediaLibrary);
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const { containerRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
   useCanvasKeyboardShortcuts(videoRef);
   useTimelinePlayback(videoRef);
   useVideoSession();
+
+  useEffect(() => {
+    void hydrateMediaLibrary();
+  }, [hydrateMediaLibrary]);
 
   const { audioContextRef, audioSourceRef, videoSourceRef, stopAudio, playSegment } =
     useAudioEngine();
