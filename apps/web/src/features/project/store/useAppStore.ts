@@ -702,6 +702,34 @@ function emptyMediaFields() {
   };
 }
 
+/** Set when media is added before `projectId` exists (upload → create project). */
+let pendingOpfsMediaSync = false;
+
+async function syncMediaAssetsToOpfs(projectId: string, assets: MediaAsset[]): Promise<void> {
+  if (!projectId) return;
+  await Promise.all(
+    assets.map(async (asset) => {
+      const file = getMediaFile(asset.id);
+      if (!file) return;
+      await persistMediaToOpfs(projectId, asset, file).catch(() => undefined);
+    }),
+  );
+}
+
+function scheduleMediaOpfsSync(projectId: string | null, assets: MediaAsset[]) {
+  if (projectId) {
+    void syncMediaAssetsToOpfs(projectId, assets);
+    return;
+  }
+  pendingOpfsMediaSync = true;
+}
+
+async function flushPendingMediaOpfsSync(projectId: string, assets: MediaAsset[]) {
+  if (!projectId || !pendingOpfsMediaSync) return;
+  pendingOpfsMediaSync = false;
+  await syncMediaAssetsToOpfs(projectId, assets);
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   ...initialState,
 
@@ -774,10 +802,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentTime: 0,
     });
 
-    void (() => {
-      const projectId = get().projectId;
-      if (projectId) void persistMediaToOpfs(projectId, primaryAsset, file).catch(() => undefined);
-    })();
+    void scheduleMediaOpfsSync(get().projectId, get().mediaAssets);
   },
 
   importMediaFiles: async (files) => {
@@ -818,8 +843,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         height: meta.height,
       };
       set((s) => ({ mediaAssets: [...s.mediaAssets, asset] }));
-      const projectId = get().projectId;
-      if (projectId) void persistMediaToOpfs(projectId, asset, file).catch(() => undefined);
+      scheduleMediaOpfsSync(get().projectId, get().mediaAssets);
     }
   },
 
@@ -997,17 +1021,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetProject: () => {
     const state = get();
+    pendingOpfsMediaSync = false;
     revokeAllMediaAssets(state.mediaAssets, state.videoUrl);
     set({ ...initialState });
   },
 
-  setProjectId: (projectId) => set({ projectId }),
+  setProjectId: (projectId) => {
+    set({ projectId });
+    if (projectId) void flushPendingMediaOpfsSync(projectId, get().mediaAssets);
+  },
 
   hydrateProject: (input) => {
     const state = get();
     const editor = input.editorState;
-    const switching = state.projectId !== input.id;
+    const switching = state.projectId != null && state.projectId !== input.id;
     if (switching) {
+      pendingOpfsMediaSync = false;
       revokeAllMediaAssets(state.mediaAssets, state.videoUrl);
     }
     const videoClips = editor?.videoClips ?? (switching ? [] : state.videoClips);
@@ -1076,6 +1105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       projectRedoStack: [],
       isTimelinePlaying: false,
     });
+    void flushPendingMediaOpfsSync(input.id, get().mediaAssets);
   },
 
   setProjectStatus: (status, progress) =>
@@ -1134,7 +1164,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       pendingTemplateSlotIds.includes('primary-video')
     ) {
       const template = getStudioTemplate(state.activeStudioTemplateId);
-      const blueprintClip = template?.blueprint.videoClips.find((c) => c.slotId === 'primary-video');
+      const blueprintClip = template?.blueprint?.videoClips?.find(
+        (c) => c.slotId === 'primary-video',
+      );
       if (blueprintClip) {
         videoClips = [
           createMediaClip({
