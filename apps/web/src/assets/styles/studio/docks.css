@@ -251,23 +251,24 @@
 .inspector-dock-header {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.75rem 0.9rem 0.55rem;
+  gap: 0.4rem;
+  padding: 0.7rem 0.85rem 0.5rem;
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .inspector-dock-title {
   margin: 0;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text);
 }
 
 .inspector-dock-empty {
   margin: 0;
-  padding: 0 0.9rem 1rem;
+  padding: 0 0.85rem 1rem;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--muted);
@@ -278,8 +279,10 @@
   flex-direction: column;
 }
 
+/* Premiere-style Effect Controls: flat twirl-down groups, hairline dividers,
+   no card chrome. */
 .inspector-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .inspector-section-header {
@@ -288,30 +291,30 @@
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.65rem 0.9rem;
+  padding: 0.5rem 0.85rem;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   text-align: left;
+  transition: color 0.12s ease;
 }
 
 .inspector-section-header:hover {
-  background: rgba(255, 255, 255, 0.03);
   color: var(--text);
 }
 
 .inspector-section.is-open .inspector-section-header {
-  color: var(--accent);
+  color: var(--text);
 }
 
 .inspector-section-title {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.625rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -327,7 +330,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.65rem;
+  font-size: 0.64rem;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -337,20 +340,22 @@
 
 .inspector-section-chevron {
   flex-shrink: 0;
+  width: 11px;
+  height: 11px;
   color: var(--faint);
   transition: transform 0.15s ease;
 }
 
 .inspector-section-chevron.is-open {
   transform: rotate(180deg);
-  color: var(--accent);
+  color: var(--text-muted);
 }
 
 .inspector-section-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0 0.9rem 0.85rem;
+  gap: 0.6rem;
+  padding: 0 0.85rem 0.75rem;
 }
 
 .inspector-section-body .studio-tools-action-btn + .studio-tools-action-btn,

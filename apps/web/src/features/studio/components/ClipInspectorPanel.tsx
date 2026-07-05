@@ -9,11 +9,12 @@ import { EqualizerEditor } from '@/features/studio/components/EqualizerEditor';
 import { InspectorBarSlider } from '@/features/studio/components/InspectorBarSlider';
 import { RightPanelEmpty } from '@/features/studio/components/RightPanelEmpty';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
+import { PropertyRow } from '@/features/studio/components/PropertyRow';
 import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
 import { clipVolumeValue } from '@/features/studio/lib/audioClipMix';
 import { frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 import { gainDbFromVolume, volumeFromGainDb, GAIN_DB_MIN, GAIN_DB_MAX } from '@/features/studio/lib/clipEq';
-import { Label, Slider, StudioIcon } from '@vokop/ui';
+import { StudioIcon } from '@vokop/ui';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import {
   isAudioLikeTimelineTrack,
@@ -128,31 +129,15 @@ function MediaClipInspector({
 
       {activeSubTab === 'basic' && (
         <>
-          <InspectorSection id="clip-info" title="Clip" summary={clip.name} defaultOpen>
-            <div className="space-y-1.5">
-              <Label>Name</Label>
+          <InspectorSection id="clip-info" title="Clip" summary={formatStudioTimecode(clip.duration)} defaultOpen>
+            <PropertyRow label="Name">
               <input
                 className="clip-inspector-input"
                 value={clip.name}
                 onChange={(e) => updateMediaClip(clip.id, { name: e.target.value })}
               />
-            </div>
-            <div className="clip-inspector-grid">
-              <Field label="Start" value={formatStudioTimecode(clip.start)} />
-              <Field label="End" value={formatStudioTimecode(end)} />
-              <Field label="Duration" value={formatStudioTimecode(clip.duration)} />
-              <Field label="In point" value={formatStudioTimecode(clip.sourceStart)} />
-            </div>
-          </InspectorSection>
-
-          <InspectorSection
-            id="clip-timing"
-            title="Timing"
-            summary={formatStudioTimecode(clip.duration)}
-            defaultOpen
-          >
-            <div className="space-y-1.5">
-              <Label>Timeline start (s)</Label>
+            </PropertyRow>
+            <PropertyRow label="Start">
               <input
                 type="number"
                 min={0}
@@ -163,9 +148,9 @@ function MediaClipInspector({
                   updateMediaClip(clip.id, { start: Math.max(0, Number(e.target.value) || 0) })
                 }
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Duration (s)</Label>
+              <span className="property-row-unit">s</span>
+            </PropertyRow>
+            <PropertyRow label="Duration">
               <input
                 type="number"
                 min={0.4}
@@ -178,9 +163,9 @@ function MediaClipInspector({
                   })
                 }
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Source in-point (s)</Label>
+              <span className="property-row-unit">s</span>
+            </PropertyRow>
+            <PropertyRow label="In point">
               <input
                 type="number"
                 min={0}
@@ -193,7 +178,11 @@ function MediaClipInspector({
                   })
                 }
               />
-            </div>
+              <span className="property-row-unit">s</span>
+            </PropertyRow>
+            <PropertyRow label="End">
+              <span className="property-row-value-readonly">{formatStudioTimecode(end)}</span>
+            </PropertyRow>
           </InspectorSection>
 
           {clipKind === 'video' && (
@@ -208,94 +197,76 @@ function MediaClipInspector({
                 }
                 defaultOpen
               >
-                <div className="clip-inspector-grid">
-                  <div className="space-y-1.5">
-                    <Label>X</Label>
-                    <input
-                      type="number"
-                      step={1}
-                      className="clip-inspector-input"
-                      value={Number(((clip.x ?? 0) * refSize.width).toFixed(0))}
-                      onChange={(e) =>
-                        updateVideoTransform(clip.id, {
-                          x: (Number(e.target.value) || 0) / refSize.width,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Y</Label>
-                    <input
-                      type="number"
-                      step={1}
-                      className="clip-inspector-input"
-                      value={Number(((clip.y ?? 0) * refSize.height).toFixed(0))}
-                      onChange={(e) =>
-                        updateVideoTransform(clip.id, {
-                          y: (Number(e.target.value) || 0) / refSize.height,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Width</Label>
-                    <input
-                      type="number"
-                      min={48}
-                      step={1}
-                      className="clip-inspector-input"
-                      value={Number(((clip.width ?? 0) * refSize.width).toFixed(0))}
-                      onChange={(e) =>
-                        updateVideoTransform(clip.id, {
-                          width: Math.max(48, Number(e.target.value) || 48) / refSize.width,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Height</Label>
-                    <input
-                      type="number"
-                      min={48}
-                      step={1}
-                      className="clip-inspector-input"
-                      value={Number(((clip.height ?? 0) * refSize.height).toFixed(0))}
-                      onChange={(e) =>
-                        updateVideoTransform(clip.id, {
-                          height: Math.max(48, Number(e.target.value) || 48) / refSize.height,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Rotation</Label>
-                    <input
-                      type="number"
-                      step={1}
-                      className="clip-inspector-input"
-                      value={Number((clip.rotation ?? 0).toFixed(0))}
-                      onChange={(e) =>
-                        updateVideoTransform(clip.id, {
-                          rotation: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Opacity</Label>
-                    <Slider
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={clip.opacity ?? 1}
-                      onChange={(e) =>
-                        updateVideoTransform(clip.id, {
-                          opacity: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
+                <InspectorBarSlider
+                  label="X"
+                  value={(clip.x ?? 0) * refSize.width}
+                  min={-refSize.width}
+                  max={refSize.width * 2}
+                  step={1}
+                  defaultValue={0}
+                  format={(v) => `${Math.round(v)}px`}
+                  onChange={(v) => updateVideoTransform(clip.id, { x: v / refSize.width })}
+                  resetTitle="Reset X"
+                />
+                <InspectorBarSlider
+                  label="Y"
+                  value={(clip.y ?? 0) * refSize.height}
+                  min={-refSize.height}
+                  max={refSize.height * 2}
+                  step={1}
+                  defaultValue={0}
+                  format={(v) => `${Math.round(v)}px`}
+                  onChange={(v) => updateVideoTransform(clip.id, { y: v / refSize.height })}
+                  resetTitle="Reset Y"
+                />
+                <InspectorBarSlider
+                  label="Width"
+                  value={(clip.width ?? 0) * refSize.width}
+                  min={48}
+                  max={refSize.width * 2}
+                  step={1}
+                  defaultValue={refSize.width}
+                  format={(v) => `${Math.round(v)}px`}
+                  onChange={(v) =>
+                    updateVideoTransform(clip.id, { width: Math.max(48, v) / refSize.width })
+                  }
+                  resetTitle="Reset width"
+                />
+                <InspectorBarSlider
+                  label="Height"
+                  value={(clip.height ?? 0) * refSize.height}
+                  min={48}
+                  max={refSize.height * 2}
+                  step={1}
+                  defaultValue={refSize.height}
+                  format={(v) => `${Math.round(v)}px`}
+                  onChange={(v) =>
+                    updateVideoTransform(clip.id, { height: Math.max(48, v) / refSize.height })
+                  }
+                  resetTitle="Reset height"
+                />
+                <InspectorBarSlider
+                  label="Rotation"
+                  value={clip.rotation ?? 0}
+                  min={-180}
+                  max={180}
+                  step={1}
+                  defaultValue={0}
+                  format={(v) => `${Math.round(v)}\u00b0`}
+                  onChange={(v) => updateVideoTransform(clip.id, { rotation: v })}
+                  resetTitle="Reset rotation"
+                />
+                <InspectorBarSlider
+                  label="Opacity"
+                  value={clip.opacity ?? 1}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  defaultValue={1}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  onChange={(v) => updateVideoTransform(clip.id, { opacity: v })}
+                  resetTitle="Reset opacity"
+                />
               </InspectorSection>
 
               <InspectorSection
@@ -356,16 +327,17 @@ function MediaClipInspector({
                   onChange={(v) => updateMediaClip(clip.id, { volume: volumeFromGainDb(v), muted: false })}
                   resetTitle="Reset gain"
                 />
-                <div className="space-y-1.5">
-                  <Label>Original mix (global)</Label>
-                  <Slider
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={originalVolume}
-                    onChange={(e) => setOriginalVolume(Number(e.target.value))}
-                  />
-                </div>
+                <InspectorBarSlider
+                  label="Orig. mix"
+                  value={originalVolume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  defaultValue={1}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  onChange={(v) => setOriginalVolume(v)}
+                  resetTitle="Reset original mix"
+                />
                 <AudioClipSettingsPanel
                   clip={clip}
                   onChange={(patch) => updateMediaClip(clip.id, patch)}
@@ -411,20 +383,17 @@ function MediaClipInspector({
                 onChange={(v) => updateMediaClip(clip.id, { volume: volumeFromGainDb(v), muted: false })}
                 resetTitle="Reset gain"
               />
-              <div className="space-y-1.5">
-                <Label>{globalMixLabel} (global)</Label>
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={globalMix}
-                  onChange={(e) =>
-                    isLinkedAudio
-                      ? setOriginalVolume(Number(e.target.value))
-                      : setVoiceVolume(Number(e.target.value))
-                  }
-                />
-              </div>
+              <InspectorBarSlider
+                label={globalMixLabel}
+                value={globalMix}
+                min={0}
+                max={1}
+                step={0.01}
+                defaultValue={1}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => (isLinkedAudio ? setOriginalVolume(v) : setVoiceVolume(v))}
+                resetTitle={`Reset ${globalMixLabel.toLowerCase()}`}
+              />
               <AudioClipSettingsPanel
                 clip={clip}
                 onChange={(patch) => updateMediaClip(clip.id, patch)}
@@ -705,26 +674,15 @@ function SegmentInspector({
       title={type === 'transcript' ? 'Transcript segment' : 'Translation segment'}
       icon={<Type size={12} className="text-accent" />}
     >
-      <InspectorSection id="segment-content" title="Content" defaultOpen>
-        <div className="clip-inspector-grid">
-          <Field label="Start" value={formatStudioTimecode(segment.time)} />
-          <Field label="Duration" value={formatStudioTimecode(duration)} />
-        </div>
+      <InspectorSection id="segment-content" title="Segment" summary={formatStudioTimecode(duration)} defaultOpen>
+        <textarea
+          className="clip-inspector-textarea"
+          rows={4}
+          value={segment.text}
+          onChange={(e) => updateSegment(index, e.target.value, type)}
+        />
         {segment.speaker && <Field label="Speaker" value={segment.speaker} />}
-        <div className="space-y-1.5">
-          <Label>Text</Label>
-          <textarea
-            className="clip-inspector-textarea"
-            rows={4}
-            value={segment.text}
-            onChange={(e) => updateSegment(index, e.target.value, type)}
-          />
-        </div>
-      </InspectorSection>
-
-      <InspectorSection id="segment-timing" title="Timing" defaultOpen={false}>
-        <div className="space-y-1.5">
-          <Label>Start (s)</Label>
+        <PropertyRow label="Start">
           <input
             type="number"
             min={0}
@@ -733,9 +691,9 @@ function SegmentInspector({
             value={Number(segment.time.toFixed(2))}
             onChange={(e) => updateSegmentTime(index, Math.max(0, Number(e.target.value) || 0), type)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Duration (s)</Label>
+          <span className="property-row-unit">s</span>
+        </PropertyRow>
+        <PropertyRow label="Duration">
           <input
             type="number"
             min={0.4}
@@ -746,7 +704,8 @@ function SegmentInspector({
               updateSegmentDuration(index, Math.max(0.4, Number(e.target.value) || 0.4), type)
             }
           />
-        </div>
+          <span className="property-row-unit">s</span>
+        </PropertyRow>
       </InspectorSection>
 
       <InspectorSection id="segment-actions" title="Actions" defaultOpen={false}>

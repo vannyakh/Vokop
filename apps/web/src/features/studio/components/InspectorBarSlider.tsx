@@ -2,8 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-const TICK_POSITIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90];
-
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -30,9 +28,9 @@ interface InspectorBarSliderProps {
 }
 
 /**
- * Flat drag-to-set bar slider with tick marks, an inline editable value
- * readout, and an optional reset button — visual language shared across the
- * clip inspector's Video/Audio/Equalizer rows.
+ * Adobe-style scrub field: a hairline baseline you drag to set the value,
+ * with a click-to-type readout and an optional reset button. Shared across
+ * every numeric property row in the inspector panels.
  */
 export function InspectorBarSlider({
   label,
@@ -109,40 +107,35 @@ export function InspectorBarSlider({
             }
           }}
         >
-          <div className="inspector-bar-slider-ticks" aria-hidden>
-            {TICK_POSITIONS.map((p) => (
-              <span key={p} className="inspector-bar-slider-tick" style={{ left: `${p}%` }} />
-            ))}
-          </div>
-          <div className="inspector-bar-slider-fill" style={{ width: `${pct}%` }} />
-          <div className="inspector-bar-slider-thumb" style={{ left: `max(4px, ${pct}% - 1.5px)` }} />
-          {editing ? (
-            <input
-              autoFocus
-              className="inspector-bar-slider-value-input"
-              value={draftText}
-              onChange={(e) => setDraftText(e.target.value)}
-              onBlur={commitDraft}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitDraft();
-                if (e.key === 'Escape') setEditing(false);
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <span
-              className="inspector-bar-slider-value"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                if (disabled) return;
-                setDraftText(String(Number(value.toFixed(4))));
-                setEditing(true);
-              }}
-            >
-              {displayValue}
-            </span>
-          )}
+          <div className="inspector-bar-slider-fill" style={{ width: `max(2px, ${pct}%)` }} />
+          <div className="inspector-bar-slider-thumb" style={{ left: `${pct}%` }} />
         </div>
+        {editing ? (
+          <input
+            autoFocus
+            className="inspector-bar-slider-value-input"
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitDraft();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span
+            className="inspector-bar-slider-value"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              if (disabled) return;
+              setDraftText(String(Number(value.toFixed(4))));
+              setEditing(true);
+            }}
+          >
+            {displayValue}
+          </span>
+        )}
         {(onReset || defaultValue != null) && (
           <button
             type="button"

@@ -1,8 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '@/features/project';
-import { Label, Slider } from '@vokop/ui';
+import { Label } from '@vokop/ui';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
+import { InspectorBarSlider } from '@/features/studio/components/InspectorBarSlider';
 import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
 import { frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 import { getTextEffectSeed } from '@vokop/shared';
@@ -286,16 +287,16 @@ export function CanvasElementPanel() {
             <ImageIcon size={14} />
             Replace image
           </button>
-          <Slider
+          <InspectorBarSlider
             label="Opacity"
-            valueLabel={`${Math.round(element.opacity * 100)}%`}
+            value={element.opacity}
             min={0.1}
             max={1}
-            step={0.05}
-            value={element.opacity}
-            onChange={(e) =>
-              updateCanvasElement(element.id, { opacity: parseFloat(e.target.value) })
-            }
+            step={0.01}
+            defaultValue={1}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(v) => updateCanvasElement(element.id, { opacity: v })}
+            resetTitle="Reset opacity"
           />
         </InspectorSection>
       )}
@@ -325,18 +326,16 @@ export function CanvasElementPanel() {
           summary={`${Math.round(fontSizePx)}px · ${element.fontFamily ?? 'Default'}`}
           defaultOpen
         >
-          <Slider
-            label="Font size"
-            valueLabel={`${Math.round(fontSizePx)}px`}
-            min={12}
-            max={96}
-            step={1}
+          <InspectorBarSlider
+            label="Size"
             value={fontSizePx}
-            onChange={(e) =>
-              updateCanvasElement(element.id, {
-                fontSize: parseInt(e.target.value, 10) / refSize.height,
-              })
-            }
+            min={8}
+            max={200}
+            step={1}
+            defaultValue={22}
+            format={(v) => `${Math.round(v)}px`}
+            onChange={(v) => updateCanvasElement(element.id, { fontSize: v / refSize.height })}
+            resetTitle="Reset font size"
           />
           <div className="space-y-1.5">
             <Label>Font</Label>
@@ -435,56 +434,65 @@ export function CanvasElementPanel() {
         summary={`${Math.round(xPx)}, ${Math.round(yPx)}`}
         defaultOpen={false}
       >
-        <Slider
-          label="Position X"
-          valueLabel={`${Math.round(xPx)}px`}
-          min={0}
-          max={Math.max(100, canvasW)}
-          step={1}
+        <InspectorBarSlider
+          label="X"
           value={xPx}
-          onChange={(e) =>
-            updateCanvasElement(element.id, { x: parseInt(e.target.value, 10) / refSize.width })
-          }
-        />
-        <Slider
-          label="Position Y"
-          valueLabel={`${Math.round(yPx)}px`}
-          min={0}
-          max={Math.max(100, canvasH)}
+          min={-refSize.width}
+          max={Math.max(refSize.width, canvasW) * 1.5}
           step={1}
-          value={yPx}
-          onChange={(e) =>
-            updateCanvasElement(element.id, { y: parseInt(e.target.value, 10) / refSize.height })
-          }
+          defaultValue={0}
+          format={(v) => `${Math.round(v)}px`}
+          onChange={(v) => updateCanvasElement(element.id, { x: v / refSize.width })}
+          resetTitle="Reset X"
         />
+        <InspectorBarSlider
+          label="Y"
+          value={yPx}
+          min={-refSize.height}
+          max={Math.max(refSize.height, canvasH) * 1.5}
+          step={1}
+          defaultValue={0}
+          format={(v) => `${Math.round(v)}px`}
+          onChange={(v) => updateCanvasElement(element.id, { y: v / refSize.height })}
+          resetTitle="Reset Y"
+        />
+        <InspectorBarSlider
+          label="Width"
+          value={widthPx}
+          min={isImage ? 40 : 60}
+          max={refSize.width * 2}
+          step={1}
+          defaultValue={isImage ? (element.type === 'logo' ? 120 : 200) : 280}
+          format={(v) => `${Math.round(v)}px`}
+          onChange={(v) => updateCanvasElement(element.id, { width: v / refSize.width })}
+          resetTitle="Reset width"
+        />
+        {isImage && (
+          <InspectorBarSlider
+            label="Height"
+            value={heightPx}
+            min={24}
+            max={refSize.height * 2}
+            step={1}
+            defaultValue={element.type === 'logo' ? 48 : 120}
+            format={(v) => `${Math.round(v)}px`}
+            onChange={(v) => updateCanvasElement(element.id, { height: v / refSize.height })}
+            resetTitle="Reset height"
+          />
+        )}
         {!isImage && (
-          <Slider
+          <InspectorBarSlider
             label="Rotation"
-            valueLabel={`${Math.round(element.rotation)}°`}
+            value={element.rotation}
             min={-180}
             max={180}
             step={1}
-            value={element.rotation}
-            onChange={(e) =>
-              updateCanvasElement(element.id, { rotation: parseInt(e.target.value, 10) })
-            }
+            defaultValue={0}
+            format={(v) => `${Math.round(v)}\u00b0`}
+            onChange={(v) => updateCanvasElement(element.id, { rotation: v })}
+            resetTitle="Reset rotation"
           />
         )}
-        <div className="grid grid-cols-2 gap-2 text-xs font-mono text-muted">
-          <div className="studio-canvas-meta-chip">
-            <span className="text-faint">X</span> {Math.round(xPx)}
-          </div>
-          <div className="studio-canvas-meta-chip">
-            <span className="text-faint">Y</span> {Math.round(yPx)}
-          </div>
-          <div className="studio-canvas-meta-chip">
-            <span className="text-faint">W</span> {Math.round(widthPx)}
-          </div>
-          <div className="studio-canvas-meta-chip">
-            <span className="text-faint">{isImage ? 'H' : '°'}</span>{' '}
-            {isImage ? Math.round(heightPx) : Math.round(element.rotation)}
-          </div>
-        </div>
       </InspectorSection>
 
       <InspectorSection id="canvas-actions" title="Actions" defaultOpen={false}>

@@ -392,7 +392,7 @@ function CanvasElementNode({
               width={display.width}
               height={boxHeight}
               fill={style.background}
-              cornerRadius={8}
+              cornerRadius={style.backgroundRadius ?? 8}
               listening={false}
             />
           )}
@@ -427,7 +427,8 @@ function CanvasElementNode({
             shadowOffsetX={effectProps.shadowOffsetX ?? 0}
             shadowOffsetY={effectProps.shadowOffsetY ?? (effectProps.shadowEnabled ? 0 : 2)}
             shadowOpacity={effectProps.shadowOpacity ?? (style?.shadowColor ? 1 : 0.7)}
-            lineHeight={1.35}
+            lineHeight={style?.lineHeight ?? 1.35}
+            textDecoration={style?.underline ? 'underline' : ''}
             listening={false}
           />
         </>

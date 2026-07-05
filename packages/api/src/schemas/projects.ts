@@ -41,13 +41,16 @@ export const projectCanvasTextStyleSchema = z.object({
   fill: z.string().optional(),
   fontWeight: z.enum(['normal', 'bold']).optional(),
   fontStyle: z.enum(['normal', 'italic']).optional(),
+  underline: z.boolean().optional(),
   letterSpacing: z.number().optional(),
+  lineHeight: z.number().optional(),
   textTransform: z.enum(['none', 'uppercase']).optional(),
   stroke: z.string().optional(),
   strokeWidth: z.number().optional(),
   shadowColor: z.string().optional(),
   shadowBlur: z.number().optional(),
   background: z.string().optional(),
+  backgroundRadius: z.number().optional(),
   align: z.enum(['left', 'center', 'right']).optional(),
 });
 

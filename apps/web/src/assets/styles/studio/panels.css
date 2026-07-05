@@ -475,56 +475,145 @@
   line-height: 1.45;
 }
 
+/* Flat single-column property list — replaces the old boxed 2-up grid. */
 .clip-inspector-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .clip-inspector-field {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: 0.5rem;
-  background: var(--surface-hi);
-  border: 1px solid var(--border);
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.32rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent;
+}
+
+.clip-inspector-field:last-child {
+  border-bottom: 0;
 }
 
 .clip-inspector-field-label {
-  font-size: 0.58rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--faint);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
 }
 
 .clip-inspector-field-value {
   font-size: 0.72rem;
-  color: var(--text);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 .clip-inspector-input,
 .clip-inspector-textarea {
   width: 100%;
-  border-radius: 0.55rem;
-  border: 1px solid var(--border);
-  background: var(--surface-hi);
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
   color: var(--text);
-  font-size: 0.78rem;
-  padding: 0.45rem 0.55rem;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.05rem;
+  transition: border-color 0.12s ease;
+}
+
+.clip-inspector-input:focus,
+.clip-inspector-textarea:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
 }
 
 .clip-inspector-textarea {
   resize: vertical;
   min-height: 4.5rem;
   line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.clip-inspector-textarea:focus {
+  border-color: var(--accent);
 }
 
 .clip-inspector-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
+}
+
+/* ── Property row: label-left / control-right, Premiere Effect Controls style ── */
+.property-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.property-row:last-child {
+  border-bottom: 0;
+}
+
+.property-row-label {
+  flex-shrink: 0;
+  width: 4.5rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.property-row-control {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.property-row-control .clip-inspector-input {
+  border-bottom: 1px solid transparent;
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.property-row-control .clip-inspector-input:hover {
+  border-bottom-color: var(--border);
+}
+
+.property-row-control .clip-inspector-input:focus {
+  border-bottom-color: var(--accent);
+}
+
+.property-row-unit {
+  flex-shrink: 0;
+  font-size: 0.66rem;
+  color: var(--faint);
+}
+
+.property-row-value-readonly {
+  flex: 1;
+  text-align: right;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--faint);
+}
+
+.property-row-pair {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.property-row-pair .property-row {
+  flex: 1;
+  border-bottom: 0;
+  padding: 0;
 }
 
 /* Timeline external drag-drop feedback */
@@ -1617,25 +1706,30 @@
   gap: 0.25rem;
 }
 
-/* ── Inspector bar slider (Video/Audio/Equalizer rows) ── */
+/* ── Inspector bar slider — Adobe-style scrub field: no box, a hairline
+   baseline with an accent fill/thumb, and a click-to-type value. ── */
 .inspector-bar-slider-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.6rem;
   min-width: 0;
-  padding: 0.2rem 0;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.inspector-bar-slider-row:last-child {
+  border-bottom: 0;
 }
 .inspector-bar-slider-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--muted);
-  min-width: 56px;
+  width: 4.5rem;
   flex-shrink: 0;
 }
 .inspector-bar-slider-controls {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   flex: 1;
   min-width: 0;
 }
@@ -1643,93 +1737,93 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 28px;
+  height: 22px;
   display: flex;
   align-items: center;
-  border-radius: 0.4rem;
-  overflow: hidden;
-  background: var(--surface-hi);
-  border: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
   touch-action: none;
-  transition: border-color 0.12s;
+}
+.inspector-bar-slider-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: var(--border);
 }
 .inspector-bar-slider-track:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  outline-offset: 1px;
+  outline: none;
+}
+.inspector-bar-slider-track:focus-visible::before {
+  background: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .inspector-bar-slider-track.is-disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
 .inspector-bar-slider-ticks {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.inspector-bar-slider-tick {
-  position: absolute;
-  top: 50%;
-  width: 1px;
-  height: 8px;
-  transform: translate(-50%, -50%);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
+  display: none;
 }
 .inspector-bar-slider-fill {
   position: absolute;
-  inset: 0 auto 0 0;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  transition: width 0.05s linear;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: var(--accent);
 }
 .inspector-bar-slider-thumb {
   position: absolute;
   top: 50%;
-  width: 3px;
-  height: 14px;
-  border-radius: 2px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 999px;
   transform: translateY(-50%);
-  background: color-mix(in srgb, var(--accent) 85%, var(--text) 15%);
+  background: var(--accent);
   pointer-events: none;
+  box-shadow: 0 0 0 2px var(--surface-hi);
 }
 .inspector-bar-slider-value {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.68rem;
+  flex-shrink: 0;
+  min-width: 2.6rem;
+  padding: 0.1rem 0.15rem;
+  font-size: 0.7rem;
   font-family: var(--font-mono);
-  color: var(--muted);
+  text-align: right;
+  color: var(--text-muted);
   cursor: text;
   transition: color 0.12s;
 }
 .inspector-bar-slider-value:hover { color: var(--text); }
 .inspector-bar-slider-value-input {
-  position: absolute;
-  right: 0.4rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 56px;
+  flex-shrink: 0;
+  width: 2.8rem;
   height: 18px;
-  padding: 0 0.25rem;
-  font-size: 0.68rem;
+  padding: 0 0.2rem;
+  font-size: 0.7rem;
   font-family: var(--font-mono);
   text-align: right;
   color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-radius: 0.25rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--accent);
+  border-radius: 0;
   outline: none;
 }
 .inspector-bar-slider-reset {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  border-radius: 0.4rem;
-  color: var(--muted);
+  border-radius: 0.35rem;
+  color: var(--faint);
   background: transparent;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;

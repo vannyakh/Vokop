@@ -117,11 +117,14 @@ export function CanvasInlineTextEditor({ element, contentRect, onCommit, onCance
         fontFamily: element.fontFamily ? `${element.fontFamily}, system-ui, sans-serif` : undefined,
         fontWeight: style?.fontWeight === 'bold' ? 700 : 500,
         fontStyle: style?.fontStyle === 'italic' ? 'italic' : 'normal',
+        textDecoration: style?.underline ? 'underline' : undefined,
+        lineHeight: style?.lineHeight ?? 1.35,
         textAlign: style?.align ?? 'center',
         color: style?.fill ?? '#ffffff',
         letterSpacing: style?.letterSpacing ? `${style.letterSpacing}px` : undefined,
         textTransform: style?.textTransform,
         background: style?.background ?? 'rgba(0,0,0,0.35)',
+        borderRadius: style?.background ? (style?.backgroundRadius ?? 8) : undefined,
       }}
       autoFocus
       defaultValue={element.text}

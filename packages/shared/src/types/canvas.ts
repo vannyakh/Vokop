@@ -19,13 +19,18 @@ export interface CanvasTextStyle {
   fill?: string;
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
+  underline?: boolean;
   letterSpacing?: number;
+  /** Line height as a multiplier of font size (e.g. 1.35 = 135%). */
+  lineHeight?: number;
   textTransform?: 'none' | 'uppercase';
   stroke?: string;
   strokeWidth?: number;
   shadowColor?: string;
   shadowBlur?: number;
   background?: string;
+  /** Corner radius (px, at the reference frame size) of the background box. */
+  backgroundRadius?: number;
   align?: 'left' | 'center' | 'right';
 }
 
