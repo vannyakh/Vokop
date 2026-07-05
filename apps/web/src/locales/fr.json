@@ -30,7 +30,7 @@
   "loginSubtitle": "Connectez-vous pour téléverser et traduire vos vidéos.",
   "heroTabsLabel": "Mode de création",
   "heroTabVideo": "Vidéo",
-  "heroTabAudio": "Audio",
+  "heroTabAudio": "Musique",
   "audioComingSoon": "Le studio audio arrive bientôt",
   "audioDropHint": "Outils de clonage vocal et de doublage seront disponibles ici",
   "toolsModalTitle": "Tous les outils",
@@ -67,5 +67,12 @@
   "whatsNewVideoBody": "Importez une fois et Vokop transcrit, traduit et voice votre clip. Nouveau : file de traitement plus rapide et meilleur lip-sync dans l’éditeur.",
   "whatsNewDesignTitle": "Aperçu du studio design",
   "whatsNewDesignBody": "Modèles canvas, overlays texte et kits de marque arrivent bientôt. Passez à l’onglet Design sur l’accueil pour un accès anticipé.",
-  "signInGoogle": "Continuer avec Google"
+  "signInGoogle": "Continuer avec Google",
+  "heroTabTools": "Outils IA",
+  "toolsSectionTitle": "Outils IA en ligne",
+  "toolsSectionSubtitle": "Des outils professionnels pour éditer, convertir et polir vos fichiers en quelques secondes.",
+  "backToDefault": "Réinitialiser l'outil",
+  "dropHereForTool": "Déposez la vidéo pour démarrer {{tool}}",
+  "musicGenerate": "Générer de la musique",
+  "orUploadAudio": "ou importez un audio"
 }

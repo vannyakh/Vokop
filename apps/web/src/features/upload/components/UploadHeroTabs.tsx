@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AudioLines, Clapperboard } from 'lucide-react';
+import { Clapperboard, Music } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/features/settings';
@@ -18,7 +18,7 @@ const MODES: UploadHeroMode[] = ['video', 'audio'];
 
 const MODE_ICONS = {
   video: Clapperboard,
-  audio: AudioLines,
+  audio: Music,
 } as const;
 
 export function UploadHeroTabs({ value, onChange, onToolSelect }: UploadHeroTabsProps) {

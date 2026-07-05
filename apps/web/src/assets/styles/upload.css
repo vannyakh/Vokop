@@ -8,11 +8,22 @@
 .upload-hero-title {
   font-family: var(--font-display);
   font-weight: 500;
-  color: var(--text);
+  background: linear-gradient(135deg, var(--text) 35%, var(--accent) 72%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .upload-hero-subtitle {
   color: var(--text-muted);
+}
+
+.home-tools-panel {
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .upload-hero-tabs-wrap {
@@ -199,19 +210,8 @@
 
 .tools-catalog-grid {
   display: grid;
-  gap: 0.75rem;
-}
-
-.tools-catalog-grid--1 {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.tools-catalog-grid--2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.tools-catalog-grid--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
 .tools-catalog-card {
@@ -336,16 +336,13 @@
 }
 
 @media (max-width: 820px) {
-  .tools-catalog-grid--3,
-  .tools-catalog-grid--2 {
+  .tools-catalog-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 520px) {
-  .tools-catalog-grid--3,
-  .tools-catalog-grid--2,
-  .tools-catalog-grid--1 {
+  .tools-catalog-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -954,3 +951,21 @@ span.whats-new-play {
 .home-dropzone-dark:hover {
   box-shadow: var(--shadow-soft), 0 28px 70px rgba(232, 163, 61, 0.12);
 }
+
+/* ── Custom Orange Launch Button Style ── */
+.vokop-launch-btn--orange {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
+  background: linear-gradient(115deg, #1b1208 0%, var(--accent) 48%, var(--accent-hover) 100%) !important;
+  box-shadow:
+    0 12px 28px -14px rgba(232, 163, 61, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.vokop-launch-btn--orange:hover {
+  background: linear-gradient(115deg, #24190c 0%, var(--accent-hover) 48%, #c58225 100%) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+  box-shadow:
+    0 16px 34px -14px rgba(232, 163, 61, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
-import { AudioLines, Upload } from 'lucide-react';
+import { AudioLines, Upload, X, Music } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LaunchButton } from '@vokop/ui';
 import type { AspectRatioId } from '@/types';
@@ -23,6 +23,7 @@ import { LoginModal } from '@/features/auth/components/LoginModal';
 import { LandingSections } from '@/features/landing';
 import { WhatsNewFab } from '@/features/landing/components/WhatsNewFab';
 import { WhatsNewModal } from '@/features/landing/components/WhatsNewModal';
+import { TOOLS_CATALOG } from '@/features/upload/data/toolsCatalog';
 
 export function UploadDropzone() {
   const { uploadVideo } = useVideoUpload();
@@ -34,6 +35,7 @@ export function UploadDropzone() {
   const { t } = useTranslation();
   const [loginOpen, setLoginOpen] = useState(false);
   const [heroMode, setHeroMode] = useState<UploadHeroMode>('video');
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [aspectMenuOpen, setAspectMenuOpen] = useState(false);
   const [creatingAspectRatio, setCreatingAspectRatio] = useState<AspectRatioId | null>(null);
@@ -188,26 +190,49 @@ export function UploadDropzone() {
     (toolId: string) => {
       if (toolId === 'video-studio') {
         setHeroMode('video');
+        setSelectedToolId(null);
+        setAspectMenuOpen(true);
         scrollToUpload();
         return;
       }
 
-      if (
+      const isAudioTool =
         toolId === 'text-to-speech' ||
         toolId === 'voice-changer' ||
         toolId === 'audio-text-to-speech' ||
-        toolId === 'audio-voice-changer'
-      ) {
+        toolId === 'audio-voice-changer';
+
+      setSelectedToolId(toolId);
+      if (isAudioTool) {
         setHeroMode('audio');
+      } else {
+        setHeroMode('video');
       }
+      scrollToUpload();
     },
     [],
   );
 
   const floatTheme = colorTheme === 'dark' ? 'dark' : 'light';
   const horizontalLogoSrc = colorTheme === 'light' ? hLogoLight : hLogoDark;
-  const heroTitleKey = heroMode === 'video' ? 'heroVideoTitle' : 'heroAudioTitle';
-  const heroSubtitleKey = heroMode === 'video' ? 'heroVideoSubtitle' : 'heroAudioSubtitle';
+
+  const selectedTool = selectedToolId
+    ? TOOLS_CATALOG.flatMap((cat) => cat.tools).find((t) => t.id === selectedToolId)
+    : null;
+
+  const heroTitleKey =
+    heroMode === 'video'
+      ? 'heroVideoTitle'
+      : heroMode === 'audio'
+        ? 'heroAudioTitle'
+        : 'toolsSectionTitle';
+
+  const heroSubtitleKey =
+    heroMode === 'video'
+      ? 'heroVideoSubtitle'
+      : heroMode === 'audio'
+        ? 'heroAudioSubtitle'
+        : 'toolsSectionSubtitle';
 
   return (
     <div className="landing-page relative min-h-screen overflow-x-hidden">
@@ -301,12 +326,24 @@ export function UploadDropzone() {
                     active={aspectMenuOpen}
                     aria-expanded={aspectMenuOpen}
                     disabled={creatingAspectRatio != null}
+                    className="vokop-launch-btn--orange"
                   >
                     {t('newProject')}
                   </LaunchButton>
                 </NewProjectAspectMenu>
               </div>
-            ) : null}
+            ) : (
+              <div className="upload-new-project-wrap">
+                <LaunchButton
+                  size="xl"
+                  className="vokop-launch-btn--orange"
+                  icon={<Music size={18} />}
+                  onClick={() => alert("AI Music Generation: Coming Soon!")}
+                >
+                  {t('musicGenerate') || 'Music Generate'}
+                </LaunchButton>
+              </div>
+            )}
 
             {heroMode === 'video' ? (
               <div className="upload-create-divider" aria-hidden="true">
@@ -314,7 +351,13 @@ export function UploadDropzone() {
                 <span className="upload-create-divider-text">{t('orUploadVideo')}</span>
                 <span className="upload-create-divider-line" />
               </div>
-            ) : null}
+            ) : (
+              <div className="upload-create-divider" aria-hidden="true">
+                <span className="upload-create-divider-line" />
+                <span className="upload-create-divider-text">{t('orUploadAudio') || 'or upload audio'}</span>
+                <span className="upload-create-divider-line" />
+              </div>
+            )}
 
             <div
               id="upload-dropzone"
@@ -337,34 +380,63 @@ export function UploadDropzone() {
                 <rect className="home-dropzone-border-rect" />
               </svg>
 
+              {selectedTool && (
+                <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent-soft border border-accent/40 text-accent text-xs font-semibold shadow-sm backdrop-blur-md">
+                  <span>✨ {t(selectedTool.titleKey)} mode active</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedToolId(null);
+                    }}
+                    className="p-0.5 rounded-full hover:bg-accent/25 cursor-pointer text-accent flex items-center justify-center transition-colors"
+                    title={t('backToDefault')}
+                  >
+                    <X size={12} strokeWidth={2.5} />
+                  </button>
+                </div>
+              )}
+
               <div className="upload-dropzone-icon w-20 h-20 sm:w-24 sm:h-24 rounded-3xl flex items-center justify-center transition-colors duration-200">
                 {heroMode === 'video' ? (
                   <Upload size={40} strokeWidth={2} />
                 ) : (
-                  <AudioLines size={40} strokeWidth={2} />
+                  <Music size={40} strokeWidth={2} />
                 )}
               </div>
 
-              <div className="text-center space-y-2 px-6">
-                <p className="font-display text-2xl sm:text-3xl font-medium tracking-tight" style={{ color: 'var(--text)' }}>
-                  {heroMode === 'video' ? t('dropHere') : t('audioComingSoon')}
-                </p>
-                <p className="text-base sm:text-lg text-muted">
-                  {heroMode === 'video' ? t('dropHint') : t('audioDropHint')}
-                </p>
-              </div>
-
-              {heroMode === 'video' ? (
-                <div className="upload-browse-pill px-6 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest font-mono opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  {t('browseFiles')}
+                <div className="text-center space-y-2 px-6">
+                  <p className="font-display text-2xl sm:text-3xl font-medium tracking-tight" style={{ color: 'var(--text)' }}>
+                    {heroMode === 'video' ? (
+                      selectedTool ? (
+                        t('dropHereForTool').replace('{{tool}}', t(selectedTool.titleKey))
+                      ) : (
+                        t('dropHere')
+                      )
+                    ) : (
+                      t('audioComingSoon')
+                    )}
+                  </p>
+                  <p className="text-base sm:text-lg text-muted">
+                    {heroMode === 'video' ? t('dropHint') : t('audioDropHint')}
+                  </p>
                 </div>
-              ) : null}
-            </div>
+
+                {heroMode === 'video' ? (
+                  <div className="upload-browse-pill px-6 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest font-mono opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {t('browseFiles')}
+                  </div>
+                ) : null}
+              </div>
           </motion.div>
         </motion.div>
       </section>
 
-      <LandingSections onScrollToUpload={scrollToUpload} onRequestLogin={requestLogin} />
+      <LandingSections
+        onScrollToUpload={scrollToUpload}
+        onRequestLogin={requestLogin}
+        onSelectTool={handleToolSelect}
+      />
 
       <WhatsNewFab onClick={() => setWhatsNewOpen(true)} />
       <WhatsNewModal

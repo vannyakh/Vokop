@@ -8,10 +8,13 @@ import {
   RotateCcw,
   Trash2,
   Undo2,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { Popconfirm } from '@vokop/ui/antd';
 import { useRecentProjects } from '@/features/projects/hooks/useRecentProjects';
 import { useProjectNavigation } from '@/features/project/hooks/useProjectNavigation';
+import { cn } from '@/lib/cn';
 
 const STATUS_LABELS = {
   done: 'Completed',
@@ -21,6 +24,7 @@ const STATUS_LABELS = {
 
 export function RecentProjectsSection() {
   const [showTrash, setShowTrash] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'row'>('row');
   const {
     projects,
     isMock,
@@ -45,6 +49,27 @@ export function RecentProjectsSection() {
           </h2>
         </div>
         <div className="landing-history-actions">
+          <div className="landing-view-toggle">
+            <button
+              type="button"
+              className={cn("landing-view-toggle-btn", viewMode === 'row' && "is-active")}
+              onClick={() => setViewMode('row')}
+              title="Row list view"
+            >
+              <List size={14} />
+            </button>
+            <button
+              type="button"
+              className={cn("landing-view-toggle-btn", viewMode === 'grid' && "is-active")}
+              onClick={() => setViewMode('grid')}
+              title="Grid card view"
+            >
+              <LayoutGrid size={14} />
+            </button>
+          </div>
+
+          <span className="landing-history-actions-divider" />
+
           {!isMock && (
             <button
               type="button"
@@ -83,24 +108,146 @@ export function RecentProjectsSection() {
         </div>
       </div>
 
-      <div className="landing-history-list">
-        {isLoading ? (
+      {isLoading ? (
+        <div className="landing-history-list">
           <div className="landing-history-empty">
             <Loader2 size={18} className="animate-spin" />
             <span>{showTrash ? 'Loading trash…' : 'Loading your projects…'}</span>
           </div>
-        ) : isError ? (
+        </div>
+      ) : isError ? (
+        <div className="landing-history-list">
           <div className="landing-history-empty">
             {showTrash ? 'Could not load trash.' : 'Could not load your projects.'}
           </div>
-        ) : projects.length === 0 ? (
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="landing-history-list">
           <div className="landing-history-empty">
             {showTrash
               ? 'Trash is empty.'
               : 'No projects yet. Upload a video to start your first project.'}
           </div>
-        ) : (
-          projects.map((project) => (
+        </div>
+      ) : viewMode === 'grid' ? (
+        <div className="landing-history-grid">
+          {projects.map((project) => (
+            <div key={project.id} className="landing-history-grid-card">
+              <button
+                type="button"
+                className="landing-grid-card-cover"
+                disabled={isMock || showTrash}
+                onClick={() => !isMock && !showTrash && openProject(project.id)}
+              >
+                <div
+                  className={`landing-thumb landing-thumb-${project.thumb}`}
+                  data-dur={project.duration}
+                >
+                  <Play size={18} fill="currentColor" />
+                </div>
+              </button>
+
+              <div className="landing-grid-card-details">
+                <div className="landing-grid-card-title">{project.title}</div>
+                <div className="landing-grid-card-meta">
+                  <span className="landing-row-lang">{project.lang}</span>
+                  <span className="landing-row-sep">·</span>
+                  <span>{project.meta}</span>
+                </div>
+              </div>
+
+              <div className="landing-grid-card-footer">
+                {!showTrash ? (
+                  <span className={`landing-row-status landing-row-status-${project.status}`}>
+                    <span className="dot" />
+                    {STATUS_LABELS[project.status]}
+                  </span>
+                ) : (
+                  <span className="text-xs text-text-muted">In Trash</span>
+                )}
+
+                <div className="landing-row-ops">
+                  {showTrash ? (
+                    <>
+                      <button
+                        type="button"
+                        className="landing-row-ops-btn"
+                        title="Restore"
+                        disabled={isMutating}
+                        onClick={() => void restoreProject(project.id)}
+                      >
+                        <Undo2 size={13} />
+                      </button>
+                      <Popconfirm
+                        title="Delete permanently?"
+                        description={`“${project.title}” will be permanently deleted.`}
+                        okText="Delete"
+                        cancelText="Cancel"
+                        okButtonProps={{ danger: true, loading: isMutating }}
+                        disabled={isMutating}
+                        onConfirm={() => permanentDelete(project.id)}
+                      >
+                        <button
+                          type="button"
+                          className="landing-row-ops-btn landing-row-ops-btn--danger"
+                          title="Delete permanently"
+                          disabled={isMutating}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </Popconfirm>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="landing-row-ops-btn"
+                        title={
+                          project.status === 'failed'
+                            ? 'Retry'
+                            : project.status === 'processing'
+                              ? 'View progress'
+                              : 'Download'
+                        }
+                        disabled={isMock}
+                      >
+                        {project.status === 'failed' ? (
+                          <RotateCcw size={13} />
+                        ) : project.status === 'processing' ? (
+                          <Clock size={13} />
+                        ) : (
+                          <Download size={13} />
+                        )}
+                      </button>
+
+                      <Popconfirm
+                        title="Move to trash?"
+                        description={`“${project.title}” will be moved to trash.`}
+                        okText="Move to trash"
+                        cancelText="Cancel"
+                        okButtonProps={{ danger: true, loading: isMutating }}
+                        disabled={isMutating}
+                        onConfirm={() => moveToTrash(project.id)}
+                      >
+                        <button
+                          type="button"
+                          className="landing-row-ops-btn"
+                          title="Move to trash"
+                          disabled={isMutating}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </Popconfirm>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="landing-history-list">
+          {projects.map((project) => (
             <div key={project.id} className="landing-history-row-wrap">
               <button
                 type="button"
@@ -206,9 +353,9 @@ export function RecentProjectsSection() {
                 </div>
               )}
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

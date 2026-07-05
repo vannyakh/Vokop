@@ -30,7 +30,7 @@
   "loginSubtitle": "ចូលដើម្បីផ្ទុក និងបកប្រែវីដេអូរបស់អ្នក។",
   "heroTabsLabel": "របៀបបង្កើត",
   "heroTabVideo": "វីដេអូ",
-  "heroTabAudio": "សំឡេង",
+  "heroTabAudio": "តន្ត្រី",
   "audioComingSoon": "ស្ទូឌីយោសំឡេងនឹងមកដល់ឆាប់ៗនេះ",
   "audioDropHint": "ឧបករណ៍ក្លុងចម្លេកសំឡេង និងបកប្រែនឹងមកដល់នៅទីនេះ",
   "toolsModalTitle": "ឧបករណ៍ទាំងអស់",
@@ -67,5 +67,12 @@
   "whatsNewVideoBody": "ផ្ទុកម្តង ហើយ Vokop ចំឡាត់សំឡេង បកប្រែ និងបន្លឺសំឡេងវីដេអូរបស់អ្នក។ ថ្មី៖ ជួរដំណើរការលឿនជាងមុន និងការសម្រួល lip-sync កាន់តែច្បាស់នៅក្នុងស្ទូឌីយោ។",
   "whatsNewDesignTitle": "មើលស្ទូឌីយោរចនា",
   "whatsNewDesignBody": "គំរូ canvas អត្ថបទ overlay និង brand kit កំពុងមកដល់។ ប្តូរទៅផ្ទាំង Design នៅទំព័រដើម ដើម្បីទទួលបានការចូលប្រើដំបូងនៅពេលដាក់ឲ្យប្រើប្រាស់។",
-  "signInGoogle": "បន្តជាមួយ Google"
+  "signInGoogle": "បន្តជាមួយ Google",
+  "heroTabTools": "ឧបករណ៍ AI",
+  "toolsSectionTitle": "ឧបករណ៍ AI តាមអ៊ីនធឺណិត",
+  "toolsSectionSubtitle": "ឧបករណ៍អាជីពដើម្បីកែសម្រួល បំប្លែង និងខាត់មេឌៀរបស់អ្នកក្នុងរយៈពេលប៉ុន្មានវិនាទី។",
+  "backToDefault": "កំណត់ឧបករណ៍ឡើងវិញ",
+  "dropHereForTool": "ទម្លាក់វីដេអូដើម្បីចាប់ផ្តើម {{tool}}",
+  "musicGenerate": "បង្កើតតន្ត្រី",
+  "orUploadAudio": "ឬផ្ទុកសំឡេង"
 }

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTranslation } from '@/features/settings';
@@ -109,6 +109,17 @@ function ToolCard({
 export function ToolsCatalogModal({ open, onClose, onSelectTool }: ToolsCatalogModalProps) {
   const { t } = useTranslation();
 
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
   const handleSelect = (toolId: string) => {
     onSelectTool?.(toolId);
     onClose();
@@ -153,7 +164,7 @@ export function ToolsCatalogModal({ open, onClose, onSelectTool }: ToolsCatalogM
                     <h3 className="tools-catalog-section-title">{t(category.labelKey)}</h3>
                     <span className="tools-catalog-section-count">{category.tools.length}</span>
                   </div>
-                  <div className={toolsCatalogGridClass(category.tools.length)}>
+                  <div className="tools-catalog-grid">
                     {category.tools.map((tool) => (
                       <ToolCard key={`${category.id}-${tool.id}`} tool={tool} onSelect={handleSelect} />
                     ))}

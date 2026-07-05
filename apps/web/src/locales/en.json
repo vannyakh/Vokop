@@ -30,7 +30,7 @@
   "loginSubtitle": "Sign in to upload and translate your videos.",
   "heroTabsLabel": "Create mode",
   "heroTabVideo": "Video",
-  "heroTabAudio": "Audio",
+  "heroTabAudio": "Music",
   "audioComingSoon": "Audio studio is coming soon",
   "audioDropHint": "Voice cloning and dubbing tools will land here",
   "toolsModalTitle": "All tools",
@@ -67,5 +67,12 @@
   "whatsNewVideoBody": "Upload once and Vokop transcribes, translates, and voices your clip. New: faster processing queue and sharper lip-sync timing in the studio editor.",
   "whatsNewDesignTitle": "Design studio preview",
   "whatsNewDesignBody": "Canvas templates, text overlays, and brand kits are on the way. Switch to the Design tab on the home page to get early access when it launches.",
-  "signInGoogle": "Continue with Google"
+  "signInGoogle": "Continue with Google",
+  "heroTabTools": "AI Tools",
+  "toolsSectionTitle": "AI Online Tools",
+  "toolsSectionSubtitle": "Professional tools to edit, convert, and polish your media in seconds.",
+  "backToDefault": "Reset tool",
+  "dropHereForTool": "Drop video to start {{tool}}",
+  "musicGenerate": "Music Generate",
+  "orUploadAudio": "or upload audio"
 }
