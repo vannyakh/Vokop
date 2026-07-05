@@ -1,12 +1,18 @@
 import { Film, Type, Music2, Clock } from 'lucide-react';
 import { useAppStore } from '@/features/project';
+import { AudioClipSettingsPanel } from '@/features/studio/components/AudioClipSettingsPanel';
 import { CanvasElementPanel } from '@/features/studio/components/CanvasElementPanel';
 import { RightPanelEmpty } from '@/features/studio/components/RightPanelEmpty';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
 import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
+import { clipVolumeValue } from '@/features/studio/lib/audioClipMix';
 import { Label, Slider, StudioIcon } from '@vokop/ui';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
-import { isOverlayTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
+import {
+  isAudioLikeTimelineTrack,
+  isOverlayTimelineTrack,
+  isVideoTimelineTrack,
+} from '@/features/studio/lib/timelineTrackUtils';
 import { parseSegments } from '@/lib/utils/transcript';
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -19,10 +25,10 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 function MediaClipInspector({
-  trackId,
+  clipKind,
   clipId,
 }: {
-  trackId: 'video' | 'audio';
+  clipKind: 'video' | 'audio';
   clipId: string;
 }) {
   const videoClips = useAppStore((s) => s.videoClips);
@@ -44,19 +50,24 @@ function MediaClipInspector({
   const projectEditor = useAppStore((s) => s.projectEditor);
   const getVideoCssFilter = useAppStore((s) => s.getVideoCssFilter);
 
-  const clips = trackId === 'video' ? videoClips : audioClips;
+  const clips = clipKind === 'video' ? videoClips : audioClips;
   const clip = clips.find((item) => item.id === clipId);
   if (!clip) {
     return <p className="clip-inspector-empty">Clip not found.</p>;
   }
 
+  const trackId = clip.trackId ?? (clipKind === 'video' ? 'video' : 'audio');
   const muted = timelineTrackMuted[trackId] ?? false;
   const end = clip.start + clip.duration;
-  const Icon = trackId === 'video' ? Film : Music2;
+  const Icon = clipKind === 'video' ? Film : Music2;
+  const isLinkedAudio = Boolean(clipKind === 'audio' && clip.linkedVideoClipId);
+  const globalMix = isLinkedAudio ? originalVolume : voiceVolume;
+  const globalMixLabel = isLinkedAudio ? 'Original mix' : 'Voice mix';
+  const clipVolumePct = Math.round(clipVolumeValue(clip) * 100);
 
   return (
     <InspectorDock
-      title={trackId === 'video' ? 'Video clip' : 'Audio clip'}
+      title={clipKind === 'video' ? 'Video clip' : 'Audio clip'}
       icon={<Icon size={12} className="text-accent" />}
     >
       <InspectorSection id="clip-info" title="Clip" summary={clip.name} defaultOpen>
@@ -127,7 +138,7 @@ function MediaClipInspector({
         </div>
       </InspectorSection>
 
-      {trackId === 'video' && (
+      {clipKind === 'video' && (
         <>
           <InspectorSection
             id="clip-composition"
@@ -225,9 +236,14 @@ function MediaClipInspector({
             </div>
           </InspectorSection>
 
-          <InspectorSection id="clip-video" title="Video settings" defaultOpen={false}>
+          <InspectorSection
+            id="clip-video"
+            title="Video settings"
+            summary={`${clipVolumePct}% · orig ${Math.round(originalVolume * 100)}%`}
+            defaultOpen={false}
+          >
             <div className="space-y-1.5">
-              <Label>Original volume</Label>
+              <Label>Original mix (global)</Label>
               <Slider
                 min={0}
                 max={1}
@@ -236,6 +252,12 @@ function MediaClipInspector({
                 onChange={(e) => setOriginalVolume(Number(e.target.value))}
               />
             </div>
+            <AudioClipSettingsPanel
+              clip={clip}
+              onChange={(patch) => updateMediaClip(clip.id, patch)}
+              globalMix={originalVolume}
+              sourceLabel="Embedded in video"
+            />
             <div className="clip-inspector-grid">
               <Field
                 label="Filter"
@@ -257,18 +279,33 @@ function MediaClipInspector({
         </>
       )}
 
-      {trackId === 'audio' && (
-        <InspectorSection id="clip-audio" title="Audio settings" defaultOpen={false}>
+      {clipKind === 'audio' && (
+        <InspectorSection
+          id="clip-audio"
+          title="Audio settings"
+          summary={`${clipVolumePct}% · ${globalMixLabel.toLowerCase()}`}
+          defaultOpen
+        >
           <div className="space-y-1.5">
-            <Label>Voice volume</Label>
+            <Label>{globalMixLabel} (global)</Label>
             <Slider
               min={0}
               max={1}
               step={0.01}
-              value={voiceVolume}
-              onChange={(e) => setVoiceVolume(Number(e.target.value))}
+              value={globalMix}
+              onChange={(e) =>
+                isLinkedAudio
+                  ? setOriginalVolume(Number(e.target.value))
+                  : setVoiceVolume(Number(e.target.value))
+              }
             />
           </div>
+          <AudioClipSettingsPanel
+            clip={clip}
+            onChange={(patch) => updateMediaClip(clip.id, patch)}
+            globalMix={globalMix}
+            globalMixLabel={globalMixLabel}
+          />
         </InspectorSection>
       )}
 
@@ -281,7 +318,7 @@ function MediaClipInspector({
           {muted ? <StudioIcon name="volumeSlash" size={13} /> : <StudioIcon name="volume" size={13} />}
           {muted ? 'Unmute track' : 'Mute track'}
         </button>
-        {trackId === 'video' && (
+        {clipKind === 'video' && (
           <div className="clip-inspector-actions">
             <button
               type="button"
@@ -301,7 +338,7 @@ function MediaClipInspector({
             </button>
           </div>
         )}
-        {trackId === 'video' && clip.muted && (
+        {clipKind === 'video' && clip.muted && (
           <button
             type="button"
             className="studio-tools-action-btn w-full"
@@ -443,8 +480,13 @@ export function ClipInspectorPanel() {
   const trackId = selectedTimelineClip?.trackId;
   const clipId = selectedTimelineClip?.clipId;
 
-  if (clipId && (trackId === 'video' || trackId === 'audio')) {
-    return <MediaClipInspector trackId={trackId as 'video' | 'audio'} clipId={clipId} />;
+  if (clipId && trackId) {
+    if (isVideoTimelineTrack(trackId)) {
+      return <MediaClipInspector clipKind="video" clipId={clipId} />;
+    }
+    if (isAudioLikeTimelineTrack(trackId)) {
+      return <MediaClipInspector clipKind="audio" clipId={clipId} />;
+    }
   }
 
   // Caption segments (translation-0 / transcript-0).

@@ -11,6 +11,12 @@ export const mediaClipSchema = z.object({
   name: z.string(),
   trackId: z.string().optional(),
   mediaAssetId: z.string().optional(),
+  volume: z.number().min(0).max(2).optional(),
+  pan: z.number().min(-1).max(1).optional(),
+  fadeInSec: z.number().nonnegative().optional(),
+  fadeOutSec: z.number().nonnegative().optional(),
+  muted: z.boolean().optional(),
+  linkedVideoClipId: z.string().optional(),
 });
 
 export const projectCanvasTextStyleSchema = z.object({

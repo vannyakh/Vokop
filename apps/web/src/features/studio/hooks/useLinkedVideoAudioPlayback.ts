@@ -1,10 +1,12 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { useAppStore } from '@/features/project';
+import { effectiveClipVolume } from '@/features/studio/lib/audioClipMix';
 import { findClipAtTime, findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
+import { resolveClipAudioSource } from '@/features/studio/lib/resolveClipAudioSource';
 
 /**
- * Plays audio clips extracted/detached from video (linkedVideoClipId),
- * and mutes the preview video when a video clip is marked muted.
+ * Timeline audio playback: linked/detached video audio, imported files, and AI voice clips.
+ * Also applies per-clip volume/fades to embedded video audio.
  */
 export function useLinkedVideoAudioPlayback(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -30,21 +32,6 @@ export function useLinkedVideoAudioPlayback(
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (videoUrl) {
-      if (audio.src !== videoUrl) {
-        audio.src = videoUrl;
-        audio.load();
-      }
-    } else {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-    }
-  }, [videoUrl]);
-
-  useEffect(() => {
     const sync = () => {
       const state = useAppStore.getState();
       const video = videoRef.current;
@@ -64,17 +51,57 @@ export function useLinkedVideoAudioPlayback(
       );
       const videoTrackId = vClip?.trackId ?? 'video';
       const videoTrackMuted = state.timelineTrackMuted[videoTrackId] ?? false;
-      video.muted = videoTrackMuted || Boolean(vClip?.muted);
 
-      if (!audio || !state.videoUrl) return;
+      const embedGlobal = state.originalVolume;
+      const embedVol = vClip
+        ? effectiveClipVolume(
+            { ...vClip, volume: (vClip.volume ?? 1) * embedGlobal },
+            state.currentTime,
+            videoTrackMuted,
+          )
+        : 0;
+      video.muted = videoTrackMuted || Boolean(vClip?.muted) || embedVol <= 0;
+      video.volume = Math.min(1, embedVol);
+
+      if (!audio) return;
 
       const aClip = findClipAtTime(state.audioClips, state.currentTime);
-      const audioTrackMuted = state.timelineTrackMuted.audio ?? false;
-      const linked = Boolean(aClip?.linkedVideoClipId);
+      const audioTrackId = aClip?.trackId ?? 'audio';
+      const audioTrackMuted = state.timelineTrackMuted[audioTrackId] ?? false;
 
-      if (!linked || audioTrackMuted || !aClip) {
+      if (!aClip || audioTrackMuted) {
         if (!audio.paused) audio.pause();
         return;
+      }
+
+      const source = resolveClipAudioSource(
+        {
+          id: aClip.id,
+          start: aClip.start,
+          duration: aClip.duration,
+          sourceStart: aClip.sourceStart,
+          name: aClip.name,
+          mediaKind: 'audio',
+        },
+        {
+          videoUrl: state.videoUrl,
+          audioBase64: state.audioBase64,
+          mediaAssets: state.mediaAssets,
+          audioClips: state.audioClips,
+          videoClips: state.videoClips,
+          mediaDuration: state.mediaDuration,
+          duration: state.duration,
+        },
+      );
+
+      if (!source?.url) {
+        if (!audio.paused) audio.pause();
+        return;
+      }
+
+      if (audio.src !== source.url) {
+        audio.src = source.url;
+        audio.load();
       }
 
       const sourceTarget = aClip.sourceStart + (state.currentTime - aClip.start);
@@ -86,7 +113,14 @@ export function useLinkedVideoAudioPlayback(
         }
       }
 
-      audio.volume = Math.min(1, Math.max(0, state.originalVolume));
+      const globalBase = aClip.linkedVideoClipId ? state.originalVolume : state.voiceVolume;
+      const clipVol = effectiveClipVolume(
+        { ...aClip, volume: (aClip.volume ?? 1) * globalBase },
+        state.currentTime,
+        false,
+      );
+      audio.volume = Math.min(1, clipVol);
+      audio.muted = clipVol <= 0 || Boolean(aClip.muted);
 
       if (state.isTimelinePlaying) {
         if (audio.paused) {

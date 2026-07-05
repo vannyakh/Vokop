@@ -1669,7 +1669,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const selectionPatch = selectionAfterRemovingClip(state, clipId);
 
-    if (trackId === 'video') {
+    if (isVideoTimelineTrack(trackId)) {
       set({
         ...pushHistory(state),
         ...withTimelineDuration(state, {
@@ -1680,7 +1680,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    if (trackId === 'audio') {
+    if (isAudioLikeTimelineTrack(trackId)) {
       set({
         ...pushHistory(state),
         ...withTimelineDuration(state, {

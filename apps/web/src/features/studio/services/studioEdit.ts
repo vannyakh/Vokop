@@ -320,6 +320,10 @@ export function normalizeMediaClipPatch(patch: Partial<MediaClip>): Partial<Medi
   if (next.width != null) next.width = Math.max(MIN_BOX, next.width);
   if (next.height != null) next.height = Math.max(MIN_BOX, next.height);
   if (next.opacity != null) next.opacity = Math.min(1, Math.max(0, next.opacity));
+  if (next.volume != null) next.volume = Math.min(2, Math.max(0, next.volume));
+  if (next.pan != null) next.pan = Math.min(1, Math.max(-1, next.pan));
+  if (next.fadeInSec != null) next.fadeInSec = Math.max(0, next.fadeInSec);
+  if (next.fadeOutSec != null) next.fadeOutSec = Math.max(0, next.fadeOutSec);
   if (next.rotation != null) {
     // Keep rotation in a sensible range for inspector inputs.
     let r = next.rotation % 360;

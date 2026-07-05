@@ -97,6 +97,14 @@ export interface MediaClip {
   trackId?: string;
   /** Source media library asset for playback. */
   mediaAssetId?: string;
+  /** Per-clip playback volume 0–2 (1 = unity). */
+  volume?: number;
+  /** Stereo pan -1 (left) to 1 (right). */
+  pan?: number;
+  /** Fade-in duration in seconds. */
+  fadeInSec?: number;
+  /** Fade-out duration in seconds. */
+  fadeOutSec?: number;
   /** Mute embedded audio on this video clip (after detach). */
   muted?: boolean;
   /**
@@ -160,9 +168,8 @@ export const TIMELINE_BASE_PX_PER_SEC = 80;
 export const TIMELINE_MIN_CLIP_SEC = 0.4;
 
 /**
- * Lane heights aligned with Omniclip track rows:
+ * Lane heights aligned with track rows:
  * default effects lane ~50px, text-only lanes ~30px.
- * @see https://github.com/omni-media/omniclip
  */
 export const TRACK_HEIGHT: Record<TimelineTrackType, number> = {
   video: 50,
