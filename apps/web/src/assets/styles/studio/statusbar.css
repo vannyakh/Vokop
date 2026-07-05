@@ -1,0 +1,381 @@
+/* ── Studio bottom status bar (project switcher) ── */
+
+.studio-statusbar-root {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.studio-statusbar-panel {
+  overflow: hidden;
+  max-height: 1.375rem;
+  opacity: 1;
+  transform: translateY(0);
+  background: rgba(0, 0, 0, 0.96);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+  transition:
+    max-height 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.22s ease,
+    transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.22s ease;
+}
+
+.studio-statusbar-root.is-collapsed .studio-statusbar-panel {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(100%);
+  border-top-color: transparent;
+  pointer-events: none;
+}
+
+.studio-statusbar {
+  height: 1.375rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0 2rem 0 0.15rem;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.studio-statusbar-monitor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0 0.35rem;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.studio-statusbar-monitor:hover,
+.studio-statusbar-monitor.is-open {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.studio-statusbar-monitor-popover .ant-popover-inner {
+  padding: 0;
+  background: rgba(14, 14, 14, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+
+.studio-statusbar-monitor-panel {
+  min-width: 14.5rem;
+  padding: 0.55rem 0.65rem 0.6rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.6875rem;
+}
+
+.studio-statusbar-monitor-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.studio-statusbar-monitor-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.18rem 0;
+}
+
+.studio-statusbar-monitor-row-label {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.studio-statusbar-monitor-row-value {
+  color: rgba(255, 255, 255, 0.88);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.studio-statusbar-monitor-note {
+  margin: 0.45rem 0 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 0.625rem;
+  line-height: 1.35;
+}
+
+.studio-statusbar-metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  white-space: nowrap;
+}
+
+.studio-statusbar-metric-label {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.studio-statusbar-metric-value {
+  color: rgba(255, 255, 255, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-statusbar-metric.is-good .studio-statusbar-metric-value {
+  color: rgba(120, 220, 170, 0.95);
+}
+
+.studio-statusbar-metric.is-ok .studio-statusbar-metric-value {
+  color: rgba(232, 163, 61, 0.95);
+}
+
+.studio-statusbar-metric.is-low .studio-statusbar-metric-value {
+  color: rgba(240, 113, 120, 0.95);
+}
+
+.studio-statusbar-metric.is-online .studio-statusbar-metric-value {
+  color: rgba(120, 220, 170, 0.92);
+}
+
+.studio-statusbar-metric.is-offline .studio-statusbar-metric-value {
+  color: rgba(240, 113, 120, 0.95);
+}
+
+.studio-statusbar-fab {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.4rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.4rem;
+  background: rgba(12, 12, 12, 0.94);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    bottom 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.studio-statusbar-root:not(.is-collapsed) .studio-statusbar-fab {
+  bottom: calc(1.375rem - 0.05rem);
+  border-radius: 0.4rem 0.4rem 0 0;
+  border-bottom-color: transparent;
+  background: rgba(0, 0, 0, 0.96);
+  box-shadow: none;
+}
+
+.studio-statusbar-fab:hover {
+  background: rgba(28, 28, 28, 0.98);
+  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.studio-statusbar-root:not(.is-collapsed) .studio-statusbar-fab:hover {
+  background: rgba(24, 24, 24, 0.98);
+}
+
+.studio-statusbar-fab-icon {
+  display: inline-flex;
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.studio-statusbar-root:not(.is-collapsed) .studio-statusbar-fab-icon {
+  transform: translateY(-1px);
+}
+
+.studio-statusbar-left,
+.studio-statusbar-right {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.studio-statusbar-left {
+  justify-self: start;
+}
+
+.studio-statusbar-right {
+  justify-content: flex-end;
+  justify-self: end;
+}
+
+.studio-statusbar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 100%;
+  padding: 0 0.45rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: default;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+button.studio-statusbar-item {
+  cursor: pointer;
+}
+
+button.studio-statusbar-item:hover,
+button.studio-statusbar-item.is-open {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.studio-statusbar-item--readonly {
+  cursor: default;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.studio-statusbar-item--active {
+  color: var(--accent);
+}
+
+.studio-statusbar-item--hint {
+  color: rgba(255, 255, 255, 0.38);
+  font-style: italic;
+}
+
+.studio-statusbar-item--project {
+  max-width: min(22rem, 42vw);
+}
+
+.studio-statusbar-item-label {
+  color: rgba(255, 255, 255, 0.48);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+.studio-statusbar-item-sep {
+  width: 1px;
+  height: 0.75rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.studio-statusbar-project-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 500;
+}
+
+.studio-statusbar-chevron {
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.studio-statusbar-item--status {
+  gap: 0.3rem;
+  padding-left: 0.25rem;
+}
+
+.studio-statusbar-status-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.studio-statusbar-item--status.is-processing .studio-statusbar-status-dot {
+  background: var(--accent);
+}
+
+.studio-statusbar-item--status.is-failed .studio-statusbar-status-dot {
+  background: #f07178;
+}
+
+.studio-statusbar-dropdown .ant-dropdown-menu {
+  min-width: 15rem;
+  max-width: 20rem;
+  padding: 0.25rem;
+  border-radius: 0.45rem;
+  background: rgba(18, 18, 18, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.studio-statusbar-dropdown .ant-dropdown-menu-item-group-title {
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.studio-statusbar-dropdown .ant-dropdown-menu-item {
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.studio-statusbar-menu-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.studio-statusbar-menu-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+}
+
+.studio-statusbar-menu-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.625rem;
+}
+
+.studio-statusbar-menu-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-statusbar-panel,
+  .studio-statusbar-fab,
+  .studio-statusbar-fab-icon {
+    transition-duration: 0.01ms;
+  }
+}

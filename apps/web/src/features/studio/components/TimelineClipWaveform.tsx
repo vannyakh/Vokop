@@ -14,6 +14,8 @@ interface TimelineClipWaveformProps {
   width: number;
   height: number;
   trackType: TimelineTrackType;
+  /** Stretch existing waveform bitmap while trimming — avoids async peak rebuild every frame. */
+  stretchOnly?: boolean;
 }
 
 const WAVE_COLORS: Record<string, { fill: string; bg: string }> = {
@@ -36,6 +38,7 @@ export function TimelineClipWaveform({
   width,
   height,
   trackType,
+  stretchOnly = false,
 }: TimelineClipWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
@@ -66,7 +69,18 @@ export function TimelineClipWaveform({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !source || width < 4 || height < 4) {
+    if (!canvas || width < 4 || height < 4) {
+      setReady(false);
+      return;
+    }
+
+    if (stretchOnly) {
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      return;
+    }
+
+    if (!source) {
       setReady(false);
       return;
     }
@@ -105,7 +119,7 @@ export function TimelineClipWaveform({
     return () => {
       cancelled = true;
     };
-  }, [source, width, height, clip.sourceStart, clip.duration, colors]);
+  }, [source, width, height, clip.sourceStart, clip.duration, colors, stretchOnly]);
 
   if (!source) return null;
 

@@ -158,7 +158,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
   const toggleTimelineTrackPreviewHidden = useAppStore((s) => s.toggleTimelineTrackPreviewHidden);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
-  const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
   const addTimelineTrack = useAppStore((s) => s.addTimelineTrack);
   const removeTimelineTrack = useAppStore((s) => s.removeTimelineTrack);
@@ -225,7 +224,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const timelineContentWidth = Math.max(640, timeToPx(displayDuration, pxPerSec) + 80);
   const playheadX = timeToPx(currentTime, pxPerSec);
 
-  const { beginClipDrag, snapIndicator, hoverTrackId } = useTimelineClipDrag(
+  const { beginClipDrag, dragPreview, snapIndicator, hoverTrackId } = useTimelineClipDrag(
     pxPerSec,
     duration,
     tracks,
@@ -826,14 +825,37 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                     aria-hidden
                   />
                 )}
-                {track.clips.map((clip) => {
-                  const left = timeToPx(clip.start, pxPerSec);
-                  const width = Math.max(28, timeToPx(clip.duration, pxPerSec));
+                {(() => {
+                  let laneClips = track.clips;
+                  if (dragPreview) {
+                    const movingOffTrack =
+                      dragPreview.fromTrackId === track.id &&
+                      dragPreview.trackId !== dragPreview.fromTrackId;
+                    if (movingOffTrack) {
+                      laneClips = laneClips.filter((c) => c.id !== dragPreview.clipId);
+                    } else if (
+                      dragPreview.trackId === track.id &&
+                      dragPreview.fromTrackId !== dragPreview.trackId &&
+                      !laneClips.some((c) => c.id === dragPreview.clipId)
+                    ) {
+                      laneClips = [...laneClips, dragPreview.clip];
+                    }
+                  }
+
+                  return laneClips.map((clip) => {
+                  const preview =
+                    dragPreview?.clipId === clip.id ? dragPreview : undefined;
+                  const clipStart = preview?.start ?? clip.start;
+                  const clipDuration = preview?.duration ?? clip.duration;
+                  const clipSourceStart = preview?.sourceStart ?? clip.sourceStart;
+                  const left = timeToPx(clipStart, pxPerSec);
+                  const width = Math.max(28, timeToPx(clipDuration, pxPerSec));
                   const selected = isSelected(track.id, clip.id);
                   // Media + canvas clips are always editable; caption segments need transcript.
                   const canDragClip =
                     Boolean(clip.mediaKind || clip.canvasKind) ||
                     (Boolean(clip.segmentType) && transcriptReady);
+                  const filmstripWidth = preview?.filmstripBaseWidth ?? width;
 
                   const clipThumbs =
                     track.type === 'video' && thumbnails.length > 0 && mediaDuration > 0
@@ -841,23 +863,30 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                           thumbnails,
                           mediaDuration,
                           {
-                            sourceStart: clip.sourceStart,
-                            duration: clip.duration,
+                            sourceStart: clipSourceStart,
+                            duration: clipDuration,
                           },
-                          width,
+                          filmstripWidth,
                         )
                       : undefined;
+
+                  const waveformClip =
+                    preview != null
+                      ? { ...clip, start: clipStart, duration: clipDuration, sourceStart: clipSourceStart }
+                      : clip;
+                  const isInteracting = preview != null;
 
                   return (
                     <TimelineClipBlock
                       key={clip.id}
-                      clip={clip}
+                      clip={waveformClip}
                       track={track}
                       left={left}
                       width={width}
                       height={clipHeight}
                       selected={selected}
                       canDrag={canDragClip}
+                      interacting={isInteracting}
                       muted={
                         muted ||
                         (track.type === 'video' &&
@@ -865,11 +894,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       }
                       filmstripThumbs={clipThumbs}
                       onSelect={(e) => selectClip(track.id as TimelineTrackId, clip.id, e)}
-                      onDelete={
-                        canDragClip
-                          ? () => removeTimelineClip(track.id, clip.id)
-                          : undefined
-                      }
                       onContextMenu={(e) =>
                         openContextMenu(e, {
                           trackId: track.id as TimelineTrackId,
@@ -882,23 +906,26 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                     >
                       {isAudioLikeTimelineTrack(String(track.id)) && width > 8 && (
                         <TimelineClipWaveform
-                          clip={clip}
+                          clip={waveformClip}
                           width={width}
                           height={clipHeight}
                           trackType={track.type}
+                          stretchOnly={isInteracting}
                         />
                       )}
                       {track.type === 'video' && width > 8 && (
                         <TimelineClipWaveform
-                          clip={clip}
+                          clip={waveformClip}
                           width={width}
                           height={Math.max(13, Math.round(clipHeight * 0.42))}
                           trackType={track.type}
+                          stretchOnly={isInteracting}
                         />
                       )}
                     </TimelineClipBlock>
                   );
-                })}
+                });
+                })()}
 
                 {track.type === 'video' && filmstripLoading && (
                   <div className="studio-timeline-filmstrip-loading">

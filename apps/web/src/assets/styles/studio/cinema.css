@@ -185,11 +185,17 @@
   inset: auto;
   max-width: none;
   max-height: none;
-  object-fit: cover;
+  object-fit: contain;
   transform-origin: top left;
   background: transparent;
   pointer-events: none;
   z-index: 2;
+}
+
+.studio-viewport-video-wrap--ratio .studio-video-player--composed,
+.studio-viewport-video-wrap--native .studio-video-player--composed {
+  object-fit: contain;
+  background: transparent;
 }
 
 .studio-video-player--live-transform {

@@ -12,7 +12,31 @@ export function resolveClipBackground(
   compositionBackground: CompositionBackground | undefined,
 ): CompositionBackground {
   const fallback = compositionBackground ?? DEFAULT_COMPOSITION_BACKGROUND;
-  return clip?.background ?? fallback;
+  if (clip?.background && clip.background.mode !== 'none') {
+    return clip.background;
+  }
+  return fallback;
+}
+
+/**
+ * Preview background: project composition settings apply unless the active clip is
+ * selected and has its own background (Background inspector tab).
+ */
+export function resolvePreviewBackground(
+  activeClip: MediaClip | null | undefined,
+  compositionBackground: CompositionBackground | undefined,
+  selectedClipId: string | null | undefined,
+): CompositionBackground {
+  const fallback = compositionBackground ?? DEFAULT_COMPOSITION_BACKGROUND;
+  if (
+    activeClip &&
+    selectedClipId === activeClip.id &&
+    activeClip.background &&
+    activeClip.background.mode !== 'none'
+  ) {
+    return activeClip.background;
+  }
+  return fallback;
 }
 
 /** Resolve the media URL backing the preview `<video>` (supports `<source>` + library clips). */

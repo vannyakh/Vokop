@@ -17,6 +17,7 @@ import { useTimelineDockSplit } from '@/features/studio/hooks/useTimelineDockSpl
 import { useTimelinePlayback } from '@/features/studio/hooks/useTimelinePlayback';
 import { useLinkedVideoAudioPlayback } from '@/features/studio/hooks/useLinkedVideoAudioPlayback';
 import { TemplateSlotBanner } from '@/features/studio/components/TemplateSlotBanner';
+import { StudioProjectStatusBar } from '@/features/studio/components/StudioProjectStatusBar';
 import type { ExportSettings } from '@/features/studio/lib/exportSettings';
 
 export function StudioWorkspace() {
@@ -116,6 +117,8 @@ export function StudioWorkspace() {
           onStartReel={startReel}
         />
       </div>
+
+      <StudioProjectStatusBar />
 
       <CinemaPreviewOverlay videoRef={videoRef} />
 

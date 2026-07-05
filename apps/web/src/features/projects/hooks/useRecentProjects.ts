@@ -5,7 +5,7 @@ import { useAuthStore } from '@/features/auth';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/api/queryKeys';
 
-export function useRecentProjects(options: { trash?: boolean } = {}): {
+export function useRecentProjects(options: { trash?: boolean; enabled?: boolean } = {}): {
   projects: RecentProjectItem[];
   isMock: boolean;
   isLoading: boolean;
@@ -18,10 +18,11 @@ export function useRecentProjects(options: { trash?: boolean } = {}): {
   isMutating: boolean;
 } {
   const trash = Boolean(options.trash);
+  const queryEnabled = options.enabled !== false;
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const accessToken = useAuthStore((s) => s.accessToken);
   const queryClient = useQueryClient();
-  const enabled = isLoggedIn && Boolean(accessToken);
+  const authReady = isLoggedIn && Boolean(accessToken);
 
   const listQuery = useQuery({
     queryKey: trash ? queryKeys.projects.trash() : queryKeys.projects.list(),
@@ -29,7 +30,7 @@ export function useRecentProjects(options: { trash?: boolean } = {}): {
       const { projects } = trash ? await api.listTrashProjects() : await api.listProjects();
       return projects.map(mapProjectToRecentItem);
     },
-    enabled,
+    enabled: queryEnabled && authReady,
     staleTime: 30_000,
   });
 
@@ -39,7 +40,7 @@ export function useRecentProjects(options: { trash?: boolean } = {}): {
       const { projects } = await api.listTrashProjects();
       return projects;
     },
-    enabled: enabled && !trash,
+    enabled: queryEnabled && authReady && !trash,
     staleTime: 30_000,
   });
 

@@ -17,13 +17,28 @@ const SNAP_PX = 8;
 
 interface DragState {
   trackId: TimelineTrackId;
+  fromTrackId: TimelineTrackId;
   clip: TimelineClipModel;
   mode: DragMode;
   startClientX: number;
   startClientY: number;
   origStart: number;
   origDuration: number;
+  origSourceStart: number;
   trackClips: TimelineClipModel[];
+  /** Pixel width at drag start — keeps filmstrip stable while resizing. */
+  filmstripBaseWidth: number;
+}
+
+export interface TimelineClipDragPreview {
+  clipId: string;
+  clip: TimelineClipModel;
+  fromTrackId: TimelineTrackId;
+  trackId: TimelineTrackId;
+  start: number;
+  duration: number;
+  sourceStart?: number;
+  filmstripBaseWidth: number;
 }
 
 export interface TimelineDragSnap {
@@ -39,12 +54,31 @@ export function useTimelineClipDrag(
   tracksContainerRef: React.RefObject<HTMLDivElement | null>,
 ) {
   const dragRef = useRef<DragState | null>(null);
+  const pendingPreviewRef = useRef<TimelineClipDragPreview | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const [dragPreview, setDragPreview] = useState<TimelineClipDragPreview | null>(null);
   const [snapIndicator, setSnapIndicator] = useState<TimelineDragSnap | null>(null);
   const [hoverTrackId, setHoverTrackId] = useState<string | null>(null);
 
   const updateSegmentTime = useAppStore((s) => s.updateSegmentTime);
   const updateSegmentDuration = useAppStore((s) => s.updateSegmentDuration);
   const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
+  const resolveTimelineClipOverlap = useAppStore((s) => s.resolveTimelineClipOverlap);
+
+  const flushPreview = useCallback(() => {
+    rafRef.current = null;
+    const next = pendingPreviewRef.current;
+    if (next) setDragPreview(next);
+  }, []);
+
+  const schedulePreview = useCallback(
+    (preview: TimelineClipDragPreview) => {
+      pendingPreviewRef.current = preview;
+      if (rafRef.current != null) return;
+      rafRef.current = requestAnimationFrame(flushPreview);
+    },
+    [flushPreview],
+  );
 
   const resolveTrackAtY = useCallback(
     (clientY: number): TimelineTrackModel | null => {
@@ -107,152 +141,141 @@ export function useTimelineClipDrag(
     [pxPerSec],
   );
 
-  const applyCanvasTiming = useCallback(
-    (clip: TimelineClipModel, start: number, clipDuration: number) => {
-      studioEdit.updateCanvasTiming(
-        clip.id,
-        { startTime: start, endTime: start + clipDuration },
-        { history: false },
-      );
-    },
-    [],
-  );
+  const commitPreview = useCallback(
+    (preview: TimelineClipDragPreview, mode: DragMode) => {
+      const { clip, fromTrackId, trackId, start, duration: clipDuration, sourceStart } = preview;
 
-  const applyMediaTiming = useCallback(
-    (
-      clip: TimelineClipModel,
-      start: number,
-      clipDuration: number,
-      mode: DragMode,
-      origStart: number,
-    ) => {
-      const baseSource = clip.sourceStart ?? 0;
-      const sourceStart =
-        mode === 'left' ? Math.max(0, baseSource + (start - origStart)) : baseSource;
-      studioEdit.updateMediaClip(
-        clip.id,
-        { start, duration: clipDuration, sourceStart },
-        { history: false },
-      );
-    },
-    [],
-  );
-
-  const applyClipPatch = useCallback(
-    (
-      trackId: TimelineTrackId,
-      clip: TimelineClipModel,
-      patch: { start?: number; duration?: number },
-      mode: DragMode,
-      origStart: number,
-    ) => {
       if (clip.mediaKind) {
-        applyMediaTiming(
-          clip,
-          patch.start ?? clip.start,
-          patch.duration ?? clip.duration,
-          mode,
-          origStart,
+        studioEdit.updateMediaClip(
+          clip.id,
+          {
+            start,
+            duration: clipDuration,
+            sourceStart: sourceStart ?? clip.sourceStart ?? 0,
+          },
+          { history: false },
         );
-        return;
-      }
-      if (clip.canvasKind) {
-        applyCanvasTiming(clip, patch.start ?? clip.start, patch.duration ?? clip.duration);
-        return;
-      }
-      if (!clip.segmentType || clip.segmentIndex === undefined) return;
-
-      if (patch.duration !== undefined && patch.start === undefined) {
-        updateSegmentDuration(clip.segmentIndex, patch.duration, clip.segmentType);
-        return;
-      }
-      if (patch.start !== undefined) {
-        updateSegmentTime(clip.segmentIndex, patch.start, clip.segmentType);
-        if (patch.duration !== undefined) {
-          updateSegmentDuration(clip.segmentIndex, patch.duration, clip.segmentType);
+      } else if (clip.canvasKind) {
+        studioEdit.updateCanvasTiming(
+          clip.id,
+          { startTime: start, endTime: start + clipDuration },
+          { history: false },
+        );
+      } else if (clip.segmentType && clip.segmentIndex !== undefined) {
+        if (mode === 'right') {
+          updateSegmentDuration(clip.segmentIndex, clipDuration, clip.segmentType);
+        } else {
+          updateSegmentTime(clip.segmentIndex, start, clip.segmentType);
+          if (mode === 'left') {
+            updateSegmentDuration(clip.segmentIndex, clipDuration, clip.segmentType);
+          }
         }
       }
+
+      if (String(fromTrackId) !== String(trackId)) {
+        moveTimelineClipToTrack(clip.id, String(fromTrackId), String(trackId));
+      }
+
+      if (mode === 'move' && (clip.canvasKind || clip.mediaKind)) {
+        resolveTimelineClipOverlap(clip.id, String(trackId));
+      }
     },
-    [updateSegmentTime, updateSegmentDuration, applyCanvasTiming, applyMediaTiming],
+    [
+      moveTimelineClipToTrack,
+      updateSegmentTime,
+      updateSegmentDuration,
+      resolveTimelineClipOverlap,
+    ],
   );
 
   const onDragMove = useCallback(
     (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
-      // Fall back so drag still works before media duration is probed.
-      const timelineDuration = duration > 0 ? duration : Math.max(d.origStart + d.origDuration + 60, 60);
+      const timelineDuration =
+        duration > 0 ? duration : Math.max(d.origStart + d.origDuration + 60, 60);
 
       const deltaSec = (e.clientX - d.startClientX) / pxPerSec;
+      let trackId = d.trackId;
+      let start = d.origStart;
+      let clipDuration = d.origDuration;
+      let sourceStart = d.origSourceStart;
+      let snapX: number | null = null;
 
-      // Cross-track move for canvas-backed clips
-      if (d.mode === 'move' && (d.clip.canvasKind || d.clip.mediaKind === 'audio' || d.clip.mediaKind === 'video')) {
+      if (
+        d.mode === 'move' &&
+        (d.clip.canvasKind || d.clip.mediaKind === 'audio' || d.clip.mediaKind === 'video')
+      ) {
         const over = resolveTrackAtY(e.clientY);
-        if (over && String(over.id) !== String(d.trackId)) {
-          if (clipCanMoveToTrack(d.clip, String(over.id), over.type)) {
-            moveTimelineClipToTrack(d.clip.id, String(d.trackId), String(over.id));
-            d.trackId = over.id as TimelineTrackId;
-            d.trackClips = over.clips;
-            setHoverTrackId(String(over.id));
-            useAppStore.getState().selectTimelineClip(
-              { trackId: over.id as TimelineTrackId, clipId: d.clip.id },
-              { mode: 'replace', syncCanvas: true },
-            );
-          } else {
-            setHoverTrackId(null);
-          }
+        if (over && clipCanMoveToTrack(d.clip, String(over.id), over.type)) {
+          trackId = over.id as TimelineTrackId;
+          setHoverTrackId(String(over.id));
         } else {
           setHoverTrackId(over ? String(over.id) : null);
         }
       }
 
       if (d.mode === 'move') {
-        const { start: snapped, snapX } = computeSnap(
+        const snapped = computeSnap(
           d.origStart + deltaSec,
           d.origDuration,
           d.trackClips,
           d.clip.id,
           timelineDuration,
         );
-        const { start, duration: clipDur } = clampClip(
-          snapped,
-          d.origDuration,
-          timelineDuration,
-        );
-        applyClipPatch(d.trackId, d.clip, { start, duration: clipDur }, d.mode, d.origStart);
-        setSnapIndicator(snapX != null ? { snapX, trackId: d.trackId } : null);
+        snapX = snapped.snapX;
+        const clamped = clampClip(snapped.start, d.origDuration, timelineDuration);
+        start = clamped.start;
+        clipDuration = clamped.duration;
+        setSnapIndicator(snapX != null ? { snapX, trackId } : null);
       } else if (d.mode === 'right') {
-        const clipDur = Math.max(
+        clipDuration = Math.max(
           0.4,
           Math.min(timelineDuration - d.origStart, d.origDuration + deltaSec),
         );
-        applyClipPatch(d.trackId, d.clip, { duration: clipDur }, d.mode, d.origStart);
         setSnapIndicator(null);
       } else if (d.mode === 'left') {
         const end = d.origStart + d.origDuration;
         const rawStart = d.origStart + deltaSec;
-        const start = Math.max(0, Math.min(end - 0.4, rawStart));
-        applyClipPatch(d.trackId, d.clip, { start, duration: end - start }, d.mode, d.origStart);
+        start = Math.max(0, Math.min(end - 0.4, rawStart));
+        clipDuration = end - start;
+        sourceStart = Math.max(0, d.origSourceStart + (start - d.origStart));
         setSnapIndicator(null);
       }
+
+      d.trackId = trackId;
+      schedulePreview({
+        clipId: d.clip.id,
+        clip: d.clip,
+        fromTrackId: d.fromTrackId,
+        trackId,
+        start,
+        duration: clipDuration,
+        sourceStart,
+        filmstripBaseWidth: d.filmstripBaseWidth,
+      });
     },
-    [
-      pxPerSec,
-      duration,
-      applyClipPatch,
-      computeSnap,
-      resolveTrackAtY,
-      moveTimelineClipToTrack,
-    ],
+    [pxPerSec, duration, computeSnap, resolveTrackAtY, schedulePreview],
   );
 
   const onDragEnd = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    const d = dragRef.current;
+    const preview = pendingPreviewRef.current;
+    if (d && preview) {
+      commitPreview(preview, d.mode);
+    }
     dragRef.current = null;
+    pendingPreviewRef.current = null;
+    setDragPreview(null);
     setSnapIndicator(null);
     setHoverTrackId(null);
     window.removeEventListener('pointermove', onDragMove);
     window.removeEventListener('pointerup', onDragEnd);
-  }, [onDragMove]);
+  }, [commitPreview, onDragMove]);
 
   const beginClipDrag = useCallback(
     (
@@ -271,22 +294,26 @@ export function useTimelineClipDrag(
         { mode: 'replace', syncCanvas: true },
       );
 
+      const filmstripBaseWidth = Math.max(28, timeToPx(clip.duration, pxPerSec));
       dragRef.current = {
         trackId,
+        fromTrackId: trackId,
         clip,
         mode,
         startClientX: e.clientX,
         startClientY: e.clientY,
         origStart: clip.start,
         origDuration: clip.duration,
+        origSourceStart: clip.sourceStart ?? 0,
         trackClips,
+        filmstripBaseWidth,
       };
 
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', onDragEnd);
     },
-    [onDragMove, onDragEnd],
+    [onDragMove, onDragEnd, pxPerSec],
   );
 
-  return { beginClipDrag, snapIndicator, hoverTrackId };
+  return { beginClipDrag, dragPreview, snapIndicator, hoverTrackId };
 }

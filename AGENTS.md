@@ -16,6 +16,7 @@ pnpm db:up && pnpm dev
 | `monorepo-services.mdc` | `services/`, `packages/` |
 | `ai-content.mdc` | `services/ai-content/`, AI API schemas — LLM registry, 302.AI, studio AI features |
 | `studio-frontend.mdc` | `apps/web/` |
+| `ui-performance.mdc` | `apps/web/`, `packages/ui/` — 60fps drag/resize, store batching, memo |
 | `button-interactions.mdc` | Button hover/cursor standards |
 
 ## Project skill

@@ -61,3 +61,4 @@ import { api } from '@/lib/api';
 - Import shadcn/Radix-style primitives from `@vokop/ui/shadcn` when needed for custom product UI.
 - Keep one-off visual customization in the owning feature/component. Promote it to `packages/ui` only when it is reusable across apps.
 - Button hover: color/opacity only — no transform scale/translate (see `button-interactions` rule).
+- Drag/resize/scrub: local preview + rAF batching + commit on release (see `ui-performance` rule). Reference: `useTimelineClipDrag`.

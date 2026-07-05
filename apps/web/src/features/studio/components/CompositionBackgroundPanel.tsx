@@ -46,7 +46,14 @@ export function CompositionBackgroundPanel({
     onChange(
       mergeCompositionBackground(background, {
         mode,
-        ...(mode === 'color' ? { color: background.color ?? '#000000' } : {}),
+        ...(mode === 'color'
+          ? {
+              color:
+                background.mode === 'color' && background.color
+                  ? background.color
+                  : BACKGROUND_COLOR_PRESETS[4] ?? '#533483',
+            }
+          : {}),
         ...(mode === 'blur' ? { blurLevel: background.blurLevel ?? 2 } : {}),
         ...(mode === 'image'
           ? {
@@ -58,7 +65,10 @@ export function CompositionBackgroundPanel({
     );
   };
 
-  const activeMode = background.mode === 'none' ? 'color' : background.mode;
+  const activeMode =
+    background.mode === 'none' || background.mode === 'color'
+      ? 'color'
+      : background.mode;
 
   return (
     <InspectorSection

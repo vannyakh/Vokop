@@ -54,10 +54,12 @@ import {
   trackTypeFromId,
 } from '@/features/studio/lib/timelineTrackUtils';
 import {
+  canvasTrackIdFromResolved,
   clipTrackId,
-  hasCanvasTrackOverlap,
-  hasMediaTrackOverlap,
+  extraTrackTypeForPlacement,
   insertTrackBelowOrder,
+  pickTimelineTrackForPlacement,
+  type TimelinePlacementInput,
 } from '@/features/studio/lib/timelineTrackPlacement';
 import {
   buildTimelineSelection,
@@ -518,14 +520,9 @@ interface AppState {
   setTimelineZoom: (zoom: number) => void;
   toggleTimelineTrackMuted: (trackId: TimelineTrackId) => void;
   toggleTimelineTrackPreviewHidden: (trackId: TimelineTrackId) => void;
-  resolveTimelineDropTrack: (input: {
-    trackId: string;
-    trackType: TimelineTrackType;
-    atTime: number;
-    duration: number;
-    mediaKind?: 'video' | 'audio' | 'image';
-    excludeClipId?: string;
-  }) => string;
+  resolveTimelineDropTrack: (input: TimelinePlacementInput) => string;
+  /** After moving/resizing a clip, move it to a free track when it overlaps on the current one. */
+  resolveTimelineClipOverlap: (clipId: string, trackId: string) => void;
   /** Replace selection with one clip (or clear). Keeps primary + multi in sync. */
   selectTimelineClip: (
     clip: TimelineSelectionItem | null,
@@ -1477,48 +1474,112 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
     })),
   resolveTimelineDropTrack: (input) => {
-    const state = get();
+    const maxAttempts = 24;
     let trackId = input.trackId;
-    const { atTime, duration, trackType, mediaKind, excludeClipId } = input;
 
-    if (mediaKind === 'video' || trackType === 'video') {
-      if (!isVideoTimelineTrack(trackId)) trackId = 'video';
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const state = get();
+      const pick = pickTimelineTrackForPlacement(state, { ...input, trackId });
+      trackId = pick.trackId;
+
       if (isCoreTimelineTrack(trackId)) get().ensureTimelineTrackVisible(trackId);
-      if (hasMediaTrackOverlap(state.videoClips, trackId, atTime, duration, 'video', excludeClipId)) {
-        return get().addTimelineTrack('video', { insertAfter: trackId });
-      }
-      return trackId;
-    }
 
-    if (mediaKind === 'audio' || trackType === 'audio' || trackType === 'sound') {
-      const audioTrack = isAudioLikeTimelineTrack(trackId) ? trackId : trackType === 'sound' ? 'sound' : 'audio';
-      if (isCoreTimelineTrack(audioTrack)) get().ensureTimelineTrackVisible(audioTrack);
-      if (hasMediaTrackOverlap(state.audioClips, audioTrack, atTime, duration, 'audio', excludeClipId)) {
-        return get().addTimelineTrack(trackType === 'sound' ? 'sound' : 'audio', { insertAfter: audioTrack });
-      }
-      return audioTrack;
-    }
+      if (!pick.needsNewTrack) return trackId;
 
-    if (trackType === 'text' || isTextTimelineTrack(trackId)) {
-      const resolved = isTextTimelineTrack(trackId) ? trackId : 'text';
-      if (isCoreTimelineTrack(resolved)) get().ensureTimelineTrackVisible(resolved);
-      if (hasCanvasTrackOverlap(state.canvasElements, resolved, atTime, atTime + duration, excludeClipId)) {
-        return get().addTimelineTrack('text', { insertAfter: resolved });
-      }
-      return resolved;
-    }
-
-    if (isVisualTimelineTrack(trackId) || trackType === 'image' || trackType === 'sticker') {
-      const resolved =
-        isVisualTimelineTrack(trackId) ? trackId : trackType === 'sticker' ? 'sticker' : 'image';
-      if (isCoreTimelineTrack(resolved)) get().ensureTimelineTrackVisible(resolved);
-      if (hasCanvasTrackOverlap(state.canvasElements, resolved, atTime, atTime + duration, excludeClipId)) {
-        return get().addTimelineTrack(trackType === 'sticker' ? 'sticker' : 'image', { insertAfter: resolved });
-      }
-      return resolved;
+      trackId = get().addTimelineTrack(extraTrackTypeForPlacement(input), {
+        insertAfter: pick.insertAfter,
+      });
     }
 
     return trackId;
+  },
+
+  resolveTimelineClipOverlap: (clipId, trackId) => {
+    const state = get();
+
+    const element = state.canvasElements.find((el) => el.id === clipId);
+    if (element) {
+      const duration = Math.max(0.4, element.endTime - element.startTime);
+      const trackType = trackTypeFromId(trackId, element.type === 'text' ? 'text' : 'image');
+      const resolvedTrackId = get().resolveTimelineDropTrack({
+        trackId,
+        trackType,
+        atTime: element.startTime,
+        duration,
+        excludeClipId: clipId,
+      });
+      const storedTrackId = canvasTrackIdFromResolved(resolvedTrackId);
+      const currentStored =
+        element.trackId ?? (isTextTimelineTrack(trackId) ? undefined : trackId);
+      if (storedTrackId === currentStored && resolvedTrackId === trackId) return;
+
+      const item: TimelineSelectionItem = {
+        trackId: resolvedTrackId as TimelineTrackId,
+        clipId,
+      };
+      set({
+        ...pushHistory(state),
+        canvasElements: state.canvasElements.map((el) =>
+          el.id === clipId ? { ...el, trackId: storedTrackId } : el,
+        ),
+        ...buildTimelineSelection([item], item),
+      });
+      return;
+    }
+
+    const videoClip = state.videoClips.find((c) => c.id === clipId);
+    if (videoClip) {
+      const resolvedTrackId = get().resolveTimelineDropTrack({
+        trackId,
+        trackType: 'video',
+        atTime: videoClip.start,
+        duration: videoClip.duration,
+        mediaKind: 'video',
+        excludeClipId: clipId,
+      });
+      if ((videoClip.trackId ?? 'video') === resolvedTrackId) return;
+
+      const videoClips = state.videoClips.map((c) =>
+        c.id === clipId ? { ...c, trackId: resolvedTrackId } : c,
+      );
+      const item: TimelineSelectionItem = {
+        trackId: resolvedTrackId as TimelineTrackId,
+        clipId,
+      };
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, { videoClips }),
+        ...buildTimelineSelection([item], item),
+      });
+      return;
+    }
+
+    const audioClip = state.audioClips.find((c) => c.id === clipId);
+    if (audioClip) {
+      const trackType = trackTypeFromId(trackId, 'audio');
+      const resolvedTrackId = get().resolveTimelineDropTrack({
+        trackId,
+        trackType,
+        atTime: audioClip.start,
+        duration: audioClip.duration,
+        mediaKind: 'audio',
+        excludeClipId: clipId,
+      });
+      if ((audioClip.trackId ?? 'audio') === resolvedTrackId) return;
+
+      const audioClips = state.audioClips.map((c) =>
+        c.id === clipId ? { ...c, trackId: resolvedTrackId } : c,
+      );
+      const item: TimelineSelectionItem = {
+        trackId: resolvedTrackId as TimelineTrackId,
+        clipId,
+      };
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, { audioClips }),
+        ...buildTimelineSelection([item], item),
+      });
+    }
   },
   selectTimelineClip: (clip, options = {}) => {
     const { mode = 'replace', syncCanvas = true, openInspector = false } = options;
@@ -2001,21 +2062,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           isVisualTimelineTrack(toTrackId));
       if (!canMove) return;
       const duration = Math.max(0.4, element.endTime - element.startTime);
-      let resolvedTrackId = get().resolveTimelineDropTrack({
+      const resolvedTrackId = get().resolveTimelineDropTrack({
         trackId: toTrackId,
         trackType: toType,
         atTime: element.startTime,
         duration,
         excludeClipId: clipId,
       });
-      const nextTrackId =
-        resolvedTrackId === 'text' || resolvedTrackId === 'image' || resolvedTrackId === 'sticker'
-          ? resolvedTrackId === 'text'
-            ? element.type === 'text'
-              ? undefined
-              : resolvedTrackId
-            : resolvedTrackId
-          : resolvedTrackId;
+      const nextTrackId = canvasTrackIdFromResolved(resolvedTrackId);
       const item: TimelineSelectionItem = {
         trackId: resolvedTrackId as TimelineTrackId,
         clipId,
@@ -2033,19 +2087,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Media clips: video can move between video tracks; audio between audio/sound tracks.
     const videoClip = state.videoClips.find((c) => c.id === clipId);
     if (videoClip && toType === 'video') {
-      let targetId = toTrackId;
-      if (
-        hasMediaTrackOverlap(
-          state.videoClips,
-          targetId,
-          videoClip.start,
-          videoClip.duration,
-          'video',
-          clipId,
-        )
-      ) {
-        targetId = get().addTimelineTrack('video', { insertAfter: targetId });
-      }
+      const targetId = get().resolveTimelineDropTrack({
+        trackId: toTrackId,
+        trackType: 'video',
+        atTime: videoClip.start,
+        duration: videoClip.duration,
+        mediaKind: 'video',
+        excludeClipId: clipId,
+      });
       const videoClips = state.videoClips.map((c) =>
         c.id === clipId ? { ...c, trackId: targetId } : c,
       );
@@ -2068,21 +2117,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     ) {
       const audioClip = state.audioClips.find((c) => c.id === clipId);
       if (!audioClip) return;
-      let targetId = toTrackId;
-      if (
-        hasMediaTrackOverlap(
-          state.audioClips,
-          targetId,
-          audioClip.start,
-          audioClip.duration,
-          'audio',
-          clipId,
-        )
-      ) {
-        targetId = get().addTimelineTrack(toType === 'sound' ? 'sound' : 'audio', {
-          insertAfter: targetId,
-        });
-      }
+      const targetId = get().resolveTimelineDropTrack({
+        trackId: toTrackId,
+        trackType: toType,
+        atTime: audioClip.start,
+        duration: audioClip.duration,
+        mediaKind: 'audio',
+        excludeClipId: clipId,
+      });
       const audioClips = state.audioClips.map((c) =>
         c.id === clipId ? { ...c, trackId: targetId } : c,
       );
@@ -2264,17 +2306,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     const newId = `${element.type}-${Date.now()}`;
     // Small nudge (as a fraction of the frame) so the duplicate doesn't sit exactly on top.
     const NUDGE_FRACTION = 0.03;
+    const sourceTrackId =
+      element.trackId ?? (element.type === 'text' ? 'text' : 'image');
+    const duration = Math.max(0.4, element.endTime - element.startTime);
+    const resolvedTrackId = get().resolveTimelineDropTrack({
+      trackId: sourceTrackId,
+      trackType: trackTypeFromId(sourceTrackId, element.type === 'text' ? 'text' : 'image'),
+      atTime: element.startTime,
+      duration,
+    });
     const dup: CanvasElement = {
       ...element,
       id: newId,
       x: element.x + NUDGE_FRACTION,
       y: element.y + NUDGE_FRACTION,
+      trackId: canvasTrackIdFromResolved(resolvedTrackId),
+    };
+    const item: TimelineSelectionItem = {
+      trackId: resolvedTrackId as TimelineTrackId,
+      clipId: newId,
     };
     set({
       ...pushHistory(state),
       canvasElements: [...state.canvasElements, dup],
       selectedCanvasElementId: newId,
       canvasTool: 'select',
+      ...buildTimelineSelection([item], item),
     });
   },
 
@@ -2368,8 +2425,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const time = Math.max(0, options?.startTime ?? state.currentTime);
     const duration = state.duration || 3600;
-    const clipDuration = template.duration ?? 4;
-    const endTime = Math.min(duration, time + clipDuration);
+    const templateDuration = template.duration ?? 4;
+    const endTime = Math.min(duration, time + templateDuration);
     const canvasSize = {
       width: options?.canvasWidth ?? estimateCanvasSize(state.videoWidth, state.videoHeight).width,
       height: options?.canvasHeight ?? estimateCanvasSize(state.videoWidth, state.videoHeight).height,
@@ -2387,12 +2444,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const x = options?.x ?? placement.x;
     const y = options?.y ?? placement.y;
-    const trackId =
+    const rawTrackId =
       options?.trackId &&
       (options.trackId === 'text' || String(options.trackId).startsWith('text-'))
         ? options.trackId
         : 'text';
-    get().ensureTimelineTrackVisible(trackId === 'text' ? 'text' : trackId);
+    const placementDuration = Math.max(0.4, endTime - time);
+    const resolvedTrackId = get().resolveTimelineDropTrack({
+      trackId: rawTrackId,
+      trackType: 'text',
+      atTime: time,
+      duration: placementDuration,
+    });
+    get().ensureTimelineTrackVisible(resolvedTrackId === 'text' ? 'text' : resolvedTrackId);
 
     // x/y/width/height/fontSize above are px relative to canvasSize — convert to
     // fractions of it, since composition fields are stored as fractions.
@@ -2413,11 +2477,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       opacity: 1,
       startTime: time,
       endTime: Math.max(time + 0.4, endTime),
-      trackId: trackId === 'text' ? undefined : trackId,
+      trackId: canvasTrackIdFromResolved(resolvedTrackId),
     };
 
     const item: TimelineSelectionItem = {
-      trackId: trackId as TimelineTrackId,
+      trackId: resolvedTrackId as TimelineTrackId,
       clipId: id,
     };
     set({

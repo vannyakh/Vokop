@@ -1,0 +1,63 @@
+---
+description: Browser UI performance — 60fps interactions, low CPU, smooth studio editing
+globs: apps/web/**/*.{ts,tsx,css},packages/ui/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# UI performance (browser / frame rate)
+
+Target **60fps** for drag, resize, scroll, and playhead scrubbing. Prefer smooth preview over eager persistence.
+
+## Hot paths (pointermove / scroll / rAF)
+
+- **Do not** write to Zustand / React state on every `pointermove`.
+- Use **local preview state** (or refs) during interaction; **commit once** on `pointerup`.
+- Batch visual updates with **`requestAnimationFrame`** (one setState per frame max).
+- Record undo history **on drag start**, not every move frame.
+
+```typescript
+// ❌ BAD — full store + timeline rebuild every pixel
+onPointerMove(() => updateMediaClip(id, patch, { history: false }));
+
+// ✅ GOOD — preview while dragging, commit on release
+schedulePreview({ start, duration }); // rAF-batched
+onPointerUp(() => commitPreview(preview));
+```
+
+## State subscriptions
+
+- Select **narrow** store slices: `useAppStore((s) => s.videoClips)` not whole store.
+- Derive heavy lists with **`useMemo`** (`buildTimelineTracks`, sorted clips).
+- Avoid changing unrelated store fields in hot updaters (`withTimelineDuration`, history push).
+
+## Lists & clip rows
+
+- Wrap repeated rows in **`React.memo`** (timeline clips, track headers, asset tiles).
+- Pass **stable** props; avoid inline `{}` / `[]` / lambdas when they force child re-renders.
+- During interaction, only the **active row** should change `left` / `width` / `transform`.
+
+## Expensive visuals (studio)
+
+| Asset | During drag/trim | On commit |
+|-------|------------------|-----------|
+| Waveform canvas | `stretchOnly` — resize CSS, no peak rebuild | Full `getAudioPeaks` + draw |
+| Filmstrip thumbs | Fixed slot count from drag-start width + `overflow: hidden` | Re-sample for final width |
+| Konva canvas | Update node attrs locally; throttle store sync | Persist on drag end |
+
+- Never start **async decode/analysis** (audio peaks, filmstrip, probe) inside a move loop.
+- Cache peaks/thumbnails; reuse buffers across frames.
+
+## CSS & compositing
+
+- During drag, add a transient class (e.g. `--interacting`) with `will-change: left, width` and `contain: layout style`.
+- Prefer **`transform` / `opacity`** for animations; avoid animating `width`, `top`, `left` on large subtrees when transform works.
+- Buttons: no hover/active **transform** (see `button-interactions` rule).
+
+## When adding editor interactions
+
+1. Preview locally → commit once.
+2. Identify subscribers that would re-render (timeline, canvas, inspector).
+3. Memo or isolate the moving piece.
+4. Defer heavy work until interaction ends.
+
+Reference implementation: `useTimelineClipDrag` + `TimelineClipWaveform.stretchOnly`.

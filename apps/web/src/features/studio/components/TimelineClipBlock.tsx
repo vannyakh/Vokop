@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { X, GripHorizontal, VolumeX } from 'lucide-react';
+import { memo, useMemo } from 'react';
+import { GripHorizontal, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { TimelineClipModel, TimelineTrackModel } from '@/features/studio/lib/timelineTypes';
 
@@ -14,13 +14,14 @@ interface TimelineClipBlockProps {
   thumbWidth?: number;
   children?: React.ReactNode;
   onSelect: (e?: React.MouseEvent) => void;
-  onDelete?: () => void;
   onDragStart: (e: React.PointerEvent, mode: 'move' | 'left' | 'right') => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   /** Split/drag unlocks after transcript is ready. */
   canDrag?: boolean;
   /** Track-level mute — shown as an icon on the waveform strip, footage stays at full brightness. */
   muted?: boolean;
+  /** Live drag/resize preview — skips expensive child redraw churn. */
+  interacting?: boolean;
 }
 
 /** Determine the CapCut-style variant for coloring */
@@ -37,7 +38,7 @@ function getClipVariant(
   return trackType;
 }
 
-export function TimelineClipBlock({
+export const TimelineClipBlock = memo(function TimelineClipBlock({
   clip,
   track,
   left,
@@ -48,11 +49,11 @@ export function TimelineClipBlock({
   thumbWidth,
   children,
   onSelect,
-  onDelete,
   onDragStart,
   onContextMenu,
   canDrag = true,
   muted = false,
+  interacting = false,
 }: TimelineClipBlockProps) {
   const isEditableTrack =
     track.type === 'text' ||
@@ -91,6 +92,7 @@ export function TimelineClipBlock({
         selected && 'is-selected',
         isFootage && 'studio-timeline-clip-block--footage',
         canEdit && 'studio-timeline-clip-block--editable',
+        interacting && 'studio-timeline-clip-block--interacting',
       )}
       style={{ left, width, height }}
       onPointerDown={handlePointerDown}
@@ -169,22 +171,6 @@ export function TimelineClipBlock({
         </div>
       )}
 
-      {/* Delete button */}
-      {selected && canEdit && onDelete && (
-        <button
-          type="button"
-          className="studio-timeline-clip-delete"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          aria-label="Delete clip"
-        >
-          <X size={9} />
-        </button>
-      )}
-
       {/* Drag grip indicator for selected editable clips */}
       {selected && canEdit && width > 48 && (
         <div className="studio-timeline-clip-grip" aria-hidden>
@@ -214,4 +200,4 @@ export function TimelineClipBlock({
       )}
     </div>
   );
-}
+});

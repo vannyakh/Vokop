@@ -17,7 +17,7 @@ import { CompositionBackgroundLayer } from '@/features/studio/components/Composi
 import {
   getVideoContentRect,
 } from '@/features/studio/lib/canvasCoords';
-import { isBackgroundActive, resolveClipBackground } from '@/features/studio/lib/compositionBackground';
+import { isBackgroundActive, resolvePreviewBackground } from '@/features/studio/lib/compositionBackground';
 import { DEFAULT_COMPOSITION_BACKGROUND } from '@vokop/shared';
 import { findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
 import { resolveVideoClipLayout, type VideoClipLayout } from '@/features/studio/lib/videoClipLayout';
@@ -133,13 +133,19 @@ export function VideoPreviewFrame({
     [liveVideoLayout, activeVideoClip, contentRect, currentTime],
   );
   const effectiveBackground = useMemo(
-    () => resolveClipBackground(activeVideoClip, compositionBackground),
-    [activeVideoClip, compositionBackground],
+    () =>
+      resolvePreviewBackground(
+        activeVideoClip,
+        compositionBackground,
+        selectedTimelineClip?.clipId,
+      ),
+    [activeVideoClip, compositionBackground, selectedTimelineClip?.clipId],
   );
-  const showBackground =
-    contentRect.width > 0 &&
-    isBackgroundActive(effectiveBackground) &&
-    (effectiveBackground.mode !== 'blur' || hasActiveVideoClip);
+  const showBackground = frameSize.width > 0 && isBackgroundActive(effectiveBackground);
+  const wrapBackgroundStyle =
+    effectiveBackground.mode === 'color' && isBackgroundActive(effectiveBackground)
+      ? { backgroundColor: effectiveBackground.color ?? '#000000' }
+      : undefined;
 
   useEffect(() => {
     setLiveVideoLayout(null);
@@ -188,7 +194,7 @@ export function VideoPreviewFrame({
         dropActive && 'studio-viewport-video-wrap--drop-target',
       )}
       ref={wrapRef}
-      style={frameRatioStyle}
+      style={{ ...frameRatioStyle, ...wrapBackgroundStyle }}
     >
         {isEmptyCanvas && !dropActive && (
           <div className="studio-canvas-empty" aria-hidden>
@@ -197,7 +203,7 @@ export function VideoPreviewFrame({
           </div>
         )}
 
-        {showBackground && (
+        {showBackground && effectiveBackground.mode !== 'color' && (
           <CompositionBackgroundLayer
             contentRect={contentRect}
             background={effectiveBackground}
