@@ -22,6 +22,7 @@ function editorStateSignature(input: {
   timelineTrackHidden: string[];
   timelineTrackOrder: string[];
   extraTimelineTracks: ExtraTimelineTrack[];
+  compositionSpace: 'legacy-px' | 'fraction-v2';
 }): string {
   return JSON.stringify({
     title: input.projectName,
@@ -41,6 +42,7 @@ function editorStateSignature(input: {
     ),
     transcript: input.transcript,
     translatedText: input.translatedText,
+    compositionSpace: input.compositionSpace,
   });
 }
 
@@ -66,6 +68,7 @@ export function useStudioProject(projectId: string | undefined) {
   const timelineTrackHidden = useAppStore((s) => s.timelineTrackHidden);
   const timelineTrackOrder = useAppStore((s) => s.timelineTrackOrder);
   const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
+  const compositionSpace = useAppStore((s) => s.compositionSpace);
   const hydrateMediaLibrary = useAppStore((s) => s.hydrateMediaLibrary);
 
   const skipNextSaveRef = useRef(false);
@@ -113,6 +116,7 @@ export function useStudioProject(projectId: string | undefined) {
               timelineTrackHidden: editorState.timelineTrackHidden,
               timelineTrackOrder: editorState.timelineTrackOrder,
               extraTimelineTracks: editorState.extraTimelineTracks as ExtraTimelineTrack[] | undefined,
+              compositionSpace: editorState.compositionSpace as 'legacy-px' | 'fraction-v2' | undefined,
             }
           : undefined,
       });
@@ -133,6 +137,8 @@ export function useStudioProject(projectId: string | undefined) {
         timelineTrackHidden: editorState?.timelineTrackHidden ?? [],
         timelineTrackOrder: editorState?.timelineTrackOrder ?? [],
         extraTimelineTracks: (editorState?.extraTimelineTracks as ExtraTimelineTrack[] | undefined) ?? [],
+        compositionSpace:
+          (editorState?.compositionSpace as 'legacy-px' | 'fraction-v2' | undefined) ?? 'legacy-px',
       });
       return;
     }
@@ -158,6 +164,7 @@ export function useStudioProject(projectId: string | undefined) {
         timelineTrackHidden: string[];
         timelineTrackOrder: string[];
         extraTimelineTracks: ExtraTimelineTrack[];
+        compositionSpace: 'legacy-px' | 'fraction-v2';
       };
     }) => api.updateProject(projectId!, input),
     onSuccess: (response) => {
@@ -190,6 +197,7 @@ export function useStudioProject(projectId: string | undefined) {
       timelineTrackHidden,
       timelineTrackOrder,
       extraTimelineTracks,
+      compositionSpace,
     });
     if (sig === lastSavedSigRef.current) return;
 
@@ -216,6 +224,7 @@ export function useStudioProject(projectId: string | undefined) {
           timelineTrackHidden,
           timelineTrackOrder,
           extraTimelineTracks,
+          compositionSpace,
         },
       });
     }, SAVE_DEBOUNCE_MS);
@@ -227,6 +236,7 @@ export function useStudioProject(projectId: string | undefined) {
     aspectRatio,
     audioClips,
     canvasElements,
+    compositionSpace,
     duration,
     extraTimelineTracks,
     mediaAssets,

@@ -2,6 +2,7 @@ import type { RefObject } from 'react';
 import { Sparkles, Play, Pause, Volume2, Film } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 import { parseTimeToSeconds } from '@/lib/utils/time';
 
 interface AnalysisPanelProps {
@@ -11,6 +12,7 @@ interface AnalysisPanelProps {
 }
 
 export function AnalysisPanel({ onPlayAnalysis, onStartReel }: AnalysisPanelProps) {
+  const { t } = useTranslation();
   const videoAnalysis = useAppStore((s) => s.videoAnalysis);
   const analysisAudio = useAppStore((s) => s.analysisAudio);
   const isPlayingAnalysis = useAppStore((s) => s.isPlayingAnalysis);
@@ -23,9 +25,9 @@ export function AnalysisPanel({ onPlayAnalysis, onStartReel }: AnalysisPanelProp
         <div className="studio-empty-icon">
           <Sparkles size={22} />
         </div>
-        <p className="studio-empty-title">No analysis yet</p>
+        <p className="studio-empty-title">{t('emptyAnalysisTitle')}</p>
         <p className="studio-empty-desc">
-          Process your video to get AI summaries and highlight reels.
+          {t('emptyAnalysisDesc')}
         </p>
       </div>
     );
@@ -38,7 +40,7 @@ export function AnalysisPanel({ onPlayAnalysis, onStartReel }: AnalysisPanelProp
           <div className="flex items-center gap-2">
             <Sparkles size={12} className="text-accent" />
             <span className="text-[10px] font-bold text-accent uppercase tracking-widest">
-              AI Summary
+              {t('aiSummary')}
             </span>
           </div>
           {analysisAudio && (
@@ -64,7 +66,7 @@ export function AnalysisPanel({ onPlayAnalysis, onStartReel }: AnalysisPanelProp
           <div className="flex items-center gap-2">
             <Film size={12} className="text-faint" />
             <span className="text-[10px] font-bold text-faint uppercase tracking-widest">
-              Highlights
+              {t('highlights')}
             </span>
           </div>
           <button
@@ -74,7 +76,7 @@ export function AnalysisPanel({ onPlayAnalysis, onStartReel }: AnalysisPanelProp
             className="text-[10px] font-bold text-accent hover:text-accent transition-colors uppercase tracking-widest flex items-center gap-1.5 disabled:opacity-40"
           >
             <Play size={10} fill="currentColor" />
-            Play All
+            {t('playAll')}
           </button>
         </div>
 

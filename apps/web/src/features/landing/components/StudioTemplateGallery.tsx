@@ -9,16 +9,13 @@ import {
 } from '@vokop/shared';
 import { useAppStore } from '@/features/project';
 import { useAuthStore } from '@/features/auth';
+import { useTranslation } from '@/features/settings';
 import { api, queryClient, queryKeys } from '@/lib/api';
 import { ROUTES } from '@/routes/paths';
+import defaultTemplateThumb from '@/assets/filter-preview.webp';
 
 interface StudioTemplateGalleryProps {
   onRequestLogin?: () => void;
-}
-
-function aspectLabel(ratio: StudioTemplate['aspectRatio']) {
-  if (ratio === 'original') return 'Original';
-  return ratio;
 }
 
 function TemplateCard({
@@ -30,6 +27,7 @@ function TemplateCard({
   disabled: boolean;
   onUse: (templateId: string) => void;
 }) {
+  const { t } = useTranslation();
   const portrait = template.aspectRatio === '9:16' || template.aspectRatio === '3:4';
 
   return (
@@ -44,9 +42,16 @@ function TemplateCard({
           'studio-template-card-preview',
           portrait && 'studio-template-card-preview--portrait',
         )}
+        style={{
+          backgroundImage: `url(${(template as any).thumbnailUrl || defaultTemplateThumb})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
         aria-hidden
       >
-        <span className="studio-template-card-ratio">{aspectLabel(template.aspectRatio)}</span>
+        <span className="studio-template-card-ratio">
+          {template.aspectRatio === 'original' ? t('templatesRatioOriginal') : template.aspectRatio}
+        </span>
         <span className="studio-template-card-duration">{template.durationSec}s</span>
       </div>
       <div className="studio-template-card-body">
@@ -59,6 +64,7 @@ function TemplateCard({
 
 export function StudioTemplateGallery({ onRequestLogin }: StudioTemplateGalleryProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const resetProject = useAppStore((s) => s.resetProject);
   const hydrateProject = useAppStore((s) => s.hydrateProject);
@@ -120,10 +126,10 @@ export function StudioTemplateGallery({ onRequestLogin }: StudioTemplateGalleryP
     <section className="landing-section landing-templates-section">
       <div className="landing-section-head-row">
         <div>
-          <span className="landing-section-eyebrow">Start faster</span>
-          <h2 className="landing-section-title font-display">Templates</h2>
+          <span className="landing-section-eyebrow">{t('templatesEyebrow')}</span>
+          <h2 className="landing-section-title font-display">{t('templatesTitle')}</h2>
           <p className="landing-section-desc">
-            Pick a layout, then drop in your footage. Text and timing are ready to edit.
+            {t('templatesDesc')}
           </p>
         </div>
       </div>
@@ -136,7 +142,7 @@ export function StudioTemplateGallery({ onRequestLogin }: StudioTemplateGalleryP
           className={cn('studio-template-filter', activeCategory === 'all' && 'is-active')}
           onClick={() => setActiveCategory('all')}
         >
-          All
+          {t('templatesFilterAll')}
         </button>
         {STUDIO_TEMPLATE_CATEGORIES.map((cat) => (
           <button
@@ -168,7 +174,7 @@ export function StudioTemplateGallery({ onRequestLogin }: StudioTemplateGalleryP
       {creatingId && (
         <div className="studio-template-loading" aria-live="polite">
           <Loader2 className="animate-spin" size={16} />
-          <span>Creating project…</span>
+          <span>{t('templatesCreating')}</span>
         </div>
       )}
     </section>

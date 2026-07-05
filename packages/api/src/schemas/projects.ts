@@ -3,6 +3,21 @@ import { z } from 'zod';
 export const projectStatusSchema = z.enum(['done', 'processing', 'failed']);
 export const projectAspectRatioSchema = z.enum(['original', '16:9', '4:3', '2:1', '9:16', '1:1', '3:4']);
 
+export const eqBandSchema = z.object({
+  id: z.string(),
+  type: z.enum(['highpass', 'lowshelf', 'peaking', 'highshelf', 'lowpass']),
+  freq: z.number().positive(),
+  gainDb: z.number(),
+  q: z.number().positive(),
+  enabled: z.boolean(),
+});
+
+export const clipEqSchema = z.object({
+  enabled: z.boolean(),
+  preset: z.string(),
+  bands: z.array(eqBandSchema),
+});
+
 export const mediaClipSchema = z.object({
   id: z.string(),
   start: z.number(),
@@ -15,6 +30,9 @@ export const mediaClipSchema = z.object({
   pan: z.number().min(-1).max(1).optional(),
   fadeInSec: z.number().nonnegative().optional(),
   fadeOutSec: z.number().nonnegative().optional(),
+  videoFadeInSec: z.number().nonnegative().optional(),
+  videoFadeOutSec: z.number().nonnegative().optional(),
+  eq: clipEqSchema.optional(),
   muted: z.boolean().optional(),
   linkedVideoClipId: z.string().optional(),
 });
@@ -84,6 +102,12 @@ export const projectEditorStateSchema = z.object({
   timelineTrackHidden: z.array(z.string()).optional(),
   timelineTrackOrder: z.array(z.string()).optional(),
   extraTimelineTracks: z.array(extraTimelineTrackSchema).optional(),
+  /**
+   * Composition coordinate space for videoClips/canvasElements x/y/width/height/fontSize.
+   * 'legacy-px' (or missing) = live on-screen pixels (old projects, needs one-time migration).
+   * 'fraction-v2' = fraction (0..1) of the video content rect (current format).
+   */
+  compositionSpace: z.enum(['legacy-px', 'fraction-v2']).optional(),
 });
 
 export const projectSchema = z.object({

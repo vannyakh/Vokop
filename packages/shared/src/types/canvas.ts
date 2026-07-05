@@ -36,7 +36,9 @@ export type CanvasKeyframeEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-
 export interface CanvasKeyframe {
   id: string;
   offset: number;
+  /** Absolute position, same units as `CanvasElement.x` (fraction of content rect). */
   x?: number;
+  /** Absolute position, same units as `CanvasElement.y` (fraction of content rect). */
   y?: number;
   opacity?: number;
   rotation?: number;
@@ -48,10 +50,15 @@ export interface CanvasElement {
   id: string;
   type: CanvasElementType;
   text: string;
+  /** Fraction (0..1) of the video content rect width; can exceed 1 for oversized elements. */
   x: number;
+  /** Fraction (0..1) of the video content rect height. */
   y: number;
+  /** Fraction (0..1) of the video content rect width. */
   width: number;
+  /** Fraction (0..1) of the video content rect height. */
   height: number;
+  /** Fraction (0..1) of the video content rect height. */
   fontSize: number;
   rotation: number;
   opacity: number;

@@ -4,6 +4,7 @@ import { Label, Slider } from '@vokop/ui';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
 import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
+import { frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 import { getTextEffectSeed } from '@vokop/shared';
 import {
   Type,
@@ -177,6 +178,8 @@ export function CanvasElementPanel() {
   const replaceCanvasElementImage = useAppStore((s) => s.replaceCanvasElementImage);
   const duplicateCanvasElement = useAppStore((s) => s.duplicateCanvasElement);
   const status = useAppStore((s) => s.status);
+  const videoWidth = useAppStore((s) => s.videoWidth);
+  const videoHeight = useAppStore((s) => s.videoHeight);
   const { retranslateActiveSegment } = useVideoProcessing();
   const replaceInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,10 +197,19 @@ export function CanvasElementPanel() {
   }
 
   const isImage = element.type === 'logo' || element.type === 'image';
-  const canvasW = Math.max(720, Math.round(element.x + element.width + 80));
+  // element.x/y/width/height/fontSize are fractions of the content rect; convert
+  // to a stable "nominal px" number (relative to the project's video resolution)
+  // for display/editing in this panel.
+  const refSize = frameReferenceSize(videoWidth, videoHeight);
+  const xPx = element.x * refSize.width;
+  const yPx = element.y * refSize.height;
+  const widthPx = element.width * refSize.width;
+  const heightPx = element.height * refSize.height;
+  const fontSizePx = element.fontSize * refSize.height;
+  const canvasW = Math.max(720, Math.round(xPx + widthPx + 80));
   const canvasH = Math.max(
     480,
-    Math.round(element.y + (isImage ? element.height : element.fontSize * 1.6) + 80),
+    Math.round(yPx + (isImage ? heightPx : fontSizePx * 1.6) + 80),
   );
 
   const style = element.textStyle ?? {};
@@ -210,14 +222,14 @@ export function CanvasElementPanel() {
       updateCanvasElement(element.id, {
         rotation: 0,
         opacity: element.type === 'logo' ? 1 : 0.85,
-        width: element.type === 'logo' ? 120 : 200,
-        height: element.type === 'logo' ? 48 : 120,
+        width: (element.type === 'logo' ? 120 : 200) / refSize.width,
+        height: (element.type === 'logo' ? 48 : 120) / refSize.height,
       });
       return;
     }
     updateCanvasElement(element.id, {
       rotation: 0,
-      fontSize: element.type === 'text' ? 22 : 18,
+      fontSize: (element.type === 'text' ? 22 : 18) / refSize.height,
       fontFamily: undefined,
       textEffect: undefined,
       textStyle: {},
@@ -310,18 +322,20 @@ export function CanvasElementPanel() {
           id="canvas-typography"
           title="Typography"
           icon={<Bold size={12} />}
-          summary={`${element.fontSize}px · ${element.fontFamily ?? 'Default'}`}
+          summary={`${Math.round(fontSizePx)}px · ${element.fontFamily ?? 'Default'}`}
           defaultOpen
         >
           <Slider
             label="Font size"
-            valueLabel={`${element.fontSize}px`}
+            valueLabel={`${Math.round(fontSizePx)}px`}
             min={12}
             max={96}
             step={1}
-            value={element.fontSize}
+            value={fontSizePx}
             onChange={(e) =>
-              updateCanvasElement(element.id, { fontSize: parseInt(e.target.value, 10) })
+              updateCanvasElement(element.id, {
+                fontSize: parseInt(e.target.value, 10) / refSize.height,
+              })
             }
           />
           <div className="space-y-1.5">
@@ -418,29 +432,29 @@ export function CanvasElementPanel() {
         id="canvas-transform"
         title="Transform"
         icon={<RotateCcw size={12} />}
-        summary={`${Math.round(element.x)}, ${Math.round(element.y)}`}
+        summary={`${Math.round(xPx)}, ${Math.round(yPx)}`}
         defaultOpen={false}
       >
         <Slider
           label="Position X"
-          valueLabel={`${Math.round(element.x)}px`}
+          valueLabel={`${Math.round(xPx)}px`}
           min={0}
           max={Math.max(100, canvasW)}
           step={1}
-          value={element.x}
+          value={xPx}
           onChange={(e) =>
-            updateCanvasElement(element.id, { x: parseInt(e.target.value, 10) })
+            updateCanvasElement(element.id, { x: parseInt(e.target.value, 10) / refSize.width })
           }
         />
         <Slider
           label="Position Y"
-          valueLabel={`${Math.round(element.y)}px`}
+          valueLabel={`${Math.round(yPx)}px`}
           min={0}
           max={Math.max(100, canvasH)}
           step={1}
-          value={element.y}
+          value={yPx}
           onChange={(e) =>
-            updateCanvasElement(element.id, { y: parseInt(e.target.value, 10) })
+            updateCanvasElement(element.id, { y: parseInt(e.target.value, 10) / refSize.height })
           }
         />
         {!isImage && (
@@ -458,17 +472,17 @@ export function CanvasElementPanel() {
         )}
         <div className="grid grid-cols-2 gap-2 text-xs font-mono text-muted">
           <div className="studio-canvas-meta-chip">
-            <span className="text-faint">X</span> {Math.round(element.x)}
+            <span className="text-faint">X</span> {Math.round(xPx)}
           </div>
           <div className="studio-canvas-meta-chip">
-            <span className="text-faint">Y</span> {Math.round(element.y)}
+            <span className="text-faint">Y</span> {Math.round(yPx)}
           </div>
           <div className="studio-canvas-meta-chip">
-            <span className="text-faint">W</span> {Math.round(element.width)}
+            <span className="text-faint">W</span> {Math.round(widthPx)}
           </div>
           <div className="studio-canvas-meta-chip">
             <span className="text-faint">{isImage ? 'H' : '°'}</span>{' '}
-            {isImage ? Math.round(element.height) : Math.round(element.rotation)}
+            {isImage ? Math.round(heightPx) : Math.round(element.rotation)}
           </div>
         </div>
       </InspectorSection>

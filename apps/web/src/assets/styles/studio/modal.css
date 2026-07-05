@@ -1,0 +1,105 @@
+/* Studio modals — shared export-style shell (near-black, flat head, no blur) */
+.studio-modal {
+  --studio-modal-bg: #0a0a0a;
+  --studio-modal-panel: #141414;
+  --studio-modal-border: rgba(255, 255, 255, 0.08);
+  --studio-modal-border-strong: rgba(255, 255, 255, 0.14);
+  --studio-modal-text: #f2f2f2;
+  --studio-modal-text-muted: #9a9a9a;
+  --studio-modal-text-faint: #6a6a6a;
+  --studio-modal-active: rgba(255, 255, 255, 0.1);
+  --studio-modal-input-bg: #101010;
+  --studio-modal-accent: #e8a33d;
+  --studio-modal-accent-hover: #f0b24f;
+  --studio-modal-accent-ink: #14100a;
+  --vokop-modal-bg: var(--studio-modal-bg);
+  --vokop-modal-panel: var(--studio-modal-panel);
+  --vokop-modal-border: var(--studio-modal-border);
+  --vokop-modal-border-strong: var(--studio-modal-border-strong);
+  --vokop-modal-text: var(--studio-modal-text);
+  --vokop-modal-text-muted: var(--studio-modal-text-muted);
+  --vokop-modal-text-faint: var(--studio-modal-text-faint);
+  --vokop-modal-active: var(--studio-modal-active);
+  --vokop-modal-radius: 0.75rem;
+  --vokop-modal-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 28px 72px rgba(0, 0, 0, 0.78);
+  --shm-bg: var(--studio-modal-bg);
+  --shm-panel: var(--studio-modal-panel);
+  --shm-border: var(--studio-modal-border);
+  --shm-border-strong: var(--studio-modal-border-strong);
+  --shm-text: var(--studio-modal-text);
+  --shm-text-muted: var(--studio-modal-text-muted);
+  --shm-text-faint: var(--studio-modal-text-faint);
+  --shm-active: var(--studio-modal-active);
+}
+
+.studio-modal .vokop-modal-mask,
+.studio-modal .ant-modal-mask,
+.studio-modal .ant-modal-mask-blur {
+  background: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.studio-modal .vokop-modal-container,
+.studio-modal .ant-modal-container {
+  background-color: var(--studio-modal-bg) !important;
+  background: var(--studio-modal-bg) !important;
+}
+
+.studio-modal .vokop-modal-header,
+.studio-modal .ant-modal-header {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  border: none !important;
+}
+
+.studio-modal .vokop-modal-body,
+.studio-modal .ant-modal-body {
+  background-color: var(--studio-modal-bg) !important;
+  background: var(--studio-modal-bg) !important;
+}
+
+.studio-modal .vokop-modal-footer,
+.studio-modal .ant-modal-footer {
+  display: none !important;
+}
+
+.studio-modal .vokop-modal-close,
+.studio-modal .ant-modal-close {
+  top: 0.85rem !important;
+  inset-inline-end: 0.85rem !important;
+  color: var(--studio-modal-text-muted) !important;
+}
+
+.studio-modal .vokop-modal-close:hover,
+.studio-modal .ant-modal-close:hover {
+  background: var(--studio-modal-active) !important;
+  color: var(--studio-modal-text) !important;
+}
+
+.studio-modal-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  padding-right: 1.75rem;
+}
+
+.studio-modal-head__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--studio-modal-text);
+  line-height: 1.3;
+}
+
+.studio-modal-head__subtitle {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--studio-modal-text-faint);
+  line-height: 1.45;
+}

@@ -338,7 +338,7 @@ export function UploadDropzone() {
                   size="xl"
                   className="vokop-launch-btn--orange"
                   icon={<Music size={18} />}
-                  onClick={() => alert("AI Music Generation: Coming Soon!")}
+                  onClick={() => alert(t('musicComingSoonAlert'))}
                 >
                   {t('musicGenerate') || 'Music Generate'}
                 </LaunchButton>
@@ -382,7 +382,7 @@ export function UploadDropzone() {
 
               {selectedTool && (
                 <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent-soft border border-accent/40 text-accent text-xs font-semibold shadow-sm backdrop-blur-md">
-                  <span>✨ {t(selectedTool.titleKey)} mode active</span>
+                  <span>✨ {t('toolModeActive', { tool: t(selectedTool.titleKey) })}</span>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -409,7 +409,7 @@ export function UploadDropzone() {
                   <p className="font-display text-2xl sm:text-3xl font-medium tracking-tight" style={{ color: 'var(--text)' }}>
                     {heroMode === 'video' ? (
                       selectedTool ? (
-                        t('dropHereForTool').replace('{{tool}}', t(selectedTool.titleKey))
+                        t('dropHereForTool', { tool: t(selectedTool.titleKey) })
                       ) : (
                         t('dropHere')
                       )

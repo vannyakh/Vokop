@@ -1,3 +1,5 @@
+import type { ClipEq } from '@/features/studio/lib/clipEq';
+
 export type TimelineTrackId =
   | 'video'
   | 'text'
@@ -81,13 +83,13 @@ export interface MediaClip {
   duration: number;
   sourceStart: number;
   name: string;
-  /** Composition X in preview-frame pixels (defaults to video content rect). */
+  /** Composition X as a fraction (0..1) of the video content rect (defaults to filling it). */
   x?: number;
-  /** Composition Y in preview-frame pixels. */
+  /** Composition Y as a fraction (0..1) of the video content rect. */
   y?: number;
-  /** Composition width in preview-frame pixels. */
+  /** Composition width as a fraction (0..1) of the video content rect (can exceed 1). */
   width?: number;
-  /** Composition height in preview-frame pixels. */
+  /** Composition height as a fraction (0..1) of the video content rect (can exceed 1). */
   height?: number;
   /** Rotation in degrees. */
   rotation?: number;
@@ -105,8 +107,22 @@ export interface MediaClip {
   fadeInSec?: number;
   /** Fade-out duration in seconds. */
   fadeOutSec?: number;
+  /** Video opacity fade-in duration in seconds (fade from transparent). */
+  videoFadeInSec?: number;
+  /** Video opacity fade-out duration in seconds (fade to transparent). */
+  videoFadeOutSec?: number;
+  /** Parametric equalizer settings for this clip's audio. */
+  eq?: ClipEq;
   /** Mute embedded audio on this video clip (after detach). */
   muted?: boolean;
+  /** Voice changer filter: original, echo, high, low, etc. */
+  voiceFilter?: string;
+  /** Pitch 0-100 (default 50) */
+  voicePitch?: number;
+  /** Timbre 0-100 (default 50) */
+  voiceTimbre?: number;
+  /** Speed multiplier (default 1) */
+  speed?: number;
   /**
    * Audio clip plays from the main video media (extract / detach).
    * Points at the source video clip id when created.
@@ -162,8 +178,8 @@ export const DEFAULT_HIDDEN_CORE_TRACKS: string[] = [
 ];
 
 /** Track header column width (room for label + menu). */
-export const TRACK_HEADER_WIDTH = 188;
-export const TIMELINE_RULER_HEIGHT = 26;
+export const TRACK_HEADER_WIDTH = 220;
+export const TIMELINE_RULER_HEIGHT = 34;
 export const TIMELINE_BASE_PX_PER_SEC = 80;
 export const TIMELINE_MIN_CLIP_SEC = 0.4;
 

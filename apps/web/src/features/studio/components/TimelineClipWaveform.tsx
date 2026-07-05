@@ -18,12 +18,16 @@ interface TimelineClipWaveformProps {
 
 const WAVE_COLORS: Record<string, { fill: string; bg: string }> = {
   audio: {
-    fill: 'rgba(84, 214, 201, 0.85)',
-    bg: 'rgba(8, 18, 16, 0.55)',
+    fill: 'rgba(45, 230, 212, 0.96)',   // CapCut-style bright teal
+    bg:   'rgba(0, 0, 0, 0.0)',
   },
   sound: {
-    fill: 'rgba(110, 231, 183, 0.88)',
-    bg: 'rgba(6, 20, 14, 0.5)',
+    fill: 'rgba(72, 240, 170, 0.96)',   // bright mint green
+    bg:   'rgba(0, 0, 0, 0.0)',
+  },
+  video: {
+    fill: 'rgba(255, 255, 255, 0.92)',  // embedded footage audio, dark-strip style
+    bg:   'rgba(0, 0, 0, 0.0)',
   },
 };
 
@@ -58,7 +62,7 @@ export function TimelineClipWaveform({
     [clip, videoUrl, audioBase64, mediaAssets, videoClips, audioClips, mediaDuration, duration],
   );
 
-  const colors = WAVE_COLORS[trackType === 'sound' ? 'sound' : 'audio'];
+  const colors = WAVE_COLORS[trackType === 'sound' ? 'sound' : trackType === 'video' ? 'video' : 'audio'];
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,7 +73,9 @@ export function TimelineClipWaveform({
 
     let cancelled = false;
     const dpr = window.devicePixelRatio || 1;
-    const barCount = Math.max(8, Math.min(512, Math.floor(width * dpr * 0.5)));
+    // 1 bar per 2 physical pixels = maximum DAW signal density
+    const canvasPx = Math.floor(width * dpr);
+    const barCount = Math.max(32, Math.floor(canvasPx / 2));
 
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);

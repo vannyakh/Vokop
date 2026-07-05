@@ -44,6 +44,24 @@ const clipBase = {
   duration: z.number().positive(),
 };
 
+/** Parametric EQ band — mirrors the studio clip inspector's equalizer model. */
+export const EqBandSchema = z.object({
+  id: z.string(),
+  type: z.enum(["highpass", "lowshelf", "peaking", "highshelf", "lowpass"]),
+  freq: z.number().positive(),
+  gainDb: z.number(),
+  q: z.number().positive(),
+  enabled: z.boolean(),
+});
+export type EqBand = z.infer<typeof EqBandSchema>;
+
+export const ClipEqSchema = z.object({
+  enabled: z.boolean(),
+  preset: z.string().optional(),
+  bands: z.array(EqBandSchema).default([]),
+});
+export type ClipEq = z.infer<typeof ClipEqSchema>;
+
 export const VideoClipSchema = z.object({
   ...clipBase,
   assetId: z.string().min(1),
@@ -56,6 +74,11 @@ export const VideoClipSchema = z.object({
   muted: z.boolean().default(false),
   /** volume of the clip's own audio track, if the asset has one */
   volume: z.number().min(0).max(4).default(1),
+  /** visual opacity fade-in/out (fade to/from transparent), seconds */
+  fadeInSec: z.number().min(0).default(0),
+  fadeOutSec: z.number().min(0).default(0),
+  /** equalizer applied to this clip's own audio track, if any */
+  eq: ClipEqSchema.optional(),
 });
 export type VideoClip = z.infer<typeof VideoClipSchema>;
 
@@ -67,6 +90,7 @@ export const AudioClipSchema = z.object({
   volume: z.number().min(0).max(4).default(1),
   fadeInSec: z.number().min(0).default(0),
   fadeOutSec: z.number().min(0).default(0),
+  eq: ClipEqSchema.optional(),
 });
 export type AudioClip = z.infer<typeof AudioClipSchema>;
 

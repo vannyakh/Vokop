@@ -132,10 +132,10 @@ export function OnlineToolsSection({ onSelectTool }: OnlineToolsSectionProps) {
   });
 
   const FILTERS = [
-    { id: 'all', label: 'All Tools' },
-    { id: 'trending', label: 'Trending' },
-    { id: 'video', label: 'Video Tools' },
-    { id: 'audio', label: 'Audio Tools' },
+    { id: 'all', labelKey: 'toolsFilterAll' },
+    { id: 'trending', labelKey: 'toolsFilterTrending' },
+    { id: 'video', labelKey: 'toolsFilterVideo' },
+    { id: 'audio', labelKey: 'toolsFilterAudio' },
   ] as const;
 
   return (
@@ -144,7 +144,7 @@ export function OnlineToolsSection({ onSelectTool }: OnlineToolsSectionProps) {
         <div>
           <span className="landing-section-eyebrow flex items-center gap-1.5">
             <Sparkles size={12} className="text-accent" />
-            AI magic
+            {t('toolsSectionEyebrow')}
           </span>
           <h2 className="landing-section-title font-display">{t('toolsSectionTitle')}</h2>
           <p className="landing-section-desc max-w-2xl">
@@ -166,7 +166,7 @@ export function OnlineToolsSection({ onSelectTool }: OnlineToolsSectionProps) {
             )}
             onClick={() => setActiveFilter(filter.id)}
           >
-            {filter.label}
+            {t(filter.labelKey)}
           </button>
         ))}
       </div>

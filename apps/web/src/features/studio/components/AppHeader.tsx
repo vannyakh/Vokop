@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   ClipboardPaste,
@@ -21,14 +21,21 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import { useProjectNavigation } from '@/features/project/hooks/useProjectNavigation';
+import { useTranslation } from '@/features/settings';
 import { ASSET_IMAGES, ASSET_ICONS } from '@/assets/support';
 import { StudioHeaderCenter } from '@/features/studio/components/StudioHeaderCenter';
 import { StudioExportButton } from '@/features/studio/components/StudioExportButton';
+import { StudioHeaderIconAction } from '@/features/studio/components/StudioHeaderIconAction';
+import {
+  StudioHeaderModals,
+  type StudioHeaderModalId,
+} from '@/features/studio/components/StudioHeaderModals';
 import {
   StudioMenubar,
   type StudioMenuDefinition,
   type StudioMenuItem,
 } from '@/features/studio/components/StudioMenubar';
+import { Tooltip } from '@vokop/ui/antd';
 
 interface AppHeaderProps {
   onExport: () => void;
@@ -46,12 +53,21 @@ function menuIcon(node: ReactNode) {
 }
 
 export function AppHeader({ onExport }: AppHeaderProps) {
+  const { t } = useTranslation();
   const status = useAppStore((s) => s.status);
   const errorMessage = useAppStore((s) => s.errorMessage);
   const projectStatus = useAppStore((s) => s.projectStatus);
   const projectProgress = useAppStore((s) => s.projectProgress);
-  const translatedText = useAppStore((s) => s.translatedText);
+  const videoUrl = useAppStore((s) => s.videoUrl);
+  const projectId = useAppStore((s) => s.projectId);
   const isExporting = useAppStore((s) => s.isExporting);
+  const editorOpen = useAppStore((s) => s.editorOpen);
+  const setEditorOpen = useAppStore((s) => s.setEditorOpen);
+  const activeTab = useAppStore((s) => s.activeTab);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  // Export works on the raw timeline too — only require a loaded project, not a translation.
+  const canExport = Boolean(videoUrl || projectId) && !isExporting;
+  const [headerModal, setHeaderModal] = useState<StudioHeaderModalId | null>(null);
   const canvasTool = useAppStore((s) => s.canvasTool);
   const setCanvasTool = useAppStore((s) => s.setCanvasTool);
   const undoCanvas = useAppStore((s) => s.undoCanvas);
@@ -59,6 +75,17 @@ export function AppHeader({ onExport }: AppHeaderProps) {
   const canUndoCanvas = useAppStore((s) => s.projectUndoStack.length > 0);
   const canRedoCanvas = useAppStore((s) => s.projectRedoStack.length > 0);
   const { closeProject } = useProjectNavigation();
+
+  const toggleInspectorPanel = () => {
+    if (editorOpen && activeTab === 'inspector') {
+      setEditorOpen(false);
+      return;
+    }
+    setActiveTab('inspector');
+    setEditorOpen(true);
+  };
+
+  const inspectorActive = editorOpen && activeTab === 'inspector';
 
   const menus = useMemo<StudioMenuDefinition[]>(
     () => [
@@ -78,14 +105,14 @@ export function AppHeader({ onExport }: AppHeaderProps) {
         items: [
           {
             id: 'about',
-            label: 'About Vokop Studio',
+            label: t('menuAbout' as any),
             icon: menuIcon(<Info size={13} />),
             soon: true,
           },
           { id: 'app-sep-1', label: '', separator: true },
           {
             id: 'settings',
-            label: 'Settings…',
+            label: t('menuSettings' as any),
             icon: menuIcon(<Settings size={13} />),
             shortcut: '⌘,',
             soon: true,
@@ -93,7 +120,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           { id: 'app-sep-2', label: '', separator: true },
           {
             id: 'close-app',
-            label: 'Close project',
+            label: t('menuCloseProject' as any),
             icon: menuIcon(<FolderOpen size={13} />),
             shortcut: '⌘W',
             danger: true,
@@ -103,18 +130,18 @@ export function AppHeader({ onExport }: AppHeaderProps) {
       },
       {
         id: 'file',
-        label: 'File',
+        label: t('menuFile' as any),
         items: [
           {
             id: 'new',
-            label: 'New project',
+            label: t('menuNewProject' as any),
             icon: menuIcon(<FilePlus2 size={13} />),
             shortcut: '⌘N',
             soon: true,
           },
           {
             id: 'open',
-            label: 'Open…',
+            label: t('menuOpen' as any),
             icon: menuIcon(<FolderOpen size={13} />),
             shortcut: '⌘O',
             soon: true,
@@ -122,16 +149,16 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           { id: 'file-sep-1', label: '', separator: true },
           {
             id: 'export',
-            label: 'Export',
+            label: t('menuExport' as any),
             icon: menuIcon(<Download size={13} />),
             shortcut: '⌘E',
-            disabled: !translatedText || isExporting,
+            disabled: !canExport,
             onSelect: onExport,
           },
           { id: 'file-sep-2', label: '', separator: true },
           {
             id: 'close',
-            label: 'Close project',
+            label: t('menuCloseProject' as any),
             icon: menuIcon(<FolderOpen size={13} />),
             shortcut: '⌘W',
             danger: true,
@@ -141,11 +168,11 @@ export function AppHeader({ onExport }: AppHeaderProps) {
       },
       {
         id: 'edit',
-        label: 'Edit',
+        label: t('menuEdit' as any),
         items: [
           {
             id: 'undo',
-            label: 'Undo',
+            label: t('menuUndo' as any),
             icon: menuIcon(<Undo2 size={13} />),
             shortcut: '⌘Z',
             disabled: !canUndoCanvas,
@@ -153,7 +180,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           },
           {
             id: 'redo',
-            label: 'Redo',
+            label: t('menuRedo' as any),
             icon: menuIcon(<Redo2 size={13} />),
             shortcut: '⇧⌘Z',
             disabled: !canRedoCanvas,
@@ -162,21 +189,21 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           { id: 'edit-sep-1', label: '', separator: true },
           {
             id: 'cut',
-            label: 'Cut',
+            label: t('menuCut' as any),
             icon: menuIcon(<Scissors size={13} />),
             shortcut: '⌘X',
             soon: true,
           },
           {
             id: 'copy',
-            label: 'Copy',
+            label: t('menuCopy' as any),
             icon: menuIcon(<Copy size={13} />),
             shortcut: '⌘C',
             soon: true,
           },
           {
             id: 'paste',
-            label: 'Paste',
+            label: t('menuPaste' as any),
             icon: menuIcon(<ClipboardPaste size={13} />),
             shortcut: '⌘V',
             soon: true,
@@ -185,18 +212,18 @@ export function AppHeader({ onExport }: AppHeaderProps) {
       },
       {
         id: 'view',
-        label: 'View',
+        label: t('menuView' as any),
         items: [
           {
             id: 'select',
-            label: 'Select tool',
+            label: t('menuSelectTool' as any),
             icon: menuIcon(<MousePointer2 size={13} />),
             disabled: canvasTool === 'select',
             onSelect: () => setCanvasTool('select'),
           },
           {
             id: 'pan',
-            label: 'Pan tool',
+            label: t('menuPanTool' as any),
             icon: menuIcon(<Hand size={13} />),
             disabled: canvasTool === 'pan',
             onSelect: () => setCanvasTool('pan'),
@@ -204,12 +231,12 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           { id: 'view-sep-1', label: '', separator: true },
           {
             id: 'timeline',
-            label: 'Show timeline',
+            label: t('menuShowTimeline' as any),
             soon: true,
           },
           {
             id: 'fullscreen',
-            label: 'Enter full screen',
+            label: t('menuFullscreen' as any),
             shortcut: '⌃⌘F',
             soon: true,
           },
@@ -217,49 +244,49 @@ export function AppHeader({ onExport }: AppHeaderProps) {
       },
       {
         id: 'window',
-        label: 'Window',
+        label: t('menuWindow' as any),
         items: [
           {
             id: 'minimize',
-            label: 'Minimize',
+            label: t('menuMinimize' as any),
             shortcut: '⌘M',
             soon: true,
           },
           {
             id: 'zoom',
-            label: 'Zoom',
+            label: t('menuZoom' as any),
             soon: true,
           },
         ] satisfies StudioMenuItem[],
       },
       {
         id: 'help',
-        label: 'Help',
+        label: t('menuHelp' as any),
         items: [
           {
             id: 'docs',
-            label: 'Vokop Help',
+            label: t('menuVokopHelp' as any),
             icon: menuIcon(<HelpCircle size={13} />),
             soon: true,
           },
           {
             id: 'shortcuts',
-            label: 'Keyboard shortcuts',
+            label: t('menuShortcuts' as any),
             soon: true,
           },
         ] satisfies StudioMenuItem[],
       },
     ],
     [
+      canExport,
       canRedoCanvas,
       canUndoCanvas,
       canvasTool,
       closeProject,
-      isExporting,
       onExport,
       redoCanvas,
       setCanvasTool,
-      translatedText,
+      t,
       undoCanvas,
     ],
   );
@@ -301,55 +328,68 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           </div>
         ) : null}
 
-        <div className="studio-header-icon-group" role="toolbar" aria-label="Studio tools">
-          <button
-            type="button"
-            className="studio-header-icon-btn"
-            title="Download for desktop"
-            aria-label="Download for desktop"
+        <div className="studio-header-icon-group" role="toolbar" aria-label={t('headerToolbarLabel' as any)}>
+          <StudioHeaderIconAction
+            tooltip={t('headerTooltipDesktop' as any)}
+            label={t('headerTooltipDesktop' as any)}
+            onClick={() => setHeaderModal('desktop')}
           >
             <MonitorDown size={16} />
-          </button>
-          <button
-            type="button"
-            className="studio-header-icon-btn"
-            title="Workspace"
-            aria-label="Workspace"
+          </StudioHeaderIconAction>
+          <StudioHeaderIconAction
+            tooltip={t('headerTooltipWorkspace' as any)}
+            label={t('headerTooltipWorkspace' as any)}
+            onClick={() => setHeaderModal('workspace')}
           >
             <LayoutDashboard size={16} />
-          </button>
-          <button
-            type="button"
-            className="studio-header-icon-btn"
-            title="Help"
-            aria-label="Help"
+          </StudioHeaderIconAction>
+          <StudioHeaderIconAction
+            tooltip={t('headerTooltipHelp' as any)}
+            label={t('headerTooltipHelp' as any)}
+            onClick={() => setHeaderModal('help')}
           >
             <HelpCircle size={16} />
-          </button>
-          <button
-            type="button"
-            className="studio-header-icon-btn"
-            title="Properties panel"
-            aria-label="Properties panel"
+          </StudioHeaderIconAction>
+          <StudioHeaderIconAction
+            tooltip={t('headerTooltipProperties' as any)}
+            label={t('headerTooltipProperties' as any)}
+            active={inspectorActive}
+            onClick={toggleInspectorPanel}
           >
             <PanelRight size={16} />
-          </button>
-          <button
-            type="button"
-            className="studio-header-icon-btn"
-            title="Settings"
-            aria-label="Settings"
+          </StudioHeaderIconAction>
+          <StudioHeaderIconAction
+            tooltip={t('headerTooltipSettings' as any)}
+            label={t('headerTooltipSettings' as any)}
+            onClick={() => setHeaderModal('settings')}
           >
             <Settings size={16} />
-          </button>
+          </StudioHeaderIconAction>
         </div>
 
-        <StudioExportButton
-          onClick={onExport}
-          loading={isExporting}
-          disabled={!translatedText || isExporting}
-        />
+        <Tooltip
+          title={
+            isExporting
+              ? t('exporting')
+              : canExport
+                ? t('headerTooltipExport' as any)
+                : t('headerTooltipExportDisabled' as any)
+          }
+          placement="bottom"
+          mouseEnterDelay={0.35}
+          classNames={{ root: 'studio-header-tooltip' }}
+        >
+          <span className="studio-export-btn-wrap">
+            <StudioExportButton
+              onClick={onExport}
+              loading={isExporting}
+              disabled={!canExport}
+            />
+          </span>
+        </Tooltip>
       </div>
+
+      <StudioHeaderModals active={headerModal} onClose={() => setHeaderModal(null)} />
     </header>
   );
 }

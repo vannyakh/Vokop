@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { human } from '@vokop/editor';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import { StudioIcon } from '@vokop/ui';
 import {
@@ -30,6 +31,7 @@ function MediaAssetCard({
   onRemove: () => void;
   onSetPrimary: () => void;
 }) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const onDragStart = (e: DragEvent) => {
@@ -111,7 +113,7 @@ function MediaAssetCard({
           </div>
         </div>
 
-        {asset.isPrimary && <span className="media-lib-primary-badge">Main</span>}
+        {asset.isPrimary && <span className="media-lib-primary-badge">{t('mediaMainBadge')}</span>}
         {asset.kind !== 'image' && asset.duration > 0 && (
           <span className="media-lib-duration">{formatStudioTimecode(asset.duration)}</span>
         )}
@@ -131,7 +133,7 @@ function MediaAssetCard({
         </span>
         {asset.kind === 'video' && !asset.isPrimary && (
           <button type="button" className="media-lib-set-main" onClick={onSetPrimary}>
-            Set as main
+            {t('mediaSetMain')}
           </button>
         )}
       </div>
@@ -140,6 +142,7 @@ function MediaAssetCard({
 }
 
 export function MediaLibraryPanel() {
+  const { t } = useTranslation();
   const mediaAssets = useAppStore((s) => s.mediaAssets);
   const importMediaFiles = useAppStore((s) => s.importMediaFiles);
   const removeMediaAsset = useAppStore((s) => s.removeMediaAsset);
@@ -211,7 +214,7 @@ export function MediaLibraryPanel() {
       <header className="media-lib-header">
         <p className="media-lib-count">
           {mediaAssets.length === 0
-            ? 'Drop files anywhere'
+            ? t('mediaDropAnywhere')
             : `${mediaAssets.length} file${mediaAssets.length === 1 ? '' : 's'}`}
         </p>
       </header>
@@ -223,9 +226,9 @@ export function MediaLibraryPanel() {
           onClick={() => inputRef.current?.click()}
         >
           <StudioIcon name="import" size={36} className="media-lib-empty-icon" />
-          <span className="media-lib-empty-title">No media files yet</span>
+          <span className="media-lib-empty-title">{t('emptyMediaTitle')}</span>
           <span className="media-lib-empty-sub">
-            Drop video, audio, or images here — or click to browse
+            {t('emptyMediaDesc')}
           </span>
         </button>
       ) : (
@@ -252,7 +255,7 @@ export function MediaLibraryPanel() {
       <div className="media-lib-drag-message" aria-hidden={!dragActive}>
         <div className="media-lib-drag-content">
           <StudioIcon name="import" size={36} />
-          <span>Drop files to import</span>
+          <span>{t('mediaDropToImport')}</span>
         </div>
       </div>
     </div>

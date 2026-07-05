@@ -2,7 +2,7 @@ import type { AxiosInstance } from 'axios';
 import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
 import { createBrowserApiConfig, type ApiConfig, type BrowserApiOptions } from './config.js';
-import { apiRequest, createHttpClient } from './http.js';
+import { apiRequest, createHttpClient, toApiRequestError } from './http.js';
 import { routes } from './routes.js';
 import {
   adminMenuResponseSchema,
@@ -18,6 +18,7 @@ import {
   emailLookupResponseSchema,
   editorCatalogResponseSchema,
   editorPreviewResponseSchema,
+  exportRenderSettingsSchema,
   filmstripResponseSchema,
   giphyStickersResponseSchema,
   healthResponseSchema,
@@ -35,6 +36,7 @@ import {
   roleResponseSchema,
   rolesListResponseSchema,
   startAiJobResponseSchema,
+  startExportRenderResponseSchema,
   startFilmstripJobResponseSchema,
   subtitlesRequestSchema,
   subtitlesResponseSchema,
@@ -72,6 +74,7 @@ import type {
   ClipSuggestResponse,
   EditorCatalogResponse,
   EditorPreviewResponse,
+  ExportRenderSettings,
   FilmstripResponse,
   GiphySticker,
   HealthResponse,
@@ -82,6 +85,7 @@ import type {
   LlmProvidersResponse,
   MediaStatusResponse,
   StartAiJobResponse,
+  StartExportRenderResponse,
   SubtitlesRequest,
   SubtitlesResponse,
   TextAssistRequest,
@@ -237,6 +241,73 @@ export class ApiClient {
           { once: true },
         );
       });
+    }
+  }
+
+  // ─── Export Video (local render: transcode + watermark) ───────────────────
+
+  /** Upload a recorded clip for server-side transcode/watermark; returns a pollable job. */
+  async startExportRender(
+    file: Blob,
+    settings: ExportRenderSettings,
+  ): Promise<StartExportRenderResponse> {
+    const data = exportRenderSettingsSchema.parse(settings);
+    const ext = file.type.includes('mp4') ? 'mp4' : 'webm';
+    const form = new FormData();
+    form.append('recording', file, `recording.${ext}`);
+    form.append('settings', JSON.stringify(data));
+    return this.postForm(
+      startExportRenderResponseSchema,
+      routes.export.render,
+      form,
+      'Failed to start export',
+    );
+  }
+
+  async getExportJob(jobId: string): Promise<VideoJobResponse> {
+    return this.get(videoJobResponseSchema, routes.export.job(jobId), 'Failed to fetch export job');
+  }
+
+  /** Poll an export render job until it completes or fails. */
+  async waitForExportJob(jobId: string, options: PollJobOptions = {}): Promise<VideoJobResponse> {
+    const intervalMs = options.intervalMs ?? 450;
+
+    while (true) {
+      if (options.signal?.aborted) throw new Error('Export cancelled');
+
+      const job = await this.getExportJob(jobId);
+      options.onUpdate?.(job);
+
+      if (job.status === 'completed') return job;
+      if (job.status === 'failed') {
+        throw new Error(job.error ?? 'Export failed');
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, intervalMs);
+        options.signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(new Error('Export cancelled'));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+
+  /** Download the finished export render as a Blob. */
+  async downloadExportJob(jobId: string): Promise<Blob> {
+    try {
+      const { data } = await this.http.request<Blob>({
+        method: 'GET',
+        url: routes.export.download(jobId),
+        responseType: 'blob',
+      });
+      return data;
+    } catch (err) {
+      throw toApiRequestError(err, 'Failed to download export');
     }
   }
 

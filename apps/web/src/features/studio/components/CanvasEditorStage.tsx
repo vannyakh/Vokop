@@ -5,7 +5,16 @@ import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { useCanvasElementSync } from '@/features/studio/hooks/useCanvasElementSync';
 import { isElementVisible } from '@/features/studio/lib/canvasElements';
-import { getVideoContentRect, clampToContentRect, clampBoxToContentRect, compositionScale, remapBoxInContentRect, type CanvasRect } from '@/features/studio/lib/canvasCoords';
+import {
+  getVideoContentRect,
+  clampToContentRect,
+  clampBoxToContentRect,
+  toPxBox,
+  toFractionBox,
+  toPxFontSize,
+  toFractionFontSize,
+  type CanvasRect,
+} from '@/features/studio/lib/canvasCoords';
 import { getDisplayRatio } from '@/features/studio/constants/aspectRatios';
 import {
   elementToSnapPeer,
@@ -164,7 +173,9 @@ function CanvasElementNode({
   const animated = sampleElementAtTime(element, currentTime);
   // While focused/editing, use authored props so playback keyframes don't fight drag/resize.
   const liveEdit = interactive && (selected || dragging || transforming);
-  const display = liveEdit
+  // element.x/y/width/height (and animated, which is derived from them) are fractions
+  // of contentRect — resolved to live on-screen px here, at render time.
+  const displayFraction = liveEdit
     ? {
         x: element.x,
         y: element.y,
@@ -174,7 +185,9 @@ function CanvasElementNode({
         height: element.height,
       }
     : animated;
-  const boxHeight = isImage ? display.height : element.fontSize * 1.6;
+  const display = { ...displayFraction, ...toPxBox(displayFraction, contentRect) };
+  const fontSizePx = toPxFontSize(element.fontSize, contentRect);
+  const boxHeight = isImage ? display.height : fontSizePx * 1.6;
   const displayText =
     style?.textTransform === 'uppercase' ? element.text.toUpperCase() : element.text;
 
@@ -254,7 +267,7 @@ function CanvasElementNode({
         if (canvasPreviewAxis) {
           onDragGuideChange(
             snapDragPosition(
-              { x: element.x, y: element.y },
+              { x: display.x, y: display.y },
               elementSize,
               contentRect,
               snapPeers,
@@ -273,7 +286,8 @@ function CanvasElementNode({
         applySnap(node);
         const box = clampNode(node, elementSize, contentRect);
         onDragGuideChange(null);
-        onChange({ x: box.x, y: box.y });
+        const frac = toFractionBox(box, contentRect);
+        onChange({ x: frac.x, y: frac.y });
         setDragging(false);
       }}
       onTransformStart={() => {
@@ -290,9 +304,9 @@ function CanvasElementNode({
 
         if (isText) {
           const scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
-          const nextFontSize = Math.max(10, Math.round(element.fontSize * scale));
+          const nextFontSizePx = Math.max(10, Math.round(fontSizePx * scale));
           const nextWidth = Math.max(60, display.width * scale);
-          const nextHeight = nextFontSize * 1.6;
+          const nextHeight = nextFontSizePx * 1.6;
           const box = clampBoxToContentRect(
             { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
             contentRect,
@@ -302,11 +316,8 @@ function CanvasElementNode({
           node.x(box.x);
           node.y(box.y);
           onChange({
-            x: box.x,
-            y: box.y,
-            width: box.width,
-            fontSize: nextFontSize,
-            height: box.height,
+            ...toFractionBox(box, contentRect),
+            fontSize: toFractionFontSize(nextFontSizePx, contentRect),
             rotation: node.rotation(),
           });
         } else if (isImage) {
@@ -322,10 +333,7 @@ function CanvasElementNode({
           node.x(box.x);
           node.y(box.y);
           onChange({
-            x: box.x,
-            y: box.y,
-            width: box.width,
-            height: box.height,
+            ...toFractionBox(box, contentRect),
             rotation: node.rotation(),
           });
         } else {
@@ -340,10 +348,7 @@ function CanvasElementNode({
           node.x(box.x);
           node.y(box.y);
           onChange({
-            x: box.x,
-            y: box.y,
-            width: box.width,
-            height: box.height,
+            ...toFractionBox(box, contentRect),
             rotation: node.rotation(),
           });
         }
@@ -406,7 +411,7 @@ function CanvasElementNode({
             width={display.width}
             y={4}
             align={style?.align ?? 'center'}
-            fontSize={element.fontSize}
+            fontSize={fontSizePx}
             fontFamily={resolvedFontFamily}
             fontStyle={[
               style?.fontStyle === 'italic' ? 'italic' : '',
@@ -655,6 +660,8 @@ export function CanvasEditorStage({
   const videoWidth = useAppStore((s) => s.videoWidth);
   const videoHeight = useAppStore((s) => s.videoHeight);
   const aspectRatio = useAppStore((s) => s.aspectRatio);
+  const compositionSpace = useAppStore((s) => s.compositionSpace);
+  const migrateCompositionSpaceToFraction = useAppStore((s) => s.migrateCompositionSpaceToFraction);
   const focusCanvasElement = (id: string) => studioEdit.focusCanvasElement(id);
   const focusVideoClip = (clipId: string) => studioEdit.focusVideoClip(clipId);
 
@@ -664,7 +671,6 @@ export function CanvasEditorStage({
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const layerRef = useRef<Konva.Layer>(null);
-  const contentRectRef = useRef<CanvasRect | null>(null);
 
   const frameRatio = getDisplayRatio(aspectRatio, videoWidth, videoHeight);
   const contentRect = useMemo(
@@ -672,7 +678,17 @@ export function CanvasEditorStage({
     [size, videoWidth, videoHeight, frameRatio],
   );
 
-  useCanvasElementSync(size.width, size.height);
+  // Reference frame for default caption placement — the content rect, since
+  // canvas element x/y/width/height/fontSize are fractions of it.
+  useCanvasElementSync(contentRect.width, contentRect.height);
+
+  // One-time migration for legacy (pre-fraction) projects — runs once the live
+  // contentRect is known, then flips the marker so it never runs again.
+  useEffect(() => {
+    if (compositionSpace === 'fraction-v2') return;
+    if (contentRect.width <= 0 || contentRect.height <= 0) return;
+    migrateCompositionSpaceToFraction(contentRect);
+  }, [compositionSpace, contentRect, migrateCompositionSpaceToFraction]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -750,66 +766,6 @@ export function CanvasEditorStage({
     if (!selectedCanvasElementId) setEditingElementId(null);
   }, [selectedCanvasElementId]);
 
-  useEffect(() => {
-    if (previewMode || contentRect.width <= 0) return;
-    const prev = contentRectRef.current;
-    const changed =
-      !prev ||
-      prev.x !== contentRect.x ||
-      prev.y !== contentRect.y ||
-      prev.width !== contentRect.width ||
-      prev.height !== contentRect.height;
-    contentRectRef.current = contentRect;
-    if (!changed || !prev) return;
-
-    const scale = compositionScale(prev, contentRect);
-    const state = useAppStore.getState();
-
-    for (const el of state.canvasElements) {
-      const h = el.type === 'logo' || el.type === 'image' ? el.height : el.fontSize * 1.6;
-      const remapped = remapBoxInContentRect(
-        { x: el.x, y: el.y, width: el.width, height: h },
-        prev,
-        contentRect,
-      );
-      const box = clampBoxToContentRect(remapped, contentRect, PAD);
-      const patch: Partial<CanvasElement> = {
-        x: box.x,
-        y: box.y,
-        width: box.width,
-      };
-      if (el.type === 'text' || el.type === 'overlay') {
-        patch.fontSize = Math.max(10, Math.round(el.fontSize * scale));
-        patch.height = patch.fontSize! * 1.6;
-      } else if (el.type === 'logo' || el.type === 'image') {
-        patch.height = box.height;
-      }
-      if (
-        Math.abs(patch.x! - el.x) > 0.5 ||
-        Math.abs(patch.y! - el.y) > 0.5 ||
-        Math.abs(patch.width! - el.width) > 0.5 ||
-        (patch.fontSize != null && Math.abs(patch.fontSize - el.fontSize) > 0.5)
-      ) {
-        studioEdit.updateCanvasElement(el.id, patch, { history: false });
-      }
-    }
-
-    for (const clip of state.videoClips) {
-      if (clip.x == null && clip.y == null && clip.width == null && clip.height == null) continue;
-      const base = resolveVideoClipLayout(clip, prev);
-      const remapped = remapBoxInContentRect(base, prev, contentRect);
-      const box = clampBoxToContentRect(remapped, contentRect, PAD, { width: 48, height: 48 });
-      if (
-        Math.abs(box.x - base.x) > 0.5 ||
-        Math.abs(box.y - base.y) > 0.5 ||
-        Math.abs(box.width - base.width) > 0.5 ||
-        Math.abs(box.height - base.height) > 0.5
-      ) {
-        studioEdit.updateVideoTransform(clip.id, box, { history: false });
-      }
-    }
-  }, [contentRect, previewMode]);
-
   const visibleElements = useMemo(
     () =>
       canvasElements.filter((el) => {
@@ -827,8 +783,8 @@ export function CanvasEditorStage({
     [canvasElements, currentTime, timelineTrackPreviewHidden],
   );
   const overlaySnapPeers = useMemo(
-    () => visibleElements.map(elementToSnapPeer),
-    [visibleElements],
+    () => visibleElements.map((el) => elementToSnapPeer(el, contentRect)),
+    [visibleElements, contentRect],
   );
   const videoSnapPeer = useMemo((): SnapPeer | null => {
     if (!videoClipAtPlayhead) return null;
@@ -918,11 +874,21 @@ export function CanvasEditorStage({
               canvasPreviewAxis={canvasPreviewAxis}
               canvasAttachSnap={canvasAttachSnap}
               onSelect={() => focusVideoClip(videoClipAtPlayhead.id)}
-              onChange={(patch) =>
-                studioEdit.updateVideoTransform(videoClipAtPlayhead.id, patch, {
-                  history: true,
-                })
-              }
+              onChange={(patch) => {
+                // VideoClipProxyNode always reports a full live on-screen px box;
+                // store fields are fractions of contentRect.
+                const box = {
+                  x: patch.x ?? 0,
+                  y: patch.y ?? 0,
+                  width: patch.width ?? 0,
+                  height: patch.height ?? 0,
+                };
+                studioEdit.updateVideoTransform(
+                  videoClipAtPlayhead.id,
+                  { ...toFractionBox(box, contentRect), rotation: patch.rotation },
+                  { history: true },
+                );
+              }}
               onDragGuideChange={setDragGuides}
               onLiveLayoutChange={onVideoLiveLayoutChange}
             />
@@ -998,6 +964,7 @@ export function CanvasEditorStage({
       {interactive && selectedElement && !editingElementId && (
         <CanvasElementOverlay
           element={selectedElement}
+          contentRect={contentRect}
           stageSize={size}
           onEditText={() => setEditingElementId(selectedElement.id)}
         />
@@ -1006,6 +973,7 @@ export function CanvasEditorStage({
       {interactive && editingElement && (
         <CanvasInlineTextEditor
           element={editingElement}
+          contentRect={contentRect}
           onCommit={(text) => {
             studioEdit.updateCanvasElement(editingElement.id, { text });
             setEditingElementId(null);

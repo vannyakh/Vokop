@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 import { LANGUAGES } from '@/features/translation/constants/languages';
 import { VOICES } from '@/features/translation/constants/voices';
 import { Label, Select, StudioIcon } from '@vokop/ui';
@@ -39,15 +40,15 @@ interface StudioToolsDockProps {
   onRegenerateVoiceover?: () => void;
 }
 
-const TOOLS: { id: StudioToolId; label: string; icon: AssetIconName }[] = [
-  { id: 'media', label: 'Media', icon: 'images' },
-  { id: 'text', label: 'Text', icon: 'text' },
-  { id: 'audio', label: 'Audio', icon: 'audio' },
-  { id: 'voice', label: 'Voice', icon: 'audio' },
-  { id: 'captions', label: 'Captions', icon: 'text' },
-  { id: 'effects', label: 'Effects', icon: 'effect' },
-  { id: 'transitions', label: 'Transitions', icon: 'transition' },
-  { id: 'filters', label: 'Filters', icon: 'ease' },
+const TOOLS: { id: StudioToolId; label: string; titleKey: string; icon: AssetIconName }[] = [
+  { id: 'media', label: 'Media', titleKey: 'studioToolMedia', icon: 'images' },
+  { id: 'text', label: 'Text', titleKey: 'studioToolText', icon: 'text' },
+  { id: 'audio', label: 'Audio', titleKey: 'studioToolAudio', icon: 'audio' },
+  { id: 'voice', label: 'Voice', titleKey: 'studioToolVoice', icon: 'audio' },
+  { id: 'captions', label: 'Captions', titleKey: 'studioToolCaptions', icon: 'text' },
+  { id: 'effects', label: 'Effects', titleKey: 'studioToolEffects', icon: 'effect' },
+  { id: 'transitions', label: 'Transitions', titleKey: 'studioToolTransitions', icon: 'transition' },
+  { id: 'filters', label: 'Filters', titleKey: 'studioToolFilters', icon: 'ease' },
 ];
 
 function ToolsScroll({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,7 @@ function ToolsScroll({ children }: { children: React.ReactNode }) {
 }
 
 export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceover }: StudioToolsDockProps) {
+  const { t } = useTranslation();
   const toolsDrawerOpen = useAppStore((s) => s.toolsDrawerOpen);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
   const activeStudioTool = useAppStore((s) => s.activeStudioTool);
@@ -115,7 +117,8 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
     setEditorOpen(true);
   };
 
-  const activeLabel = TOOLS.find((t) => t.id === activeStudioTool)?.label ?? '';
+  const activeTool = TOOLS.find((t) => t.id === activeStudioTool);
+  const activeLabel = activeTool ? t(activeTool.titleKey as any) : '';
 
   return (
     <aside className="studio-tools-dock" aria-label="Editing tools">
@@ -124,7 +127,7 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
           <button
             key={tool.id}
             type="button"
-            title={tool.label}
+            title={t(tool.titleKey as any)}
             onClick={() => selectTool(tool.id)}
             className={cn(
               'studio-tools-rail-btn',
@@ -132,7 +135,7 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
             )}
           >
             <AssetIcon name={tool.icon} size={20} className="studio-tools-rail-asset-icon" />
-            <span className="studio-tools-rail-label">{tool.label}</span>
+            <span className="studio-tools-rail-label">{t(tool.titleKey as any)}</span>
           </button>
         ))}
       </div>

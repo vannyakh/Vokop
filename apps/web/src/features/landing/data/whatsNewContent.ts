@@ -1,7 +1,10 @@
 import type { TranslationKey } from '@/i18n';
 
 export const WHATS_NEW_VIDEO_STUDIO_PREVIEW_URL =
-  'https://p16-vimo-useast5.capcutcdn-us.com/tos-useast5-i-f0k6wfgiqi-tx/985be9fcba31464587726d4f765f0777';
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+
+export const WHATS_NEW_DESIGN_STUDIO_PREVIEW_URL =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
 
 export const WHATS_NEW_SECTIONS: Array<{
   id: 'video-studio' | 'design-studio';
@@ -25,7 +28,8 @@ export const WHATS_NEW_SECTIONS: Array<{
     titleKey: 'whatsNewDesignTitle',
     bodyKey: 'whatsNewDesignBody',
     preview: 'design' as const,
+    videoUrl: WHATS_NEW_DESIGN_STUDIO_PREVIEW_URL,
   },
-] ;
+];
 
 export type WhatsNewSectionId = (typeof WHATS_NEW_SECTIONS)[number]['id'];

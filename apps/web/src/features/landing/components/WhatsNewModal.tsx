@@ -67,6 +67,8 @@ function WhatsNewPreview({
             src={section.videoUrl}
             playsInline
             preload="metadata"
+            muted
+            loop
             onEnded={() => setPlaying(false)}
             onPause={() => setPlaying(false)}
             onPlay={() => setPlaying(true)}
@@ -95,6 +97,17 @@ function WhatsNewPreview({
 export function WhatsNewModal({ open, onClose, onTryNow }: WhatsNewModalProps) {
   const { t } = useTranslation();
   const [activeId, setActiveId] = useState<WhatsNewSectionId>('video-studio');
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
   const active = WHATS_NEW_SECTIONS.find((section) => section.id === activeId) ?? WHATS_NEW_SECTIONS[0];
 

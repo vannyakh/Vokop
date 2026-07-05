@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import type { Segment } from '@/types';
 import { formatDuration } from '@/lib/utils/time';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 
 interface SegmentListProps {
   segments: Segment[];
@@ -14,6 +15,7 @@ interface SegmentListProps {
 }
 
 function EmptyState({ type }: { type: 'transcript' | 'translation' }) {
+  const { t } = useTranslation();
   const isTranslation = type === 'translation';
   return (
     <div className="studio-empty">
@@ -21,12 +23,12 @@ function EmptyState({ type }: { type: 'transcript' | 'translation' }) {
         {isTranslation ? <Languages size={22} /> : <Type size={22} />}
       </div>
       <p className="studio-empty-title">
-        {isTranslation ? 'No translation yet' : 'No transcript yet'}
+        {isTranslation ? t('emptyTranslationTitle') : t('emptyTranscriptTitle')}
       </p>
       <p className="studio-empty-desc">
         {isTranslation
-          ? 'Run Process All to generate translated segments with timestamps.'
-          : 'Transcripts appear here after you process the video.'}
+          ? t('emptyTranslationDesc')
+          : t('emptyTranscriptDesc')}
       </p>
     </div>
   );

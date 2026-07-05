@@ -2,6 +2,7 @@ import type { RefObject } from 'react';
 import { Languages, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 import { useSegments } from '@/features/translation/hooks/useSegments';
 import { StudioIcon } from '@vokop/ui';
 import { SegmentList } from '@/features/studio/components/SegmentList';
@@ -16,11 +17,11 @@ interface EditorSidebarProps {
   onStartReel: () => void;
 }
 
-const TABS: { id: EditorTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'inspector', label: 'Inspector', icon: <StudioIcon name="sliders" size={20} /> },
-  { id: 'translate', label: 'Translate', icon: <Languages size={20} /> },
-  { id: 'transcript', label: 'Transcript', icon: <StudioIcon name="text" size={20} /> },
-  { id: 'analysis', label: 'Analysis', icon: <Sparkles size={20} /> },
+const TABS: { id: EditorTab; label: string; titleKey: string; icon: React.ReactNode }[] = [
+  { id: 'inspector', label: 'Inspector', titleKey: 'rightTabInspector', icon: <StudioIcon name="sliders" size={20} /> },
+  { id: 'translate', label: 'Translate', titleKey: 'rightTabTranslate', icon: <Languages size={20} /> },
+  { id: 'transcript', label: 'Transcript', titleKey: 'rightTabTranscript', icon: <StudioIcon name="text" size={20} /> },
+  { id: 'analysis', label: 'Analysis', titleKey: 'rightTabAnalysis', icon: <Sparkles size={20} /> },
 ];
 
 const RIGHT_PANEL_MIN = 280;
@@ -28,6 +29,7 @@ const RIGHT_PANEL_MAX = 560;
 const RIGHT_PANEL_DEFAULT = 360;
 
 export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorSidebarProps) {
+  const { t } = useTranslation();
   const editorOpen = useAppStore((s) => s.editorOpen);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const activeTab = useAppStore((s) => s.activeTab);
@@ -144,7 +146,7 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
             <button
               key={tab.id}
               type="button"
-              title={tab.label}
+              title={t(tab.titleKey as any)}
               onClick={() => selectTab(tab.id)}
               className={cn('studio-right-rail-btn', active && 'active')}
             >
@@ -154,7 +156,7 @@ export function EditorSidebar({ videoRef, onPlayAnalysis, onStartReel }: EditorS
                   <span className="studio-right-rail-count">{count}</span>
                 )}
               </span>
-              <span className="studio-right-rail-label">{tab.label}</span>
+              <span className="studio-right-rail-label">{t(tab.titleKey as any)}</span>
             </button>
           );
         })}

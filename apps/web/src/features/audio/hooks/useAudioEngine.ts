@@ -2,10 +2,21 @@ import { useRef, useCallback } from 'react';
 import { useAppStore } from '@/features/project';
 import { decodeBase64ToAudioBuffer, ensureAudioContext } from '@/lib/utils/audio';
 
+export interface VideoAudioGraph {
+  ctx: AudioContext;
+  source: MediaElementAudioSourceNode;
+  /** Persistent volume control for the video's embedded audio — always connected to speakers. */
+  gain: GainNode;
+  /** Tapped off `gain` (post-volume) for live level metering; never touches audible output. */
+  analyser: AnalyserNode;
+}
+
 export function useAudioEngine() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const videoSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const videoGainRef = useRef<GainNode | null>(null);
+  const videoAnalyserRef = useRef<AnalyserNode | null>(null);
 
   const voiceVolume = useAppStore((s) => s.voiceVolume);
   const setIsAudioPlaying = useAppStore((s) => s.setIsAudioPlaying);
@@ -17,6 +28,49 @@ export function useAudioEngine() {
     }
     setIsAudioPlaying(false);
   }, [setIsAudioPlaying]);
+
+  /**
+   * Wraps the main `<video>` element in a Web Audio graph exactly once, wiring
+   * `source -> gain -> destination` permanently so its audio is always audible.
+   * Callers (sync playback, export, the level meter) share this single graph —
+   * they must only tweak `gain.gain.value` or fan out additional taps, never
+   * call `source.disconnect()`, or every other consumer goes silent with it.
+   */
+  const connectVideoAudioGraph = useCallback(
+    async (video: HTMLVideoElement): Promise<VideoAudioGraph> => {
+      audioContextRef.current = await ensureAudioContext(audioContextRef.current);
+      const ctx = audioContextRef.current;
+
+      if (!videoSourceRef.current) {
+        videoSourceRef.current = ctx.createMediaElementSource(video);
+      }
+      const source = videoSourceRef.current;
+
+      if (!videoGainRef.current) {
+        const gain = ctx.createGain();
+        gain.gain.value = 1;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        videoGainRef.current = gain;
+      }
+      const gain = videoGainRef.current;
+
+      if (!videoAnalyserRef.current) {
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.55;
+        const silentGain = ctx.createGain();
+        silentGain.gain.value = 0;
+        gain.connect(analyser);
+        analyser.connect(silentGain);
+        silentGain.connect(ctx.destination);
+        videoAnalyserRef.current = analyser;
+      }
+
+      return { ctx, source, gain, analyser: videoAnalyserRef.current };
+    },
+    [],
+  );
 
   const playSegment = useCallback(
     async (base64: string, onPlayingChange: (playing: boolean) => void) => {
@@ -53,6 +107,7 @@ export function useAudioEngine() {
     audioContextRef,
     audioSourceRef,
     videoSourceRef,
+    connectVideoAudioGraph,
     stopAudio,
     playSegment,
   };

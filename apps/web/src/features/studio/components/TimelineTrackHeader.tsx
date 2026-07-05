@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Dropdown, Input, Modal, type MenuProps } from '@vokop/ui/antd';
 import { cn } from '@/lib/cn';
+import { useTranslation } from '@/features/settings';
 import type { TimelineTrackModel, TimelineTrackType } from '@/features/studio/lib/timelineTypes';
 import { TRACK_TYPE_PREFIX } from '@/features/studio/lib/timelineTypes';
 
@@ -121,6 +122,7 @@ export function TimelineTrackHeader({
   onDragEnd,
   onDrop,
 }: TimelineTrackHeaderProps) {
+  const { t } = useTranslation();
   const Icon = TRACK_ICONS[track.type];
   const canAdd = ADDABLE_TYPES.includes(track.type);
   const canMute = MUTABLE_TYPES.includes(track.type);
@@ -128,6 +130,21 @@ export function TimelineTrackHeader({
   const trackCode = `${TRACK_TYPE_PREFIX[track.type]}${index + 1}`;
   const [renameOpen, setRenameOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState(track.label);
+
+  const localizedLabel = useMemo(() => {
+    const typeLower = track.type.toLowerCase();
+    const defaultLabels = ['video', 'audio', 'sound', 'text', 'image', 'sticker', 'effect'];
+    if (defaultLabels.includes(typeLower) && (track.label.toLowerCase() === typeLower)) {
+      if (typeLower === 'video') return t('studioToolMedia');
+      if (typeLower === 'audio') return t('studioToolVoice');
+      if (typeLower === 'sound') return t('studioToolAudio');
+      if (typeLower === 'text') return t('studioToolText');
+      if (typeLower === 'image') return t('studioToolMedia');
+      if (typeLower === 'sticker') return t('studioToolEffects');
+      if (typeLower === 'effect') return t('studioToolEffects');
+    }
+    return track.label;
+  }, [track.type, track.label, t]);
 
   const openRename = () => {
     setNameDraft(track.label);
@@ -306,9 +323,9 @@ export function TimelineTrackHeader({
         >
           <Icon size={12} strokeWidth={2} />
         </span>
-        <div className="studio-track-header-meta" title={`${trackCode} · ${track.label}`}>
+        <div className="studio-track-header-meta" title={`${trackCode} · ${localizedLabel}`}>
           <span className="studio-track-header-code font-mono">{trackCode}</span>
-          <span className="studio-track-header-label">{track.label}</span>
+          <span className="studio-track-header-label">{localizedLabel}</span>
         </div>
       </div>
 
@@ -317,7 +334,7 @@ export function TimelineTrackHeader({
           <button
             type="button"
             className={cn('studio-track-header-btn', previewHidden && 'is-active')}
-            title={previewHidden ? `Show ${track.label} in preview` : `Hide ${track.label} from preview`}
+            title={previewHidden ? `Show ${localizedLabel} in preview` : `Hide ${localizedLabel} from preview`}
             onClick={(e) => {
               e.stopPropagation();
               onTogglePreview();
@@ -330,7 +347,7 @@ export function TimelineTrackHeader({
           <button
             type="button"
             className={cn('studio-track-header-btn', muted && 'is-active')}
-            title={muted ? `Unmute ${track.label}` : `Mute ${track.label}`}
+            title={muted ? `Unmute ${localizedLabel}` : `Mute ${localizedLabel}`}
             onClick={(e) => {
               e.stopPropagation();
               onToggleMute();
@@ -349,7 +366,7 @@ export function TimelineTrackHeader({
             type="button"
             className="studio-track-header-btn"
             title="Track menu"
-            aria-label={`${track.label} menu`}
+            aria-label={`${localizedLabel} menu`}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >

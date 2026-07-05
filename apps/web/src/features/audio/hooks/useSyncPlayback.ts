@@ -1,13 +1,15 @@
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import { useAppStore } from '@/features/project';
-import { decodeBase64ToAudioBuffer, ensureAudioContext } from '@/lib/utils/audio';
+import { decodeBase64ToAudioBuffer } from '@/lib/utils/audio';
+import type { VideoAudioGraph } from '@/features/audio/hooks/useAudioEngine';
 
 interface SyncPlaybackRefs {
   videoRef: RefObject<HTMLVideoElement | null>;
   audioContextRef: RefObject<AudioContext | null>;
   audioSourceRef: RefObject<AudioBufferSourceNode | null>;
   videoSourceRef: RefObject<MediaElementAudioSourceNode | null>;
+  connectVideoAudioGraph: (video: HTMLVideoElement) => Promise<VideoAudioGraph>;
   stopAudio: () => void;
   playSegment: (base64: string, onPlayingChange: (playing: boolean) => void) => Promise<void>;
 }
@@ -23,8 +25,7 @@ export function useSyncPlayback(refs: SyncPlaybackRefs) {
     if (!audioBase64 || !video) return;
 
     try {
-      refs.audioContextRef.current = await ensureAudioContext(refs.audioContextRef.current);
-      const ctx = refs.audioContextRef.current;
+      const { ctx, gain: videoGain } = await refs.connectVideoAudioGraph(video);
 
       const audioBuffer = await decodeBase64ToAudioBuffer(ctx, audioBase64);
       const voiceSource = ctx.createBufferSource();
@@ -36,17 +37,7 @@ export function useSyncPlayback(refs: SyncPlaybackRefs) {
       voiceGain.connect(ctx.destination);
 
       video.currentTime = 0;
-
-      if (!refs.videoSourceRef.current) {
-        refs.videoSourceRef.current = ctx.createMediaElementSource(video);
-      }
-      const videoSource = refs.videoSourceRef.current;
-      const videoGain = ctx.createGain();
       videoGain.gain.value = originalVolume;
-
-      videoSource.disconnect();
-      videoSource.connect(videoGain);
-      videoGain.connect(ctx.destination);
 
       voiceSource.onended = () => {
         setIsAudioPlaying(false);

@@ -15,7 +15,22 @@
   --color-studio-border: var(--border);
   --color-studio-accent: var(--accent);
   --color-studio-muted: var(--text-muted);
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Kantumruy Pro", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Kantumruy Pro", "Fraunces", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface-hi);
+  --color-popover-foreground: var(--text);
+  --color-primary-foreground: var(--accent-ink, #000000);
+  --color-secondary: var(--surface-hi);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-hi);
+  --color-muted-foreground: var(--text-muted);
+  --color-destructive: #ef4444;
+  --color-border: var(--border);
+  --color-input: var(--border-strong, var(--border));
+  --color-ring: var(--accent);
 }

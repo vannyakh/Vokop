@@ -12,12 +12,15 @@ function segmentElementId(type: 'translation' | 'transcript', index: number) {
   return `${type}-${index}`;
 }
 
+/** Returns x/y/width/fontSize as fractions (0..1) of canvasWidth/canvasHeight. */
 function defaultPosition(canvasWidth: number, canvasHeight: number, index: number) {
+  const safeW = canvasWidth > 0 ? canvasWidth : 1;
+  const safeH = canvasHeight > 0 ? canvasHeight : 1;
   return {
-    x: CAPTION_PAD,
-    y: Math.max(CAPTION_PAD, canvasHeight - BOTTOM_INSET - index * 8),
-    width: Math.min(DEFAULT_WIDTH, canvasWidth - CAPTION_PAD * 2),
-    fontSize: DEFAULT_FONT,
+    x: CAPTION_PAD / safeW,
+    y: Math.max(CAPTION_PAD, canvasHeight - BOTTOM_INSET - index * 8) / safeH,
+    width: Math.min(DEFAULT_WIDTH, canvasWidth - CAPTION_PAD * 2) / safeW,
+    fontSize: DEFAULT_FONT / safeH,
     rotation: 0,
   };
 }

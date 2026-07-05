@@ -10,7 +10,7 @@ import { VideoViewport } from '@/features/studio/components/VideoViewport';
 import { TimelineBar } from '@/features/studio/components/TimelineBar';
 import { EditorSidebar } from '@/features/studio/components/EditorSidebar';
 import { CinemaPreviewOverlay } from '@/features/studio/components/CinemaPreviewOverlay';
-import { ExportSettingsModal } from '@/features/studio/components/ExportSettingsModal';
+import { ExportVideoModal } from '@/features/studio/components/ExportVideoModal';
 import { useVideoSession } from '@/features/studio/hooks/useVideoSession';
 import { useCanvasKeyboardShortcuts } from '@/features/studio/hooks/useCanvasKeyboardShortcuts';
 import { useTimelineDockSplit } from '@/features/studio/hooks/useTimelineDockSplit';
@@ -36,7 +36,7 @@ export function StudioWorkspace() {
     preloadLocalFonts();
   }, []);
 
-  const { audioContextRef, audioSourceRef, videoSourceRef, stopAudio, playSegment } =
+  const { audioContextRef, audioSourceRef, videoSourceRef, connectVideoAudioGraph, stopAudio, playSegment } =
     useAudioEngine();
   const { processAll, previewVoice, regenerateVoiceover } = useVideoProcessing();
 
@@ -45,6 +45,7 @@ export function StudioWorkspace() {
     audioContextRef,
     audioSourceRef,
     videoSourceRef,
+    connectVideoAudioGraph,
     stopAudio,
     playSegment,
   };
@@ -54,6 +55,7 @@ export function StudioWorkspace() {
     videoRef,
     audioContextRef,
     videoSourceRef,
+    connectVideoAudioGraph,
     playMixedAudio,
   });
   const { startReel } = useReelPlayback(videoRef, audioContextRef, audioSourceRef, stopAudio);
@@ -99,6 +101,7 @@ export function StudioWorkspace() {
               <div className="studio-editor-dock-shell" style={{ height: dockHeight }}>
                 <TimelineBar
                   videoRef={videoRef}
+                  connectVideoAudioGraph={connectVideoAudioGraph}
                   onProcessAll={processAll}
                   onToggleSyncPlayback={toggleSyncPlayback}
                 />
@@ -116,13 +119,12 @@ export function StudioWorkspace() {
 
       <CinemaPreviewOverlay videoRef={videoRef} />
 
-      {exportModalOpen && (
-        <ExportSettingsModal
-          onClose={() => setExportModalOpen(false)}
-          onExport={handleExport}
-          isExporting={isExporting}
-        />
-      )}
+      <ExportVideoModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        onExport={handleExport}
+        isExporting={isExporting}
+      />
     </div>
   );
 }

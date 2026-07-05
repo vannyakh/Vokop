@@ -31,6 +31,30 @@ export function resolveClipAudioSource(
     duration: number;
   },
 ): ClipAudioSource | null {
+  // Footage (video track) clip: waveform reflects the embedded audio of its own source,
+  // not a linked/detached audio clip.
+  if (clip.mediaKind === 'video') {
+    const videoClip = ctx.videoClips.find((v) => v.id === clip.id);
+    if (videoClip?.mediaAssetId) {
+      const asset = ctx.mediaAssets.find((a) => a.id === videoClip.mediaAssetId);
+      if (asset?.url) {
+        return {
+          key: `asset:${asset.id}`,
+          url: asset.url,
+          mediaDuration: Math.max(asset.duration || 0, (clip.sourceStart ?? 0) + clip.duration),
+        };
+      }
+    }
+    if (ctx.videoUrl) {
+      return {
+        key: `video:${ctx.videoUrl}`,
+        url: ctx.videoUrl,
+        mediaDuration: Math.max(ctx.mediaDuration, clip.duration),
+      };
+    }
+    return null;
+  }
+
   const storedClip = ctx.audioClips.find((c) => c.id === clip.id);
 
   if (storedClip?.mediaAssetId) {

@@ -26,7 +26,12 @@ export interface StudioEditOptions {
 }
 
 const MIN_CLIP_SEC = 0.4;
-const MIN_BOX = 48;
+// Composition x/y/width/height/fontSize are fractions of the content rect (0..1).
+const MIN_BOX_FRACTION = 0.03;
+const MIN_ELEMENT_WIDTH_FRACTION = 0.02;
+const MIN_ELEMENT_HEIGHT_FRACTION = 0.015;
+const MIN_FONT_SIZE_FRACTION = 0.012;
+const MAX_FONT_SIZE_FRACTION = 0.5;
 
 export interface StudioEditSnapshot {
   currentTime: number;
@@ -317,13 +322,15 @@ export function normalizeMediaClipPatch(patch: Partial<MediaClip>): Partial<Medi
   if (next.start != null) next.start = Math.max(0, next.start);
   if (next.duration != null) next.duration = Math.max(MIN_CLIP_SEC, next.duration);
   if (next.sourceStart != null) next.sourceStart = Math.max(0, next.sourceStart);
-  if (next.width != null) next.width = Math.max(MIN_BOX, next.width);
-  if (next.height != null) next.height = Math.max(MIN_BOX, next.height);
+  if (next.width != null) next.width = Math.max(MIN_BOX_FRACTION, next.width);
+  if (next.height != null) next.height = Math.max(MIN_BOX_FRACTION, next.height);
   if (next.opacity != null) next.opacity = Math.min(1, Math.max(0, next.opacity));
   if (next.volume != null) next.volume = Math.min(2, Math.max(0, next.volume));
   if (next.pan != null) next.pan = Math.min(1, Math.max(-1, next.pan));
   if (next.fadeInSec != null) next.fadeInSec = Math.max(0, next.fadeInSec);
   if (next.fadeOutSec != null) next.fadeOutSec = Math.max(0, next.fadeOutSec);
+  if (next.videoFadeInSec != null) next.videoFadeInSec = Math.max(0, next.videoFadeInSec);
+  if (next.videoFadeOutSec != null) next.videoFadeOutSec = Math.max(0, next.videoFadeOutSec);
   if (next.rotation != null) {
     // Keep rotation in a sensible range for inspector inputs.
     let r = next.rotation % 360;
@@ -342,10 +349,12 @@ export function normalizeCanvasElementPatch(
 ): Partial<CanvasElement> {
   const next: Partial<CanvasElement> = { ...patch };
 
-  if (next.width != null) next.width = Math.max(40, next.width);
-  if (next.height != null) next.height = Math.max(24, next.height);
+  if (next.width != null) next.width = Math.max(MIN_ELEMENT_WIDTH_FRACTION, next.width);
+  if (next.height != null) next.height = Math.max(MIN_ELEMENT_HEIGHT_FRACTION, next.height);
   if (next.opacity != null) next.opacity = Math.min(1, Math.max(0, next.opacity));
-  if (next.fontSize != null) next.fontSize = Math.max(8, Math.min(200, next.fontSize));
+  if (next.fontSize != null) {
+    next.fontSize = Math.max(MIN_FONT_SIZE_FRACTION, Math.min(MAX_FONT_SIZE_FRACTION, next.fontSize));
+  }
 
   return next;
 }
@@ -548,5 +557,21 @@ export const studioEdit = {
    */
   detachAudioFromVideo(clipId?: string): string | null {
     return useAppStore.getState().detachAudioFromVideoClip(clipId);
+  },
+
+  /**
+   * Copy every clip's audio on a video track onto the audio track (video keeps sound).
+   * Returns the extracted/linked audio clip ids.
+   */
+  extractAudioFromVideoTrack(trackId?: string): string[] {
+    return useAppStore.getState().extractAudioFromVideoTrack(trackId);
+  },
+
+  /**
+   * Split audio away from an entire video track: extract every clip's audio to
+   * the audio track and mute every clip on that video track.
+   */
+  detachAudioFromVideoTrack(trackId?: string): string[] {
+    return useAppStore.getState().detachAudioFromVideoTrack(trackId);
   },
 };

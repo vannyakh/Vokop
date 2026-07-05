@@ -6,7 +6,7 @@ export function useTranslation() {
   const uiLanguage = useSettingsStore((s) => s.uiLanguage);
   const { i18n, ready } = useI18nextTranslation();
 
-  const t = (key: TranslationKey) => i18n.t(key);
+  const t = (key: TranslationKey, options?: Record<string, any>) => i18n.t(key, options);
 
   return { t, uiLanguage, i18n, ready };
 }

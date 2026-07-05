@@ -27,6 +27,8 @@ import {
   TIMELINE_RULER_HEIGHT,
   TRACK_HEIGHT,
 } from '@/features/studio/lib/timelineTypes';
+import { useTranslation } from '@/features/settings';
+import { useSidePanelSplit } from '@/features/studio/hooks/useSidePanelSplit';
 import { useVideoFilmstrip } from '@/features/studio/hooks/useVideoFilmstrip';
 import { useTimelineTracks } from '@/features/studio/hooks/useTimelineTracks';
 import { useTimelineClipDrag } from '@/features/studio/hooks/useTimelineClipDrag';
@@ -87,16 +89,62 @@ const ADD_TRACK_ICONS = {
   audio: Mic2,
 } as const;
 
-function formatRulerTick(seconds: number): string {
+function formatRulerTick(seconds: number, compact = false): string {
   if (seconds < 3600) {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
+    if (compact) {
+      // Skip leading zero minute: "0:05" → "0:05", "1:00" → "1:00"
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
-  return formatStudioTimecode(seconds);
+  const h = Math.floor(seconds / 3600);
+  const rem = seconds % 3600;
+  const m = Math.floor(rem / 60);
+  const s = Math.floor(rem % 60);
+  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Choose adaptive major/minor tick intervals based on zoom level.
+ * Returns { majorInterval, minorDivisions } where minorDivisions is how many
+ * minor ticks fit between each pair of major ticks.
+ */
+function getRulerIntervals(pxPerSec: number): { majorInterval: number; minorDivisions: number } {
+  // Target: major tick every ~80-160px
+  const candidates: [number, number][] = [
+    [1,    5],   // 1s major, 5 minor (0.2s each)
+    [5,    5],   // 5s major, 5 minor (1s each)
+    [10,   5],   // 10s major
+    [15,   3],   // 15s major
+    [30,   5],   // 30s
+    [60,   4],   // 1 min
+    [120,  4],   // 2 min
+    [300,  5],   // 5 min
+    [600,  5],   // 10 min
+  ];
+  for (const [interval, divisions] of candidates) {
+    if (pxPerSec * interval >= 90) return { majorInterval: interval, minorDivisions: divisions };
+  }
+  return { majorInterval: 600, minorDivisions: 5 };
 }
 
 export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelineProps) {
+  const { t } = useTranslation();
+  const {
+    width: headerWidth,
+    minWidth,
+    maxWidth,
+    dragging: splitDragging,
+    splitterProps,
+  } = useSidePanelSplit({
+    storageKey: 'vokop-timeline-header-width',
+    defaultWidth: 220,
+    minWidth: 150,
+    maxWidth: 400,
+    edge: 'left',
+  });
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
   const videoFile = useAppStore((s) => s.videoFile);
@@ -104,6 +152,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const mediaDuration = useAppStore((s) => s.mediaDuration);
   const currentTime = useAppStore((s) => s.currentTime);
   const timelineZoom = useAppStore((s) => s.timelineZoom);
+  const videoClips = useAppStore((s) => s.videoClips);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
   const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
   const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
@@ -183,13 +232,29 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     tracksContainerRef,
   );
 
-  const rulerTicks = useMemo(() => {
+  const { rulerMajorTicks, rulerMinorTicks } = useMemo(() => {
     const span = displayDuration;
-    if (!span) return [0];
-    const ticks: number[] = [];
-    for (let t = 0; t <= Math.ceil(span); t++) ticks.push(t);
-    return ticks;
-  }, [displayDuration]);
+    if (!span) return { rulerMajorTicks: [0], rulerMinorTicks: [] as number[] };
+    const { majorInterval, minorDivisions } = getRulerIntervals(pxPerSec);
+    const minorInterval = majorInterval / minorDivisions;
+    const majorTicks: number[] = [];
+    const minorTicks: number[] = [];
+    // Major ticks
+    for (let t = 0; t <= span + majorInterval; t += majorInterval) {
+      const snapped = Math.round(t / majorInterval) * majorInterval;
+      if (snapped <= span + majorInterval) majorTicks.push(snapped);
+    }
+    // Minor ticks (exclude positions that coincide with major)
+    const majorSet = new Set(majorTicks.map((t) => Math.round(t * 1000)));
+    for (let t = 0; t <= span + majorInterval; t += minorInterval) {
+      const snapped = Math.round(t * 1000);
+      if (!majorSet.has(snapped)) {
+        const secs = snapped / 1000;
+        if (secs <= span + minorInterval) minorTicks.push(secs);
+      }
+    }
+    return { rulerMajorTicks: majorTicks, rulerMinorTicks: minorTicks };
+  }, [displayDuration, pxPerSec]);
 
   const seekTimeline = useAppStore((s) => s.seekTimeline);
 
@@ -468,7 +533,12 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     >
       {/* Pinned track header column */}
       {!timelineIsEmpty && (
-      <div className="studio-timeline-header-col" ref={headerColRef}>
+        <>
+          <div
+            className="studio-timeline-header-col"
+            ref={headerColRef}
+            style={{ width: headerWidth }}
+          >
         <div
           className="studio-timeline-header-spacer"
           style={{ height: TIMELINE_RULER_HEIGHT }}
@@ -518,24 +588,12 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             }
             onExtractAudio={
               track.type === 'video'
-                ? () => {
-                    const id =
-                      selectedTimelineClip?.trackId === track.id
-                        ? selectedTimelineClip.clipId
-                        : undefined;
-                    studioEdit.extractAudioFromVideo(id);
-                  }
+                ? () => studioEdit.extractAudioFromVideoTrack(String(track.id))
                 : undefined
             }
             onDetachAudio={
               track.type === 'video'
-                ? () => {
-                    const id =
-                      selectedTimelineClip?.trackId === track.id
-                        ? selectedTimelineClip.clipId
-                        : undefined;
-                    studioEdit.detachAudioFromVideo(id);
-                  }
+                ? () => studioEdit.detachAudioFromVideoTrack(String(track.id))
                 : undefined
             }
             onDragStart={(id) => setDragTrackId(id)}
@@ -561,18 +619,35 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               return {
                 key: opt.type,
                 icon: <Icon size={14} />,
-                label: opt.label,
+                label: t(`track${opt.type.charAt(0).toUpperCase()}${opt.type.slice(1)}` as any),
                 onClick: () => addTimelineTrack(opt.type),
               };
             }),
           }}
         >
-          <button type="button" className="studio-track-add-row" title="Add track">
+          <button type="button" className="studio-track-add-row" title={t('addTrack')}>
             <Plus size={12} />
-            <span>Add track</span>
+            <span>{t('addTrack')}</span>
           </button>
         </Dropdown>
       </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize track header"
+        aria-valuenow={Math.round(headerWidth)}
+        aria-valuemin={minWidth}
+        aria-valuemax={maxWidth}
+        className={cn('studio-side-splitter', splitDragging && 'is-dragging')}
+        {...splitterProps}
+      >
+        <span className="studio-side-splitter-grip" aria-hidden>
+          <span className="studio-side-splitter-pill studio-side-splitter-pill--accent" />
+          <span className="studio-side-splitter-thumb" />
+          <span className="studio-side-splitter-pill studio-side-splitter-pill--muted" />
+        </span>
+      </div>
+      </>
       )}
 
       {/* Scrollable timeline content */}
@@ -611,7 +686,18 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             }}
             onContextMenu={(e) => openContextMenu(e)}
           >
-            {rulerTicks.map((tick) => (
+            {/* Minor ticks — no label, shorter line */}
+            {rulerMinorTicks.map((tick) => (
+              <span
+                key={`m-${tick}`}
+                className="studio-timeline-ruler-minor-tick"
+                style={{ left: timeToPx(tick, pxPerSec) }}
+                aria-hidden
+              />
+            ))}
+
+            {/* Major ticks — tall line + label */}
+            {rulerMajorTicks.map((tick) => (
               <div
                 key={tick}
                 className="studio-timeline-ruler-tick"
@@ -619,24 +705,10 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               >
                 <span className="studio-timeline-ruler-tick-line" />
                 <span className="studio-timeline-ruler-tick-label font-mono">
-                  {timelineIsEmpty ? `${tick}s` : formatRulerTick(tick)}
+                  {formatRulerTick(tick, true)}
                 </span>
               </div>
             ))}
-
-            {timelineIsEmpty &&
-              Array.from({ length: Math.ceil(displayDuration * 4) }, (_, i) => {
-                const subTick = (i + 1) * 0.25;
-                if (subTick >= displayDuration || Number.isInteger(subTick)) return null;
-                return (
-                  <span
-                    key={`sub-${subTick}`}
-                    className="studio-timeline-ruler-subtick"
-                    style={{ left: timeToPx(subTick, pxPerSec) }}
-                    aria-hidden
-                  />
-                );
-              })}
 
             {/* Hover time tooltip on ruler */}
             {hoverTime != null && (
@@ -645,7 +717,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 style={{ left: hoverX ?? 0 }}
                 aria-hidden
               >
-                {formatRulerTick(hoverTime)}
+                {formatRulerTick(hoverTime, true)}
               </div>
             )}
           </div>
@@ -719,7 +791,9 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 )}
                 style={{
                   height: laneHeight,
-                  opacity: muted ? 0.45 : previewHidden ? 0.72 : 1,
+                  // Footage stays fully visible when muted — a mute icon on the
+                  // waveform strip communicates it instead of dimming the whole clip.
+                  opacity: muted && track.type !== 'video' ? 0.45 : previewHidden ? 0.72 : 1,
                 }}
                 data-track-index={trackIndex}
                 onClick={(e) => {
@@ -784,6 +858,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       height={clipHeight}
                       selected={selected}
                       canDrag={canDragClip}
+                      muted={
+                        muted ||
+                        (track.type === 'video' &&
+                          Boolean(videoClips.find((v) => v.id === clip.id)?.muted))
+                      }
                       filmstripThumbs={clipThumbs}
                       onSelect={(e) => selectClip(track.id as TimelineTrackId, clip.id, e)}
                       onDelete={
@@ -809,6 +888,14 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                           trackType={track.type}
                         />
                       )}
+                      {track.type === 'video' && width > 8 && (
+                        <TimelineClipWaveform
+                          clip={clip}
+                          width={width}
+                          height={Math.max(13, Math.round(clipHeight * 0.42))}
+                          trackType={track.type}
+                        />
+                      )}
                     </TimelineClipBlock>
                   );
                 })}
@@ -825,27 +912,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             );
           })}
 
-          <Dropdown
-            trigger={['click']}
-            placement="topLeft"
-            menu={{
-              className: 'studio-track-menu',
-              items: ADDABLE_TRACK_TYPES.map((opt) => {
-                const Icon = ADD_TRACK_ICONS[opt.type];
-                return {
-                  key: opt.type,
-                  icon: <Icon size={14} />,
-                  label: opt.label,
-                  onClick: () => addTimelineTrack(opt.type),
-                };
-              }),
-            }}
-          >
-            <button type="button" className="studio-timeline-add-lane" title="Add track">
-              <Plus size={14} />
-              Add track
-            </button>
-          </Dropdown>
+
 
           {marquee && (
             <div

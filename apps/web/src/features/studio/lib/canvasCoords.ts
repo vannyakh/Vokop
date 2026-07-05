@@ -97,30 +97,68 @@ export function clampBoxToContentRect(
   return { x, y, width, height };
 }
 
-/** When the composition frame moves/resizes, remap a box proportionally inside it. */
-export function remapBoxInContentRect(
-  box: { x: number; y: number; width: number; height: number },
-  from: CanvasRect,
-  to: CanvasRect,
-): { x: number; y: number; width: number; height: number } {
-  if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) {
-    return box;
-  }
-  const relX = (box.x - from.x) / from.width;
-  const relY = (box.y - from.y) / from.height;
-  const relW = box.width / from.width;
-  const relH = box.height / from.height;
+/**
+ * Fraction-space composition coordinates (Omniclip-style resize fix).
+ *
+ * `MediaClip`/`CanvasElement` x/y/width/height/fontSize are stored as fractions
+ * of the current video content rect (0..1, can exceed 1 for oversized elements)
+ * instead of live on-screen pixels. Converting to/from pixels is a stateless
+ * multiplication done at render/write time using whatever `contentRect` is
+ * right now — no resize-triggered remap, no store write.
+ */
+export type FractionBox = { x: number; y: number; width: number; height: number };
+
+/** fraction (0..1 of contentRect) -> live on-screen px. */
+export function toPxBox(box: FractionBox, content: CanvasRect): CanvasRect {
   return {
-    x: to.x + relX * to.width,
-    y: to.y + relY * to.height,
-    width: Math.max(1, relW * to.width),
-    height: Math.max(1, relH * to.height),
+    x: content.x + box.x * content.width,
+    y: content.y + box.y * content.height,
+    width: box.width * content.width,
+    height: box.height * content.height,
   };
 }
 
-export function compositionScale(from: CanvasRect, to: CanvasRect): number {
-  if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) return 1;
-  return Math.min(to.width / from.width, to.height / from.height);
+/** live on-screen px -> fraction (0..1 of contentRect). */
+export function toFractionBox(box: CanvasRect, content: CanvasRect): FractionBox {
+  if (content.width <= 0 || content.height <= 0) return { x: 0, y: 0, width: 0, height: 0 };
+  return {
+    x: (box.x - content.x) / content.width,
+    y: (box.y - content.y) / content.height,
+    width: box.width / content.width,
+    height: box.height / content.height,
+  };
+}
+
+export function toPxPoint(point: { x: number; y: number }, content: CanvasRect): { x: number; y: number } {
+  return { x: content.x + point.x * content.width, y: content.y + point.y * content.height };
+}
+
+export function toFractionPoint(point: { x: number; y: number }, content: CanvasRect): { x: number; y: number } {
+  if (content.width <= 0 || content.height <= 0) return { x: 0, y: 0 };
+  return { x: (point.x - content.x) / content.width, y: (point.y - content.y) / content.height };
+}
+
+/** fraction of contentRect.height -> px (used for fontSize). */
+export function toPxFontSize(fraction: number, content: CanvasRect): number {
+  return fraction * content.height;
+}
+
+export function toFractionFontSize(px: number, content: CanvasRect): number {
+  return content.height > 0 ? px / content.height : 0;
+}
+
+/**
+ * Stable reference size for converting a fraction to a "nominal px" number for
+ * display/editing in inspector panels that don't have a live contentRect
+ * (e.g. sidebar sliders). Unlike the live contentRect, this only changes when
+ * the project's video resolution changes — not on every window/pane resize.
+ */
+export function frameReferenceSize(
+  videoWidth: number,
+  videoHeight: number,
+): { width: number; height: number } {
+  if (videoWidth > 0 && videoHeight > 0) return { width: videoWidth, height: videoHeight };
+  return { width: 1920, height: 1080 };
 }
 
 export function centerInContentRect(

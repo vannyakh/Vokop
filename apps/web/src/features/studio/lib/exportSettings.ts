@@ -15,10 +15,16 @@ export function detectBestVideoCodec(): string {
 
 export {
   DEFAULT_EXPORT_SETTINGS,
+  EXPORT_AUDIO_FORMATS,
+  EXPORT_FORMAT_CODECS,
+  EXPORT_QUALITY_RESOLUTION,
   resolveExportBitrate,
   resolveExportDimensions,
   type CaptionStyle,
+  type ExportCodec,
+  type ExportFormat,
   type ExportQuality,
   type ExportResolution,
   type ExportSettings,
+  type ExportType,
 } from '@vokop/shared';

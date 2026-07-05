@@ -43,7 +43,12 @@ export async function getJob(jobId: string): Promise<VideoJobResponse | null> {
 
 export async function updateJob(
   jobId: string,
-  patch: Partial<Pick<VideoJobResponse, 'status' | 'progress' | 'thumbnails' | 'result' | 'error'>>,
+  patch: Partial<
+    Pick<
+      VideoJobResponse,
+      'status' | 'progress' | 'thumbnails' | 'result' | 'error' | 'downloadUrl' | 'outputFormat'
+    >
+  >,
 ): Promise<VideoJobResponse | null> {
   const job = await getJob(jobId);
   if (!job) return null;

@@ -2,26 +2,28 @@ import { useRef } from 'react';
 import { Copy, ImageIcon, Trash2, Type } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
+import { toPxBox, toPxPoint, toPxFontSize, type CanvasRect } from '@/features/studio/lib/canvasCoords';
 import type { CanvasElement } from '@/types/canvas';
 
 interface CanvasElementOverlayProps {
   element: CanvasElement;
+  contentRect: CanvasRect;
   stageSize: { width: number; height: number };
   onEditText: () => void;
 }
 
-export function CanvasElementOverlay({ element, stageSize, onEditText }: CanvasElementOverlayProps) {
+export function CanvasElementOverlay({ element, contentRect, stageSize, onEditText }: CanvasElementOverlayProps) {
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const removeCanvasElement = useAppStore((s) => s.removeCanvasElement);
   const duplicateCanvasElement = useAppStore((s) => s.duplicateCanvasElement);
   const replaceCanvasElementImage = useAppStore((s) => s.replaceCanvasElementImage);
 
   const isImage = element.type === 'logo' || element.type === 'image';
-  const boxHeight = isImage ? element.height : element.fontSize * 1.6;
+  const pos = toPxPoint({ x: element.x, y: element.y }, contentRect);
 
-  const toolbarTop = Math.max(4, element.y - 36);
+  const toolbarTop = Math.max(4, pos.y - 36);
   const toolbarLeft = Math.min(
-    Math.max(4, element.x),
+    Math.max(4, pos.x),
     Math.max(4, stageSize.width - 180),
   );
 
@@ -89,23 +91,29 @@ export function CanvasElementOverlay({ element, stageSize, onEditText }: CanvasE
 
 interface CanvasInlineTextEditorProps {
   element: CanvasElement;
+  contentRect: CanvasRect;
   onCommit: (text: string) => void;
   onCancel: () => void;
 }
 
-export function CanvasInlineTextEditor({ element, onCommit, onCancel }: CanvasInlineTextEditorProps) {
+export function CanvasInlineTextEditor({ element, contentRect, onCommit, onCancel }: CanvasInlineTextEditorProps) {
   const style = element.textStyle;
-  const boxHeight = element.fontSize * 1.6;
+  const box = toPxBox(
+    { x: element.x, y: element.y, width: element.width, height: element.fontSize * 1.6 },
+    contentRect,
+  );
+  const fontSizePx = toPxFontSize(element.fontSize, contentRect);
+  const boxHeight = fontSizePx * 1.6;
 
   return (
     <textarea
       className="canvas-inline-text-editor"
       style={{
-        left: element.x,
-        top: element.y,
-        width: element.width,
+        left: box.x,
+        top: box.y,
+        width: box.width,
         minHeight: boxHeight,
-        fontSize: element.fontSize,
+        fontSize: fontSizePx,
         fontFamily: element.fontFamily ? `${element.fontFamily}, system-ui, sans-serif` : undefined,
         fontWeight: style?.fontWeight === 'bold' ? 700 : 500,
         fontStyle: style?.fontStyle === 'italic' ? 'italic' : 'normal',

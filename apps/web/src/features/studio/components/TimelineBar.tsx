@@ -1,5 +1,6 @@
 import { useRef, useState, type RefObject } from 'react';
 import { useAppStore } from '@/features/project';
+import type { VideoAudioGraph } from '@/features/audio/hooks/useAudioEngine';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
 import { TimelineEditingTools } from '@/features/studio/components/TimelineEditingTools';
@@ -9,11 +10,17 @@ import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelecti
 
 interface TimelineBarProps {
   videoRef: RefObject<HTMLVideoElement | null>;
+  connectVideoAudioGraph: (video: HTMLVideoElement) => Promise<VideoAudioGraph>;
   onProcessAll: () => void;
   onToggleSyncPlayback: () => void;
 }
 
-export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: TimelineBarProps) {
+export function TimelineBar({
+  videoRef,
+  connectVideoAudioGraph,
+  onProcessAll,
+  onToggleSyncPlayback,
+}: TimelineBarProps) {
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
   const currentTime = useAppStore((s) => s.currentTime);
@@ -90,6 +97,8 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         />
 
         <TimelinePlaybackControls
+          videoRef={videoRef}
+          connectVideoAudioGraph={connectVideoAudioGraph}
           isPaused={isPaused}
           currentTime={currentTime}
           duration={duration}

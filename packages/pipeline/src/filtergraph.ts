@@ -1,6 +1,7 @@
 import {
   computeDuration,
   type AudioClip,
+  type EqBand,
   type TextClip,
   type Timeline,
   type VideoClip,
@@ -20,23 +21,6 @@ export {
   areSequentialClips,
   PRESET_TO_XFADE,
 } from "./xfade.js";
-
-/**
- * Compiles a Timeline into a single deterministic ffmpeg invocation.
- * Same timeline JSON in => same argv out, on the cloud worker and on desktop.
- *
- * Compositing model:
- *   - a solid `color` source is the canvas
- *   - video clips are trimmed / retimed / fitted, then overlaid onto the
- *     canvas with enable='between(t,start,end)'; earlier tracks = lower layer
- *   - text clips become drawtext on the composited video
- *   - audio (audio-track clips + unmuted video-clip audio) is trimmed,
- *     retimed with atempo, faded, delayed into position, then amix'ed
- *
- * Each clip gets its own `-i` entry (ffmpeg does not allow consuming the
- * same input stream in two filter chains), so the same file may appear
- * multiple times in the input list — that's intentional.
- */
 
 export interface AssetMediaFlags {
   hasAudio?: boolean;
@@ -230,6 +214,7 @@ export function buildRenderArgs(opts: RenderOptions): CompiledRender {
           volume: clip.volume,
           fadeInSec: 0,
           fadeOutSec: 0,
+          eq: clip.eq,
         },
         idx,
         label,
@@ -341,10 +326,19 @@ function videoClipChain(
     );
   }
 
-  if (clip.transform.opacity < 1) {
+  const hasFade = clip.fadeInSec > 0 || clip.fadeOutSec > 0;
+  if (clip.transform.opacity < 1 || hasFade) {
     steps.push(
       "format=yuva420p",
       `colorchannelmixer=aa=${num(clip.transform.opacity)}`,
+    );
+  }
+  if (clip.fadeInSec > 0) {
+    steps.push(`fade=t=in:st=0:d=${num(clip.fadeInSec)}:alpha=1`);
+  }
+  if (clip.fadeOutSec > 0) {
+    steps.push(
+      `fade=t=out:st=${num(Math.max(0, clip.duration - clip.fadeOutSec))}:d=${num(clip.fadeOutSec)}:alpha=1`,
     );
   }
 
@@ -418,6 +412,7 @@ function audioClipChain(
     "aformat=channel_layouts=stereo",
   ];
   if (clip.volume !== 1) steps.push(`volume=${num(clip.volume)}`);
+  if (clip.eq?.enabled) steps.push(...eqFilterChain(clip.eq.bands));
   if (clip.fadeInSec > 0)
     steps.push(`afade=t=in:st=0:d=${num(clip.fadeInSec)}`);
   if (clip.fadeOutSec > 0)
@@ -427,6 +422,34 @@ function audioClipChain(
   const delayMs = Math.round(clip.start * 1000);
   if (delayMs > 0) steps.push(`adelay=${delayMs}:all=1`);
   return `[${inputIndex}:a]${steps.join(",")}[${outLabel}]`;
+}
+
+/**
+ * FFmpeg filter chain for one clip's enabled EQ bands, in band order.
+ * `highpass`/`lowpass` are pure filters (no gain); `lowshelf`/`highshelf` map
+ * to ffmpeg's `bass`/`treble` shelving filters; `peaking` maps to `equalizer`.
+ * All accept `width_type=q:w=<Q>` for consistency with the studio's curve math.
+ */
+export function eqFilterChain(bands: EqBand[]): string[] {
+  return bands
+    .filter((b) => b.enabled)
+    .map((b) => {
+      const f = num(b.freq);
+      const q = num(b.q);
+      switch (b.type) {
+        case "highpass":
+          return `highpass=f=${f}:width_type=q:w=${q}`;
+        case "lowpass":
+          return `lowpass=f=${f}:width_type=q:w=${q}`;
+        case "lowshelf":
+          return `bass=g=${num(b.gainDb)}:f=${f}:width_type=q:w=${q}`;
+        case "highshelf":
+          return `treble=g=${num(b.gainDb)}:f=${f}:width_type=q:w=${q}`;
+        case "peaking":
+        default:
+          return `equalizer=f=${f}:width_type=q:w=${q}:g=${num(b.gainDb)}`;
+      }
+    });
 }
 
 /** atempo only accepts 0.5..2.0 per instance — chain factors for the rest. */

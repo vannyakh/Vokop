@@ -48,36 +48,33 @@ export const RECENT_PROJECTS = [
 
 export const FEATURE_STEPS = [
   {
-    step: '01 · TRANSCRIBE',
-    title: 'Speaker-timed script',
-    description:
-      'AI listens to the original audio and generates a precise transcript, timed to every speaker and pause.',
+    step: '01',
+    titleKey: 'featuresStep1Title',
+    descKey: 'featuresStep1Desc',
     alt: false,
   },
   {
-    step: '02 · TRANSLATE',
-    title: '40+ languages',
-    description:
-      'The script is adapted into your target language, keeping meaning, tone, and pacing intact — not a literal word swap.',
+    step: '02',
+    titleKey: 'featuresStep2Title',
+    descKey: 'featuresStep2Desc',
     alt: false,
   },
   {
-    step: '03 · VOICEOVER',
-    title: 'Natural AI voice',
-    description:
-      'A studio-grade voice is recorded, lip-timed, and mixed back into the video — ready to export in one file.',
+    step: '03',
+    titleKey: 'featuresStep3Title',
+    descKey: 'featuresStep3Desc',
     alt: true,
   },
-];
+] as const;
 
 export const FEATURE_EXTRAS = [
-  { label: 'Speaker detection', gated: false },
-  { label: 'Auto lip-sync', gated: false },
-  { label: 'Batch uploads', gated: false },
-  { label: 'SRT / VTT export', gated: false },
-  { label: 'Up to 4K output', gated: true },
-  { label: 'API access', gated: true },
-];
+  { labelKey: 'featuresExtra1', gated: false },
+  { labelKey: 'featuresExtra2', gated: false },
+  { labelKey: 'featuresExtra3', gated: false },
+  { labelKey: 'featuresExtra4', gated: false },
+  { labelKey: 'featuresExtra5', gated: true },
+  { labelKey: 'featuresExtra6', gated: true },
+] as const;
 
 export const DEMO_SLIDES = [
   {
@@ -87,6 +84,7 @@ export const DEMO_SLIDES = [
     progress: 38,
     tint:
       'radial-gradient(560px 320px at 25% 30%, rgba(232,163,61,0.18), transparent 60%), radial-gradient(560px 320px at 78% 75%, rgba(84,214,201,0.14), transparent 60%), var(--bg)',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
   },
   {
     code: 'ខ្មែរ',
@@ -95,6 +93,7 @@ export const DEMO_SLIDES = [
     progress: 52,
     tint:
       'radial-gradient(560px 320px at 70% 25%, rgba(84,214,201,0.2), transparent 60%), radial-gradient(560px 320px at 20% 80%, rgba(232,163,61,0.1), transparent 60%), var(--bg)',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
   },
   {
     code: 'ไทย',
@@ -103,6 +102,7 @@ export const DEMO_SLIDES = [
     progress: 24,
     tint:
       'radial-gradient(560px 320px at 30% 75%, rgba(232,163,61,0.16), transparent 60%), radial-gradient(560px 320px at 75% 20%, rgba(84,214,201,0.16), transparent 60%), var(--bg)',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
   },
   {
     code: '日本語',
@@ -111,72 +111,73 @@ export const DEMO_SLIDES = [
     progress: 66,
     tint:
       'radial-gradient(560px 320px at 75% 70%, rgba(84,214,201,0.18), transparent 60%), radial-gradient(560px 320px at 25% 25%, rgba(232,163,61,0.14), transparent 60%), var(--bg)',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
   },
 ] as const;
 
 export const PRICING_PLANS = [
   {
     id: 'free',
-    name: 'Free',
-    description: 'Try the pipeline, no card required.',
+    nameKey: 'planFreeName',
+    descKey: 'planFreeDesc',
     monthlyPrice: '$0',
     annualPrice: '$0',
-    cta: 'Get started',
+    ctaKey: 'planFreeCta',
     featured: false,
     features: [
-      { text: '3 videos per month', included: true },
-      { text: 'Up to 1080p export', included: true },
-      { text: '2 languages per video', included: true },
-      { text: 'Carries a Vokop watermark — removed in Pro', included: false, link: true },
+      { textKey: 'planFreeFeature1', included: true },
+      { textKey: 'planFreeFeature2', included: true },
+      { textKey: 'planFreeFeature3', included: true },
+      { textKey: 'planFreeFeatureWatermark', included: false, link: true },
     ],
   },
   {
     id: 'pro',
-    name: 'Pro',
-    description: 'For creators publishing every week.',
+    nameKey: 'planProName',
+    descKey: 'planProDesc',
     monthlyPrice: '$19',
     annualPrice: '$15',
-    cta: 'Start Pro trial',
+    ctaKey: 'planProCta',
     featured: true,
     features: [
-      { text: 'Unlimited videos', included: true },
-      { text: 'Up to 4K export', included: true },
-      { text: '40+ languages, no watermark', included: true },
-      { text: 'Priority processing queue', included: true },
+      { textKey: 'planProFeature1', included: true },
+      { textKey: 'planProFeature2', included: true },
+      { textKey: 'planProFeature3', included: true },
+      { textKey: 'planProFeature4', included: true },
     ],
   },
   {
     id: 'studio',
-    name: 'Studio',
-    description: 'For teams shipping in bulk.',
+    nameKey: 'planStudioName',
+    descKey: 'planStudioDesc',
     monthlyPrice: '$49',
     annualPrice: '$39',
-    cta: 'Start Studio trial',
+    ctaKey: 'planStudioCta',
     featured: false,
     features: [
-      { text: 'Everything in Pro', included: true },
-      { text: 'Batch uploads & API access', included: true },
-      { text: 'Custom voice cloning', included: true },
-      { text: 'Dedicated support channel', included: true },
+      { textKey: 'planStudioFeature1', included: true },
+      { textKey: 'planStudioFeature2', included: true },
+      { textKey: 'planStudioFeature3', included: true },
+      { textKey: 'planStudioFeature4', included: true },
     ],
   },
-];
+] as const;
 
 export const COMPARE_ROWS = [
-  { feature: 'Videos per month', free: '3', pro: 'Unlimited', studio: 'Unlimited' },
-  { feature: 'Export quality', free: '1080p', pro: '4K', studio: '4K' },
-  { feature: 'Languages', free: '2', pro: '40+', studio: '40+' },
-  { feature: 'Watermark', free: 'Yes', pro: 'no', studio: 'no' },
-  { feature: 'Priority processing', free: '—', pro: 'yes', studio: 'yes' },
-  { feature: 'Batch uploads', free: '—', pro: '—', studio: 'yes' },
-  { feature: 'API access', free: '—', pro: '—', studio: 'yes' },
-  { feature: 'Voice cloning', free: '—', pro: '—', studio: 'Custom' },
-  { feature: 'Support', free: 'Community', pro: 'Email', studio: 'Dedicated' },
-];
+  { featureKey: 'compVideos', freeKey: 'compFreeVideos', proKey: 'compUnlimited', studioKey: 'compUnlimited' },
+  { featureKey: 'compExport', freeKey: 'compFreeExport', proKey: 'compProExport', studioKey: 'compProExport' },
+  { featureKey: 'compLanguages', freeKey: 'compFreeLangs', proKey: 'compProLangs', studioKey: 'compProLangs' },
+  { featureKey: 'compWatermark', freeKey: 'compYes', proKey: 'compNo', studioKey: 'compNo' },
+  { featureKey: 'compPriority', freeKey: 'compNone', proKey: 'compYes', studioKey: 'compYes' },
+  { featureKey: 'compBatch', freeKey: 'compNone', proKey: 'compNone', studioKey: 'compYes' },
+  { featureKey: 'compApi', freeKey: 'compNone', proKey: 'compNone', studioKey: 'compYes' },
+  { featureKey: 'compVoice', freeKey: 'compNone', proKey: 'compNone', studioKey: 'compCustom' },
+  { featureKey: 'compSupport', freeKey: 'compCommunity', proKey: 'compEmail', studioKey: 'compDedicated' },
+] as const;
 
 export const ABOUT_STATS = [
-  { value: '1.2M+', label: 'Videos translated' },
-  { value: '42', label: 'Languages supported' },
-  { value: '180+', label: 'Countries reached' },
-  { value: '4.8/5', label: 'Average rating' },
-];
+  { value: '1.2M+', labelKey: 'aboutStat1' },
+  { value: '42', labelKey: 'aboutStat2' },
+  { value: '180+', labelKey: 'aboutStat3' },
+  { value: '4.8/5', labelKey: 'aboutStat4' },
+] as const;

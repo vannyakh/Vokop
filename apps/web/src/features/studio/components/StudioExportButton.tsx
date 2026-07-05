@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { useTranslation } from '@/features/settings';
 
 interface StudioExportButtonProps {
   onClick: () => void;
@@ -25,16 +26,19 @@ export function StudioExportButton({
   loading = false,
   className,
 }: StudioExportButtonProps) {
+  const { t } = useTranslation();
+
   return (
     <button
       type="button"
-      className={cn('studio-export-btn', className)}
+      className={cn('studio-export-btn', loading && 'studio-export-btn--loading', className)}
       onClick={onClick}
       disabled={disabled || loading}
+      aria-busy={loading}
     >
-      <span className="studio-export-btn__text">{loading ? 'Exporting' : 'Export'}</span>
-      <span className="studio-export-btn__svg" aria-hidden="true">
-        {loading ? <Loader2 className="animate-spin" size={18} /> : <ExportArrowIcon />}
+      <span className="studio-export-btn__text">{loading ? t('exporting') : t('export')}</span>
+      <span className="studio-export-btn__icon" aria-hidden="true">
+        {loading ? <Loader2 className="studio-export-btn__spinner" /> : <ExportArrowIcon />}
       </span>
     </button>
   );

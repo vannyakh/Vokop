@@ -54,6 +54,10 @@ export function useStudioEdit() {
         studioEdit.extractAudioFromVideo(clipId),
       detachAudioFromVideo: (clipId?: string) =>
         studioEdit.detachAudioFromVideo(clipId),
+      extractAudioFromVideoTrack: (trackId?: string) =>
+        studioEdit.extractAudioFromVideoTrack(trackId),
+      detachAudioFromVideoTrack: (trackId?: string) =>
+        studioEdit.detachAudioFromVideoTrack(trackId),
     }),
     [],
   );

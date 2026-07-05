@@ -99,6 +99,8 @@ export function snapshotToTimeline(
       transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
       muted: Boolean(raw.muted),
       volume: Number.isFinite(volume) ? volume : 1,
+      fadeInSec: 0,
+      fadeOutSec: 0,
     });
     videoByTrack.set(track, list);
   }

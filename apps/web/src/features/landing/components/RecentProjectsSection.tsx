@@ -14,17 +14,21 @@ import {
 import { Popconfirm } from '@vokop/ui/antd';
 import { useRecentProjects } from '@/features/projects/hooks/useRecentProjects';
 import { useProjectNavigation } from '@/features/project/hooks/useProjectNavigation';
+import { getProjectMeta } from '@/features/projects/lib/projectDisplay';
+import { useTranslation } from '@/features/settings';
+import defaultProjectThumb from '@/assets/project.png';
 import { cn } from '@/lib/cn';
 
 const STATUS_LABELS = {
-  done: 'Completed',
-  processing: 'Processing',
-  failed: 'Failed',
+  done: 'libraryStatusDone',
+  processing: 'libraryStatusProcessing',
+  failed: 'libraryStatusFailed',
 } as const;
 
 export function RecentProjectsSection() {
   const [showTrash, setShowTrash] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'row'>('row');
+  const { t } = useTranslation();
   const {
     projects,
     isMock,
@@ -43,9 +47,9 @@ export function RecentProjectsSection() {
     <section className="landing-section landing-history-section">
       <div className="landing-section-head-row">
         <div>
-          <span className="landing-section-eyebrow">Your library</span>
+          <span className="landing-section-eyebrow">{t('libraryEyebrow')}</span>
           <h2 className="landing-section-title font-display">
-            {showTrash ? 'Trash' : 'Recent projects'}
+            {showTrash ? t('libraryTitleTrash') : t('libraryTitleProjects')}
           </h2>
         </div>
         <div className="landing-history-actions">
@@ -54,7 +58,7 @@ export function RecentProjectsSection() {
               type="button"
               className={cn("landing-view-toggle-btn", viewMode === 'row' && "is-active")}
               onClick={() => setViewMode('row')}
-              title="Row list view"
+              title={t('libraryViewRowTooltip')}
             >
               <List size={14} />
             </button>
@@ -62,7 +66,7 @@ export function RecentProjectsSection() {
               type="button"
               className={cn("landing-view-toggle-btn", viewMode === 'grid' && "is-active")}
               onClick={() => setViewMode('grid')}
-              title="Grid card view"
+              title={t('libraryViewGridTooltip')}
             >
               <LayoutGrid size={14} />
             </button>
@@ -77,15 +81,15 @@ export function RecentProjectsSection() {
               disabled={isMutating}
               onClick={() => setShowTrash((v) => !v)}
             >
-              {showTrash ? 'Back to projects' : `Trash${trashCount > 0 ? ` (${trashCount})` : ''}`}
+              {showTrash ? t('libraryBackToProjects') : `${t('libraryTitleTrash')}${trashCount > 0 ? ` (${trashCount})` : ''}`}
             </button>
           )}
           {showTrash && !isMock && projects.length > 0 && (
             <Popconfirm
-              title="Empty trash?"
-              description="All projects in trash will be permanently deleted. This cannot be undone."
-              okText="Empty trash"
-              cancelText="Cancel"
+              title={t('libraryEmptyTrashConfirmTitle')}
+              description={t('libraryEmptyTrashConfirmDesc')}
+              okText={t('libraryEmptyTrash')}
+              cancelText={t('libraryOpCancel')}
               okButtonProps={{ danger: true, loading: isMutating }}
               disabled={isMutating}
               onConfirm={() => emptyTrash()}
@@ -95,13 +99,13 @@ export function RecentProjectsSection() {
                 className="landing-view-all landing-view-all--danger"
                 disabled={isMutating}
               >
-                Empty trash
+                {t('libraryEmptyTrash')}
               </button>
             </Popconfirm>
           )}
           {!showTrash && (
             <button type="button" className="landing-view-all" disabled={isMock}>
-              View all
+              {t('libraryViewAll')}
               <ArrowRight size={14} />
             </button>
           )}
@@ -112,21 +116,21 @@ export function RecentProjectsSection() {
         <div className="landing-history-list">
           <div className="landing-history-empty">
             <Loader2 size={18} className="animate-spin" />
-            <span>{showTrash ? 'Loading trash…' : 'Loading your projects…'}</span>
+            <span>{showTrash ? t('libraryLoadingTrash') : t('libraryLoadingProjects')}</span>
           </div>
         </div>
       ) : isError ? (
         <div className="landing-history-list">
           <div className="landing-history-empty">
-            {showTrash ? 'Could not load trash.' : 'Could not load your projects.'}
+            {showTrash ? t('libraryErrorTrash') : t('libraryErrorProjects')}
           </div>
         </div>
       ) : projects.length === 0 ? (
         <div className="landing-history-list">
           <div className="landing-history-empty">
             {showTrash
-              ? 'Trash is empty.'
-              : 'No projects yet. Upload a video to start your first project.'}
+              ? t('libraryEmptyTrashMsg')
+              : t('libraryEmptyProjectsMsg')}
           </div>
         </div>
       ) : viewMode === 'grid' ? (
@@ -142,6 +146,11 @@ export function RecentProjectsSection() {
                 <div
                   className={`landing-thumb landing-thumb-${project.thumb}`}
                   data-dur={project.duration}
+                  style={{
+                    backgroundImage: `url(${project.thumbnailUrl || defaultProjectThumb})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
                 >
                   <Play size={18} fill="currentColor" />
                 </div>
@@ -150,9 +159,11 @@ export function RecentProjectsSection() {
               <div className="landing-grid-card-details">
                 <div className="landing-grid-card-title">{project.title}</div>
                 <div className="landing-grid-card-meta">
-                  <span className="landing-row-lang">{project.lang}</span>
-                  <span className="landing-row-sep">·</span>
-                  <span>{project.meta}</span>
+                  <span>
+                    {project.updatedAt
+                      ? getProjectMeta(project.status, project.progress, project.updatedAt, t)
+                      : project.meta}
+                  </span>
                 </div>
               </div>
 
@@ -160,10 +171,10 @@ export function RecentProjectsSection() {
                 {!showTrash ? (
                   <span className={`landing-row-status landing-row-status-${project.status}`}>
                     <span className="dot" />
-                    {STATUS_LABELS[project.status]}
+                    {t(STATUS_LABELS[project.status])}
                   </span>
                 ) : (
-                  <span className="text-xs text-text-muted">In Trash</span>
+                  <span className="text-xs text-text-muted">{t('libraryInTrash')}</span>
                 )}
 
                 <div className="landing-row-ops">
@@ -172,17 +183,17 @@ export function RecentProjectsSection() {
                       <button
                         type="button"
                         className="landing-row-ops-btn"
-                        title="Restore"
+                        title={t('libraryOpRestore')}
                         disabled={isMutating}
                         onClick={() => void restoreProject(project.id)}
                       >
                         <Undo2 size={13} />
                       </button>
                       <Popconfirm
-                        title="Delete permanently?"
-                        description={`“${project.title}” will be permanently deleted.`}
-                        okText="Delete"
-                        cancelText="Cancel"
+                        title={t('libraryOpDeletePermanentlyConfirmTitle')}
+                        description={t('libraryOpDeletePermanentlyConfirm', { title: project.title })}
+                        okText={t('libraryOpDelete')}
+                        cancelText={t('libraryOpCancel')}
                         okButtonProps={{ danger: true, loading: isMutating }}
                         disabled={isMutating}
                         onConfirm={() => permanentDelete(project.id)}
@@ -190,7 +201,7 @@ export function RecentProjectsSection() {
                         <button
                           type="button"
                           className="landing-row-ops-btn landing-row-ops-btn--danger"
-                          title="Delete permanently"
+                          title={t('libraryOpDeletePermanently')}
                           disabled={isMutating}
                         >
                           <Trash2 size={13} />
@@ -204,10 +215,10 @@ export function RecentProjectsSection() {
                         className="landing-row-ops-btn"
                         title={
                           project.status === 'failed'
-                            ? 'Retry'
+                            ? t('libraryOpRetry')
                             : project.status === 'processing'
-                              ? 'View progress'
-                              : 'Download'
+                              ? t('libraryOpViewProgress')
+                              : t('libraryOpDownload')
                         }
                         disabled={isMock}
                       >
@@ -221,10 +232,10 @@ export function RecentProjectsSection() {
                       </button>
 
                       <Popconfirm
-                        title="Move to trash?"
-                        description={`“${project.title}” will be moved to trash.`}
-                        okText="Move to trash"
-                        cancelText="Cancel"
+                        title={t('libraryOpMoveToTrashConfirmTitle')}
+                        description={t('libraryOpMoveToTrashConfirm', { title: project.title })}
+                        okText={t('libraryOpMoveToTrash')}
+                        cancelText={t('libraryOpCancel')}
                         okButtonProps={{ danger: true, loading: isMutating }}
                         disabled={isMutating}
                         onConfirm={() => moveToTrash(project.id)}
@@ -232,7 +243,7 @@ export function RecentProjectsSection() {
                         <button
                           type="button"
                           className="landing-row-ops-btn"
-                          title="Move to trash"
+                          title={t('libraryOpMoveToTrash')}
                           disabled={isMutating}
                         >
                           <Trash2 size={13} />
@@ -258,21 +269,28 @@ export function RecentProjectsSection() {
                 <div
                   className={`landing-thumb landing-thumb-${project.thumb}`}
                   data-dur={project.duration}
+                  style={{
+                    backgroundImage: `url(${project.thumbnailUrl || defaultProjectThumb})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
                 >
                   <Play size={15} fill="currentColor" />
                 </div>
                 <div className="landing-row-main">
                   <div className="landing-row-title">{project.title}</div>
                   <div className="landing-row-meta">
-                    <span className="landing-row-lang">{project.lang}</span>
-                    <span className="landing-row-sep">·</span>
-                    <span>{project.meta}</span>
+                    <span>
+                      {project.updatedAt
+                        ? getProjectMeta(project.status, project.progress, project.updatedAt, t)
+                        : project.meta}
+                    </span>
                   </div>
                 </div>
                 {!showTrash && (
                   <span className={`landing-row-status landing-row-status-${project.status}`}>
                     <span className="dot" />
-                    {STATUS_LABELS[project.status]}
+                    {t(STATUS_LABELS[project.status])}
                   </span>
                 )}
                 {!showTrash && (
@@ -280,10 +298,10 @@ export function RecentProjectsSection() {
                     className="landing-row-action"
                     aria-label={
                       project.status === 'failed'
-                        ? 'Retry'
+                        ? t('libraryOpRetry')
                         : project.status === 'processing'
-                          ? 'View progress'
-                          : 'Download'
+                          ? t('libraryOpViewProgress')
+                          : t('libraryOpDownload')
                     }
                   >
                     {project.status === 'failed' ? (
@@ -304,17 +322,17 @@ export function RecentProjectsSection() {
                       <button
                         type="button"
                         className="landing-row-ops-btn"
-                        title="Restore"
+                        title={t('libraryOpRestore')}
                         disabled={isMutating}
                         onClick={() => void restoreProject(project.id)}
                       >
                         <Undo2 size={14} />
                       </button>
                       <Popconfirm
-                        title="Delete permanently?"
-                        description={`“${project.title}” will be permanently deleted. This cannot be undone.`}
-                        okText="Delete"
-                        cancelText="Cancel"
+                        title={t('libraryOpDeletePermanentlyConfirmTitle')}
+                        description={t('libraryOpDeletePermanentlyConfirm', { title: project.title })}
+                        okText={t('libraryOpDelete')}
+                        cancelText={t('libraryOpCancel')}
                         okButtonProps={{ danger: true, loading: isMutating }}
                         disabled={isMutating}
                         onConfirm={() => permanentDelete(project.id)}
@@ -322,7 +340,7 @@ export function RecentProjectsSection() {
                         <button
                           type="button"
                           className="landing-row-ops-btn landing-row-ops-btn--danger"
-                          title="Delete permanently"
+                          title={t('libraryOpDeletePermanently')}
                           disabled={isMutating}
                         >
                           <Trash2 size={14} />
@@ -331,10 +349,10 @@ export function RecentProjectsSection() {
                     </>
                   ) : (
                     <Popconfirm
-                      title="Move to trash?"
-                      description={`“${project.title}” will be moved to trash. You can restore it later.`}
-                      okText="Move to trash"
-                      cancelText="Cancel"
+                      title={t('libraryOpMoveToTrashConfirmTitle')}
+                      description={t('libraryOpMoveToTrashConfirm', { title: project.title })}
+                      okText={t('libraryOpMoveToTrash')}
+                      cancelText={t('libraryOpCancel')}
                       okButtonProps={{ danger: true, loading: isMutating }}
                       disabled={isMutating}
                       onConfirm={() => moveToTrash(project.id)}
@@ -342,7 +360,7 @@ export function RecentProjectsSection() {
                       <button
                         type="button"
                         className="landing-row-ops-btn"
-                        title="Move to trash"
+                        title={t('libraryOpMoveToTrash')}
                         disabled={isMutating}
                         onClick={(e) => e.stopPropagation()}
                       >

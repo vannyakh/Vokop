@@ -15,6 +15,35 @@ export function clipVolumeValue(clip: MediaClip): number {
   return clip.volume ?? 1;
 }
 
+/**
+ * Linear envelope (0-1) for a fade-in/fade-out ramp at `timelineTime`, given
+ * a clip's placement on the timeline. Shared by audio volume fades and video
+ * opacity fades so both ramp identically.
+ */
+export function computeFadeEnvelope(
+  timelineTime: number,
+  clipStart: number,
+  clipDuration: number,
+  fadeInSec: number,
+  fadeOutSec: number,
+): number {
+  const clipEnd = clipStart + clipDuration;
+  const fadeIn = Math.max(0, fadeInSec);
+  const fadeOut = Math.max(0, fadeOutSec);
+
+  if (timelineTime < clipStart || timelineTime > clipEnd) return 0;
+
+  let envelope = 1;
+  if (fadeIn > 0 && timelineTime < clipStart + fadeIn) {
+    envelope *= (timelineTime - clipStart) / fadeIn;
+  }
+  if (fadeOut > 0 && timelineTime > clipEnd - fadeOut) {
+    envelope *= Math.max(0, (clipEnd - timelineTime) / fadeOut);
+  }
+
+  return Math.min(1, Math.max(0, envelope));
+}
+
 /** Effective linear gain at timeline time (0–2), including fades and mute flags. */
 export function effectiveClipVolume(
   clip: MediaClip,
@@ -23,22 +52,16 @@ export function effectiveClipVolume(
 ): number {
   if (trackMuted || clip.muted) return 0;
 
-  let gain = clipVolumeValue(clip);
-  const clipStart = clip.start;
-  const clipEnd = clip.start + clip.duration;
-  const fadeIn = Math.max(0, clip.fadeInSec ?? 0);
-  const fadeOut = Math.max(0, clip.fadeOutSec ?? 0);
+  const gain = clipVolumeValue(clip);
+  const envelope = computeFadeEnvelope(
+    timelineTime,
+    clip.start,
+    clip.duration,
+    clip.fadeInSec ?? 0,
+    clip.fadeOutSec ?? 0,
+  );
 
-  if (timelineTime < clipStart || timelineTime > clipEnd) return 0;
-
-  if (fadeIn > 0 && timelineTime < clipStart + fadeIn) {
-    gain *= (timelineTime - clipStart) / fadeIn;
-  }
-  if (fadeOut > 0 && timelineTime > clipEnd - fadeOut) {
-    gain *= Math.max(0, (clipEnd - timelineTime) / fadeOut);
-  }
-
-  return Math.min(2, Math.max(0, gain));
+  return Math.min(2, Math.max(0, gain * envelope));
 }
 
 /** Stereo pan as left/right channel multipliers (simple balance). */

@@ -1,4 +1,5 @@
 import type { CanvasElement } from '@/types/canvas';
+import { toPxBox, toPxFontSize, type CanvasRect } from '@/features/studio/lib/canvasCoords';
 
 export interface CanvasGuideLine {
   orientation: 'horizontal' | 'vertical';
@@ -9,7 +10,7 @@ export interface CanvasGuideLine {
   kind?: 'frame' | 'axis' | 'snap';
 }
 
-/** Generic bounds peer for attach-snap (overlays, video proxy, etc.). */
+/** Generic bounds peer for attach-snap (overlays, video proxy, etc.) — always live on-screen px. */
 export interface SnapPeer {
   id: string;
   x: number;
@@ -20,10 +21,12 @@ export interface SnapPeer {
 
 const SNAP_THRESHOLD = 8;
 
-export function elementToSnapPeer(el: CanvasElement): SnapPeer {
-  const height =
+/** Project a (fraction-space) CanvasElement to a px snap peer bounds for the given contentRect. */
+export function elementToSnapPeer(el: CanvasElement, contentRect: CanvasRect): SnapPeer {
+  const heightFraction =
     el.type === 'logo' || el.type === 'image' ? el.height : el.fontSize * 1.6;
-  return { id: el.id, x: el.x, y: el.y, width: el.width, height };
+  const box = toPxBox({ x: el.x, y: el.y, width: el.width, height: heightFraction }, contentRect);
+  return { id: el.id, ...box };
 }
 
 function snapAxis(

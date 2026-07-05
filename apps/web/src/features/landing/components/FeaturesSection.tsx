@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { FEATURE_EXTRAS, FEATURE_STEPS } from '@/features/landing/data/landingContent';
 import { LandingSectionHead } from '@/features/landing/components/LandingSectionHead';
+import { useTranslation } from '@/features/settings';
 
 const STEP_ICONS = [Mic, Languages, Music];
 const EXTRA_ICONS = [Users, Video, LayoutGrid, FileText, Monitor, Code];
@@ -21,12 +22,14 @@ interface FeaturesSectionProps {
 }
 
 export function FeaturesSection({ onScrollToUpload }: FeaturesSectionProps) {
+  const { t } = useTranslation();
+
   return (
     <section className="landing-section landing-features-section">
       <LandingSectionHead
-        eyebrow="Capabilities"
-        title="Everything happens in one pass"
-        description="Upload once — Vokop handles the script, the language, and the voice, then hands back a video that's ready to publish."
+        eyebrow={t('featuresEyebrow')}
+        title={t('featuresTitle')}
+        description={t('featuresDesc')}
       />
 
       <div className="landing-feature-grid">
@@ -46,8 +49,8 @@ export function FeaturesSection({ onScrollToUpload }: FeaturesSectionProps) {
               <div className="landing-feature-icon">
                 <Icon size={18} />
               </div>
-              <h3>{feature.title}</h3>
-              <p>{feature.description}</p>
+              <h3>{t(feature.titleKey)}</h3>
+              <p>{t(feature.descKey)}</p>
             </button>
           );
         })}
@@ -58,13 +61,13 @@ export function FeaturesSection({ onScrollToUpload }: FeaturesSectionProps) {
           const Icon = EXTRA_ICONS[i];
           return (
             <div
-              key={item.label}
+              key={item.labelKey}
               className={`landing-extra-item${item.gated ? ' landing-extra-item-gated' : ''}`}
             >
               <span className="landing-extra-ico">
                 <Icon size={14} />
               </span>
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
               {item.gated && <span className="landing-tier-badge">Pro</span>}
             </div>
           );

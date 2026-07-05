@@ -1,7 +1,9 @@
 import { FolderDown } from 'lucide-react';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 
 export function TimelineEmptyState() {
+  const { t } = useTranslation();
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
 
@@ -12,14 +14,14 @@ export function TimelineEmptyState() {
 
   return (
     <div className="studio-timeline-empty" aria-live="polite">
-      <p className="studio-timeline-empty-title">Your timeline is empty</p>
+      <p className="studio-timeline-empty-title">{t('emptyTimelineTitle')}</p>
       <p className="studio-timeline-empty-desc">
-        Drag media from the{' '}
+        {t('emptyTimelineDescPrefix')}
         <button type="button" className="studio-timeline-empty-media-btn" onClick={openMediaPanel}>
           <FolderDown size={15} aria-hidden />
-          <span>Media</span>
-        </button>{' '}
-        panel onto the timeline — a track will be created for that footage type.
+          <span>{t('studioToolMedia')}</span>
+        </button>
+        {t('emptyTimelineDescSuffix')}
       </p>
     </div>
   );

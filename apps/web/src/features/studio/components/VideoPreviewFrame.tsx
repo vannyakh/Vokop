@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAppStore } from '@/features/project';
+import { useTranslation } from '@/features/settings';
 import {
   getDisplayRatio,
 } from '@/features/studio/constants/aspectRatios';
@@ -45,6 +46,7 @@ export function VideoPreviewFrame({
   dropHint = '',
   externalDrag = false,
 }: VideoPreviewFrameProps) {
+  const { t } = useTranslation();
   const internalWrapRef = useRef<HTMLDivElement | null>(null);
   const wrapRef = wrapRefProp ?? internalWrapRef;
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
@@ -121,8 +123,8 @@ export function VideoPreviewFrame({
     [frameSize, videoWidth, videoHeight, displayRatio],
   );
   const videoLayout = useMemo(
-    () => liveVideoLayout ?? resolveVideoClipLayout(activeVideoClip, contentRect),
-    [liveVideoLayout, activeVideoClip, contentRect],
+    () => liveVideoLayout ?? resolveVideoClipLayout(activeVideoClip, contentRect, currentTime),
+    [liveVideoLayout, activeVideoClip, contentRect, currentTime],
   );
 
   useEffect(() => {
@@ -176,8 +178,8 @@ export function VideoPreviewFrame({
     >
         {isEmptyCanvas && !dropActive && (
           <div className="studio-canvas-empty" aria-hidden>
-            <p className="studio-canvas-empty-title">Drop media or templates here</p>
-            <p className="studio-canvas-empty-hint">Adds tracks and elements at the playhead</p>
+            <p className="studio-canvas-empty-title">{t('emptyCanvasTitle')}</p>
+            <p className="studio-canvas-empty-hint">{t('emptyCanvasHint')}</p>
           </div>
         )}
 
@@ -214,7 +216,7 @@ export function VideoPreviewFrame({
 
         {dropActive && (
           <div className="studio-viewport-drop-hint" aria-hidden>
-            {dropHint || 'Drop to add'}
+            {dropHint || t('canvasDropToAdd')}
           </div>
         )}
 

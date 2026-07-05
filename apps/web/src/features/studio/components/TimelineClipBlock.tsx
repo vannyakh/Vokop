@@ -1,4 +1,5 @@
-import { X, GripHorizontal } from 'lucide-react';
+import { useMemo } from 'react';
+import { X, GripHorizontal, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { TimelineClipModel, TimelineTrackModel } from '@/features/studio/lib/timelineTypes';
 
@@ -18,6 +19,8 @@ interface TimelineClipBlockProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   /** Split/drag unlocks after transcript is ready. */
   canDrag?: boolean;
+  /** Track-level mute — shown as an icon on the waveform strip, footage stays at full brightness. */
+  muted?: boolean;
 }
 
 /** Determine the CapCut-style variant for coloring */
@@ -49,6 +52,7 @@ export function TimelineClipBlock({
   onDragStart,
   onContextMenu,
   canDrag = true,
+  muted = false,
 }: TimelineClipBlockProps) {
   const isEditableTrack =
     track.type === 'text' ||
@@ -63,6 +67,14 @@ export function TimelineClipBlock({
   const isFootage = track.type === 'video';
   const isAudio = track.type === 'audio' || track.type === 'sound';
   const variant = getClipVariant(clip, track.type);
+
+  const displayLabel = useMemo(() => {
+    if (clip.voiceFilter && clip.voiceFilter !== 'original' && clip.voiceFilter !== 'none') {
+      const filterName = clip.voiceFilter.charAt(0).toUpperCase() + clip.voiceFilter.slice(1);
+      return `${clip.name} Voice filters ${filterName}`;
+    }
+    return clip.name;
+  }, [clip.name, clip.voiceFilter]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -105,6 +117,21 @@ export function TimelineClipBlock({
         </div>
       )}
 
+      {/* Embedded soundtrack — dark strip docked to the bottom of the footage clip */}
+      {isFootage && children && (
+        <div
+          className={cn('studio-timeline-clip-footage-wave', muted && 'is-muted')}
+          aria-hidden
+        >
+          {children}
+          {muted && (
+            <span className="studio-timeline-clip-footage-mute" title="Track muted">
+              <VolumeX size={10} />
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Audio waveform */}
       {isAudio && children}
 
@@ -130,7 +157,7 @@ export function TimelineClipBlock({
           )}
         >
           {width > 50 && (
-            <span className="studio-timeline-clip-label">{clip.name}</span>
+            <span className="studio-timeline-clip-label">{displayLabel}</span>
           )}
         </div>
       )}
@@ -138,7 +165,7 @@ export function TimelineClipBlock({
       {/* Video footage label */}
       {isFootage && selected && (
         <div className="studio-timeline-clip-footage-label">
-          <span>{clip.name}</span>
+          <span>{displayLabel}</span>
         </div>
       )}
 

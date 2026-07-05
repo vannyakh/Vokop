@@ -1,5 +1,5 @@
 import type { UserPreferences } from '../types/preferences.js';
-import type { ExportSettings } from '../types/export.js';
+import type { ExportCodec, ExportQuality, ExportResolution, ExportSettings } from '../types/export.js';
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   uiLanguage: 'en',
@@ -7,14 +7,38 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 };
 
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
-  resolution: 'original',
+  resolution: '1080p',
   quality: 'high',
   fps: 30,
   captionStyle: 'standard',
   captionScale: 1,
   includeOriginalAudio: true,
   includeVoiceover: true,
+  exportType: 'video',
+  format: 'mp4',
+  codec: 'h264',
+  removeWatermark: false,
+  /** 0 is a sentinel meaning "use full timeline duration" until the modal resolves it. */
+  rangeInSec: 0,
+  rangeOutSec: 0,
 };
+
+/** Quality preset -> resolution, kept in sync with the Export Video modal's single Quality dropdown. */
+export const EXPORT_QUALITY_RESOLUTION: Record<ExportQuality, ExportResolution> = {
+  ultra: '2160p',
+  high: '1080p',
+  medium: '720p',
+  low: '480p',
+};
+
+/** Codec choices available per output format. */
+export const EXPORT_FORMAT_CODECS: Record<'mp4' | 'webm', ExportCodec[]> = {
+  mp4: ['h264', 'h265'],
+  webm: ['vp9'],
+};
+
+/** Audio-only export formats (no codec dropdown — codec is implied by format). */
+export const EXPORT_AUDIO_FORMATS = ['mp3', 'wav', 'aac'] as const;
 
 export const DEFAULT_VOICE = 'Kore';
 

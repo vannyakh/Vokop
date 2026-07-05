@@ -10,6 +10,9 @@ export interface RecentProjectItem {
   duration: string;
   status: Project['status'];
   thumb: RecentProjectThumb;
+  updatedAt?: string;
+  progress?: number;
+  thumbnailUrl?: string;
 }
 
 const THUMBS: RecentProjectThumb[] = ['t1', 't2', 't3', 't4', 't5'];
@@ -46,20 +49,44 @@ export function formatProjectMeta(project: Project): string {
   return formatRelativeTime(project.updatedAt);
 }
 
-export function formatRelativeTime(iso: string): string {
+export function formatRelativeTime(iso: string, t?: (key: string, options?: any) => string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
   const diffSec = Math.max(0, Math.floor((now - then) / 1000));
 
-  if (diffSec < 60) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours} hr ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return '1 day ago';
-  if (diffDays < 7) return `${diffDays} days ago`;
+  if (t) {
+    if (diffSec < 60) return t('timeJustNow');
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return t('timeMinAgo', { count: diffMin });
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return t('timeHrAgo', { count: diffHours });
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return t('timeDayAgo');
+    if (diffDays < 7) return t('timeDaysAgo', { count: diffDays });
+  } else {
+    if (diffSec < 60) return 'Just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours} hr ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+  }
   return new Date(iso).toLocaleDateString();
+}
+
+export function getProjectMeta(
+  status: Project['status'],
+  progress: number | undefined,
+  updatedAt: string,
+  t: (key: string, options?: any) => string
+): string {
+  if (status === 'processing') {
+    const prog = progress ?? 0;
+    return t('libraryStatusProcessingValue', { progress: prog }) || `processing — ${prog}%`;
+  }
+  return formatRelativeTime(updatedAt, t);
 }
 
 export function mapProjectToRecentItem(project: Project): RecentProjectItem {
@@ -71,5 +98,8 @@ export function mapProjectToRecentItem(project: Project): RecentProjectItem {
     duration: formatProjectDuration(project.durationSec),
     status: project.status,
     thumb: thumbForProjectId(project.id),
+    updatedAt: project.updatedAt,
+    progress: project.progress,
+    thumbnailUrl: (project as any).thumbnailUrl || undefined,
   };
 }

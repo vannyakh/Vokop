@@ -52,6 +52,7 @@ import {
   trackTypeFromId,
 } from '@/features/studio/lib/timelineTrackUtils';
 import {
+  clipTrackId,
   hasCanvasTrackOverlap,
   hasMediaTrackOverlap,
   insertTrackBelowOrder,
@@ -108,6 +109,7 @@ import {
 } from '@/features/studio/lib/projectHistory';
 import type { TextTemplateInput, AddTextTemplateOptions } from '@/features/studio/constants/textTemplates';
 import { computeTemplatePlacement, estimateCanvasSize } from '@/features/studio/lib/textTemplatePlacement';
+import { toFractionBox, toFractionFontSize, toFractionPoint, frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 
 export type AddCanvasImageOptions = {
   keepStudioTool?: boolean;
@@ -185,6 +187,8 @@ function buildCanvasImageElement(
     duration: number;
     currentTime: number;
     selectedTimelineClip: TimelineSelectionItem | null;
+    videoWidth: number;
+    videoHeight: number;
   },
   src: string,
   label: string,
@@ -195,15 +199,17 @@ function buildCanvasImageElement(
   const endTime = options?.endTime ?? Math.min(duration, startTime + 4);
   const w = options?.width ?? 160;
   const h = options?.height ?? 160;
+  // x/y/width/height are fractions of the content rect; positions/sizes here are
+  // authored in px against a stable reference frame (the project's video resolution).
+  const ref = frameReferenceSize(state.videoWidth, state.videoHeight);
+  const refRect = { x: 0, y: 0, width: ref.width, height: ref.height };
+  const box = toFractionBox({ x: 40, y: 40, width: w, height: h }, refRect);
   return {
     id: `image-${Date.now()}`,
     type: 'image',
     text: label,
     src,
-    x: 40,
-    y: 40,
-    width: w,
-    height: h,
+    ...box,
     fontSize: 0,
     rotation: 0,
     opacity: 1,
@@ -372,6 +378,12 @@ interface AppState {
   selectedTimelineClips: TimelineSelectionItem[];
   timelineClipboard: CanvasElement[] | null;
   canvasElements: CanvasElement[];
+  /**
+   * Coordinate space for videoClips/canvasElements x/y/width/height/fontSize.
+   * 'legacy-px' = live on-screen pixels (pre-migration projects).
+   * 'fraction-v2' = fraction (0..1) of the video content rect (current format).
+   */
+  compositionSpace: 'legacy-px' | 'fraction-v2';
   selectedCanvasElementId: string | null;
   canvasTool: CanvasTool;
   /** Omniclip-style media clips (source of truth for video/audio tracks). */
@@ -409,6 +421,12 @@ interface AppState {
     options?: { trackId?: string },
   ) => void;
   setPrimaryVideoAsset: (assetId: string) => void;
+  /**
+   * One-time migration for legacy projects: convert videoClips/canvasElements
+   * x/y/width/height/fontSize from live on-screen px (relative to the given
+   * contentRect) to fractions (0..1) of it. No-op once already migrated.
+   */
+  migrateCompositionSpaceToFraction: (contentRect: { x: number; y: number; width: number; height: number }) => void;
   /** Restore media library from OPFS for the active project. */
   hydrateMediaLibrary: (projectId: string, persistedAssets?: PersistedMediaAsset[]) => Promise<void>;
   resetProject: () => void;
@@ -430,6 +448,7 @@ interface AppState {
       timelineTrackHidden?: string[];
       timelineTrackOrder?: string[];
       extraTimelineTracks?: ExtraTimelineTrack[];
+      compositionSpace?: 'legacy-px' | 'fraction-v2';
     };
   }) => void;
   setProjectStatus: (status: 'done' | 'processing' | 'failed' | null, progress?: number) => void;
@@ -582,6 +601,10 @@ interface AppState {
   extractAudioFromVideoClip: (clipId?: string) => string | null;
   /** Extract audio and mute the video clip (split audio from video). */
   detachAudioFromVideoClip: (clipId?: string) => string | null;
+  /** Copy every clip's audio on a video track onto the audio track (video keeps sound). */
+  extractAudioFromVideoTrack: (trackId?: string) => string[];
+  /** Extract every clip's audio on a video track and mute the whole track's clips. */
+  detachAudioFromVideoTrack: (trackId?: string) => string[];
   /** Apply a studio template blueprint to the current project. */
   applyStudioTemplate: (templateId: string, bindings?: StudioTemplateAssetBinding[]) => void;
   clearStudioTemplate: () => void;
@@ -656,6 +679,7 @@ const initialState = {
   selectedTimelineClips: [] as TimelineSelectionItem[],
   timelineClipboard: null as CanvasElement[] | null,
   canvasElements: [] as CanvasElement[],
+  compositionSpace: 'fraction-v2' as 'legacy-px' | 'fraction-v2',
   selectedCanvasElementId: null as string | null,
   canvasTool: 'select' as CanvasTool,
   videoClips: [] as MediaClip[],
@@ -1101,6 +1125,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         : switching
           ? { extraTimelineTracks: [] }
           : {}),
+      // Missing marker on a project that already has composition data means it
+      // predates the fraction-space migration — flag it for one-time conversion.
+      compositionSpace:
+        editor?.compositionSpace ??
+        (editor?.videoClips?.some((c) => c.x != null) || editor?.canvasElements?.length
+          ? 'legacy-px'
+          : 'fraction-v2'),
       projectUndoStack: [],
       projectRedoStack: [],
       isTimelinePlaying: false,
@@ -1772,15 +1803,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (idStr.startsWith('text-')) {
       const duration = state.duration || 3600;
       const id = `template-${Date.now()}`;
+      const ref = frameReferenceSize(state.videoWidth, state.videoHeight);
+      const refRect = { x: 0, y: 0, width: ref.width, height: ref.height };
+      const box = toFractionBox({ x: 40, y: 40, width: 220, height: 32 }, refRect);
       const element: CanvasElement = {
         id,
         type: 'text',
         text: 'New text',
-        x: 40,
-        y: 40,
-        width: 220,
-        height: 32,
-        fontSize: 20,
+        ...box,
+        fontSize: toFractionFontSize(20, refRect),
         rotation: 0,
         opacity: 1,
         startTime: time,
@@ -2099,6 +2130,43 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setCanvasElements: (elements) => set({ canvasElements: elements }),
+
+  migrateCompositionSpaceToFraction: (contentRect) => {
+    const state = get();
+    if (state.compositionSpace === 'fraction-v2') return;
+    if (contentRect.width <= 0 || contentRect.height <= 0) return;
+
+    const videoClips = state.videoClips.map((clip) => {
+      if (clip.x == null && clip.y == null && clip.width == null && clip.height == null) return clip;
+      const box = toFractionBox(
+        {
+          x: clip.x ?? contentRect.x,
+          y: clip.y ?? contentRect.y,
+          width: clip.width ?? contentRect.width,
+          height: clip.height ?? contentRect.height,
+        },
+        contentRect,
+      );
+      return { ...clip, ...box };
+    });
+
+    const canvasElements = state.canvasElements.map((el) => {
+      const box = toFractionBox({ x: el.x, y: el.y, width: el.width, height: el.height }, contentRect);
+      const keyframes = el.keyframes?.map((kf) => ({
+        ...kf,
+        ...(kf.x != null ? { x: toFractionPoint({ x: kf.x, y: kf.y ?? el.y }, contentRect).x } : {}),
+        ...(kf.y != null ? { y: toFractionPoint({ x: kf.x ?? el.x, y: kf.y }, contentRect).y } : {}),
+      }));
+      return {
+        ...el,
+        ...box,
+        fontSize: toFractionFontSize(el.fontSize, contentRect),
+        ...(keyframes ? { keyframes } : {}),
+      };
+    });
+
+    set({ videoClips, canvasElements, compositionSpace: 'fraction-v2' });
+  },
   setCanvasTool: (tool) => set({ canvasTool: tool }),
   setSelectedCanvasElementId: (id) => set({ selectedCanvasElementId: id }),
   selectCanvasElement: (id) => {
@@ -2155,11 +2223,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const element = state.canvasElements.find((el) => el.id === id);
     if (!element) return;
     const newId = `${element.type}-${Date.now()}`;
+    // Small nudge (as a fraction of the frame) so the duplicate doesn't sit exactly on top.
+    const NUDGE_FRACTION = 0.03;
     const dup: CanvasElement = {
       ...element,
       id: newId,
-      x: element.x + 20,
-      y: element.y + 20,
+      x: element.x + NUDGE_FRACTION,
+      y: element.y + NUDGE_FRACTION,
     };
     set({
       ...pushHistory(state),
@@ -2183,11 +2253,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     img.onload = () => {
       const maxDim = 160;
       const scale = maxDim / Math.max(img.naturalWidth, img.naturalHeight, 1);
+      const ref = frameReferenceSize(get().videoWidth, get().videoHeight);
       get().updateCanvasElement(id, {
         src: url,
         text: file.name,
-        width: Math.round(img.naturalWidth * scale),
-        height: Math.round(img.naturalHeight * scale),
+        width: Math.round(img.naturalWidth * scale) / ref.width,
+        height: Math.round(img.naturalHeight * scale) / ref.height,
       });
     };
     img.onerror = () => {
@@ -2201,15 +2272,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const url = URL.createObjectURL(file);
     const id = `logo-${Date.now()}`;
     const duration = state.duration || 3600;
+    const ref = frameReferenceSize(state.videoWidth, state.videoHeight);
+    const box = toFractionBox({ x: 24, y: 24, width: 120, height: 48 }, {
+      x: 0,
+      y: 0,
+      width: ref.width,
+      height: ref.height,
+    });
     const element: CanvasElement = {
       id,
       type: 'logo',
       text: file.name,
       src: url,
-      x: 24,
-      y: 24,
-      width: 120,
-      height: 48,
+      ...box,
       fontSize: 0,
       rotation: 0,
       opacity: 1,
@@ -2280,6 +2355,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         : 'text';
     get().ensureTimelineTrackVisible(trackId === 'text' ? 'text' : trackId);
 
+    // x/y/width/height/fontSize above are px relative to canvasSize — convert to
+    // fractions of it, since composition fields are stored as fractions.
+    const canvasRect = { x: 0, y: 0, width: canvasSize.width, height: canvasSize.height };
+    const box = toFractionBox({ x, y, width: placement.width, height: placement.height }, canvasRect);
+
     const element: CanvasElement = {
       id,
       type: 'text',
@@ -2288,11 +2368,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       textStyle: { ...template.style },
       fontFamily: template.fontFamily,
       textEffect: template.textEffect,
-      x,
-      y,
-      width: placement.width,
-      height: placement.height,
-      fontSize: template.style.fontSize,
+      ...box,
+      fontSize: toFractionFontSize(template.style.fontSize, canvasRect),
       rotation: 0,
       opacity: 1,
       startTime: time,
@@ -2502,6 +2579,94 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedCanvasElementId: null,
     });
     return audioId;
+  },
+
+  extractAudioFromVideoTrack: (trackId) => {
+    const state = get();
+    const targetTrackId = trackId ?? 'video';
+    const trackVideoClips = state.videoClips.filter(
+      (c) => clipTrackId(c, 'video') === targetTrackId,
+    );
+    if (trackVideoClips.length === 0) return [];
+
+    let audioClips = state.audioClips;
+    const resultIds: string[] = [];
+    for (const videoClip of trackVideoClips) {
+      const existing = audioClips.find((a) => a.linkedVideoClipId === videoClip.id);
+      if (existing) {
+        resultIds.push(existing.id);
+        continue;
+      }
+      const audioClip = extractAudioClipFromVideo(videoClip);
+      audioClips = [...audioClips, audioClip];
+      resultIds.push(audioClip.id);
+    }
+
+    const lastId = resultIds[resultIds.length - 1] ?? null;
+    const selection = lastId
+      ? buildTimelineSelection(
+          [{ trackId: 'audio', clipId: lastId }],
+          { trackId: 'audio', clipId: lastId },
+        )
+      : {};
+
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, { audioClips }),
+      timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== 'audio'),
+      timelineTrackOrder: state.timelineTrackOrder.includes('audio')
+        ? state.timelineTrackOrder
+        : [...state.timelineTrackOrder, 'audio'],
+      ...selection,
+      selectedCanvasElementId: null,
+    });
+    return resultIds;
+  },
+
+  detachAudioFromVideoTrack: (trackId) => {
+    const state = get();
+    const targetTrackId = trackId ?? 'video';
+    const trackVideoClips = state.videoClips.filter(
+      (c) => clipTrackId(c, 'video') === targetTrackId,
+    );
+    if (trackVideoClips.length === 0) return [];
+
+    let audioClips = state.audioClips;
+    const mutedIds = new Set<string>();
+    const resultIds: string[] = [];
+    for (const videoClip of trackVideoClips) {
+      let existing = audioClips.find((a) => a.linkedVideoClipId === videoClip.id);
+      if (!existing) {
+        existing = extractAudioClipFromVideo(videoClip, { namePrefix: 'Detached' });
+        audioClips = [...audioClips, existing];
+      }
+      resultIds.push(existing.id);
+      mutedIds.add(videoClip.id);
+    }
+
+    const videoClips = state.videoClips.map((c) =>
+      mutedIds.has(c.id) ? { ...c, muted: true } : c,
+    );
+
+    const lastId = resultIds[resultIds.length - 1] ?? null;
+    const selection = lastId
+      ? buildTimelineSelection(
+          [{ trackId: 'audio', clipId: lastId }],
+          { trackId: 'audio', clipId: lastId },
+        )
+      : {};
+
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, { videoClips, audioClips }),
+      timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== 'audio'),
+      timelineTrackOrder: state.timelineTrackOrder.includes('audio')
+        ? state.timelineTrackOrder
+        : [...state.timelineTrackOrder, 'audio'],
+      ...selection,
+      selectedCanvasElementId: null,
+    });
+    return resultIds;
   },
 
   applyStudioTemplate: (templateId, bindings = []) => {

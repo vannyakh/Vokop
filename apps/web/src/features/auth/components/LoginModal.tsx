@@ -42,7 +42,15 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
   };
 
   useEffect(() => {
-    if (!open) resetForm();
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      resetForm();
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [open]);
 
   const finish = (session: Awaited<ReturnType<typeof api.login>>) => {
@@ -113,6 +121,26 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const googleEmail = 'google.user@vokop.com';
+      const { exists } = await api.lookupEmail(googleEmail);
+      let session;
+      if (exists) {
+        session = await api.login(googleEmail, 'google-oauth-mock-pass');
+      } else {
+        session = await api.register(googleEmail, 'google-oauth-mock-pass', 'Google User');
+      }
+      finish(session);
+    } catch {
+      setError('Google Sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const goBack = () => {
     setStep('email');
     setName('');
@@ -172,7 +200,7 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
             </button>
 
             <div className="auth-modal-brand">
-              <VokopLogo className="h-12 sm:h-14 mx-auto" />
+              <VokopLogo className="h-20 sm:h-24 mx-auto" />
             </div>
 
             <div className="auth-modal-head">
@@ -201,6 +229,35 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
                   className="auth-modal-btn auth-modal-btn-primary"
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : 'Continue'}
+                </button>
+
+                <div className="auth-modal-divider">{t('loginDivider')}</div>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleGoogleSignIn}
+                  className="auth-modal-btn auth-modal-btn-google"
+                >
+                  <svg className="auth-modal-google-icon" viewBox="0 0 24 24">
+                    <path
+                      fill="#EA4335"
+                      d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3A11.93 11.93 0 0 0 12 0C7.03 0 2.76 2.858.745 7.01l4.52 2.755Z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M16.04 15.345c-1.077.732-2.433 1.164-4.04 1.164a7.076 7.076 0 0 1-6.734-4.855l-4.52 2.755C2.76 18.572 7.03 21.43 12 21.43c3.245 0 6.19-1.082 8.409-2.936l-4.37-3.149Z"
+                    />
+                    <path
+                      fill="#4285F4"
+                      d="M23.49 12.273c0-.818-.073-1.609-.209-2.373H12v4.582h6.455A5.518 5.518 0 0 1 16.04 15.345l4.37 3.149c2.555-2.355 4.08-5.818 4.08-9.745Z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M5.266 11.655a7.076 7.076 0 0 1 0-2.373l-4.52-2.755A11.928 11.928 0 0 0 0 12c0 1.98.482 3.855 1.336 5.518l4.52-2.755a7.076 7.076 0 0 1-.59-3.109Z"
+                    />
+                  </svg>
+                  <span>{t('loginGoogle')}</span>
                 </button>
               </form>
             )}

@@ -1,35 +1,39 @@
 import { Check, X } from 'lucide-react';
 import { COMPARE_ROWS } from '@/features/landing/data/landingContent';
 import { LandingSectionHead } from '@/features/landing/components/LandingSectionHead';
+import { useTranslation } from '@/features/settings';
 
-function CompareCell({ value }: { value: string }) {
-  if (value === 'yes') {
+function CompareCell({ valueKey }: { valueKey: string }) {
+  const { t } = useTranslation();
+  if (valueKey === 'compYes') {
     return (
       <span className="landing-compare-yes">
         <Check size={15} />
       </span>
     );
   }
-  if (value === 'no') {
+  if (valueKey === 'compNo') {
     return (
       <span className="landing-compare-no">
         <X size={15} />
       </span>
     );
   }
-  if (value === '—') {
+  if (valueKey === 'compNone') {
     return <span className="landing-compare-no">—</span>;
   }
-  return <>{value}</>;
+  return <>{t(valueKey as any)}</>;
 }
 
 export function CompareSection() {
+  const { t } = useTranslation();
+
   return (
     <section className="landing-section landing-compare-section">
       <LandingSectionHead
-        eyebrow="Side by side"
-        title="Compare every plan in detail"
-        description="Same three plans, broken down feature by feature — useful once you know roughly what you need."
+        eyebrow={t('compareEyebrow')}
+        title={t('compareTitle')}
+        description={t('compareDesc')}
       />
 
       <div className="landing-table-wrap">
@@ -37,26 +41,26 @@ export function CompareSection() {
           <thead>
             <tr>
               <th />
-              <th>Free</th>
+              <th>{t('planFreeName')}</th>
               <th className="col-pro">
-                <span className="th-plan">Pro</span>
-                Most popular
+                <span className="th-plan">{t('planProName')}</span>
+                {t('pricingMostPopular')}
               </th>
-              <th>Studio</th>
+              <th>{t('planStudioName')}</th>
             </tr>
           </thead>
           <tbody>
             {COMPARE_ROWS.map((row) => (
-              <tr key={row.feature}>
-                <td>{row.feature}</td>
+              <tr key={row.featureKey}>
+                <td>{t(row.featureKey as any)}</td>
                 <td>
-                  <CompareCell value={row.free} />
+                  <CompareCell valueKey={row.freeKey} />
                 </td>
                 <td className="col-pro">
-                  <CompareCell value={row.pro} />
+                  <CompareCell valueKey={row.proKey} />
                 </td>
                 <td>
-                  <CompareCell value={row.studio} />
+                  <CompareCell valueKey={row.studioKey} />
                 </td>
               </tr>
             ))}

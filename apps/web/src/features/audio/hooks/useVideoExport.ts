@@ -1,20 +1,27 @@
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
+import { api } from '@/lib/api';
 import { useAppStore } from '@/features/project';
-import { decodeBase64ToAudioBuffer, ensureAudioContext } from '@/lib/utils/audio';
-import {
-  detectBestVideoCodec,
-  resolveExportDimensions,
-  resolveExportBitrate,
-  type ExportSettings,
-} from '@/features/studio/lib/exportSettings';
+import { decodeBase64ToAudioBuffer } from '@/lib/utils/audio';
+import { detectBestVideoCodec, resolveExportBitrate, type ExportSettings } from '@/features/studio/lib/exportSettings';
 import { parseTranscriptCaptions, renderCaptionsOnCanvas } from '@/features/studio/lib/captionRenderer';
+import type { VideoAudioGraph } from '@/features/audio/hooks/useAudioEngine';
 
 interface ExportRefs {
   videoRef: RefObject<HTMLVideoElement | null>;
   audioContextRef: RefObject<AudioContext | null>;
   videoSourceRef: RefObject<MediaElementAudioSourceNode | null>;
+  connectVideoAudioGraph: (video: HTMLVideoElement) => Promise<VideoAudioGraph>;
   playMixedAudio: () => Promise<void>;
+}
+
+function triggerBrowserDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function useVideoExport(refs: ExportRefs) {
@@ -25,43 +32,47 @@ export function useVideoExport(refs: ExportRefs) {
     async (settings: ExportSettings) => {
       const { translatedText, audioBase64, originalVolume, voiceVolume } = useAppStore.getState();
       const video = refs.videoRef.current;
-      if (!video || !translatedText) return;
+      // Export works on the raw timeline too — a translation/voiceover is optional, not required.
+      if (!video) return;
+
+      const rangeIn = Math.max(0, settings.rangeInSec);
+      const rangeOut = settings.rangeOutSec > rangeIn ? settings.rangeOutSec : video.duration || rangeIn + 1;
+      const isAudioOnly = settings.exportType === 'audio';
 
       setIsExporting(true);
       setStatus('idle');
 
-      const { videoWidth: nativeW, videoHeight: nativeH } = video;
-      const { width: outW, height: outH } = resolveExportDimensions(nativeW, nativeH, settings.resolution);
-      const bitrate = resolveExportBitrate(settings.quality);
+      // Capture at native resolution/high bitrate — the server re-encodes to the
+      // requested format/codec/quality, so the intermediate recording just needs headroom.
+      const outW = video.videoWidth || 1280;
+      const outH = video.videoHeight || 720;
+      const bitrate = resolveExportBitrate('ultra');
       const fps = settings.fps;
 
-      const canvas = document.createElement('canvas');
-      canvas.width = outW;
-      canvas.height = outH;
+      let canvas: HTMLCanvasElement | null = null;
+      let ctx: CanvasRenderingContext2D | null = null;
+      let captions: ReturnType<typeof parseTranscriptCaptions> = [];
 
-      const ctx = canvas.getContext('2d', { willReadFrequently: false });
-      if (!ctx) { setIsExporting(false); return; }
-
-      // Parse timeline-accurate captions
-      const captions = parseTranscriptCaptions(translatedText);
-
-      // Detect best codec (GPU-accelerated H.264 preferred)
-      const codec = detectBestVideoCodec();
-      const stream = canvas.captureStream(fps);
-
-      // Audio routing
-      refs.audioContextRef.current = await ensureAudioContext(refs.audioContextRef.current);
-      const actx = refs.audioContextRef.current;
-      const dest = actx.createMediaStreamDestination();
-
-      if (!refs.videoSourceRef.current) {
-        refs.videoSourceRef.current = actx.createMediaElementSource(video);
+      if (!isAudioOnly) {
+        canvas = document.createElement('canvas');
+        canvas.width = outW;
+        canvas.height = outH;
+        ctx = canvas.getContext('2d', { willReadFrequently: false });
+        if (!ctx) {
+          setIsExporting(false);
+          return;
+        }
+        captions = parseTranscriptCaptions(translatedText);
       }
-      const videoSrc = refs.videoSourceRef.current;
-      const videoGain = actx.createGain();
+
+      const videoCodec = detectBestVideoCodec();
+
+      // Audio routing (mixed original + voiceover) — reuse the video's persistent
+      // graph and just fan the shared gain out to the recorder's destination too,
+      // instead of disconnecting it (that would silence every other consumer).
+      const { ctx: actx, gain: videoGain } = await refs.connectVideoAudioGraph(video);
+      const dest = actx.createMediaStreamDestination();
       videoGain.gain.value = settings.includeOriginalAudio ? originalVolume : 0;
-      videoSrc.disconnect();
-      videoSrc.connect(videoGain);
       videoGain.connect(dest);
 
       if (audioBase64 && settings.includeVoiceover) {
@@ -75,63 +86,80 @@ export function useVideoExport(refs: ExportRefs) {
         voiceSrc.start();
       }
 
-      const combined = new MediaStream([
-        ...stream.getVideoTracks(),
-        ...dest.stream.getAudioTracks(),
-      ]);
+      const recordedStream = isAudioOnly
+        ? new MediaStream([...dest.stream.getAudioTracks()])
+        : new MediaStream([...canvas!.captureStream(fps).getVideoTracks(), ...dest.stream.getAudioTracks()]);
 
-      const recorderOptions: MediaRecorderOptions = codec
-        ? { mimeType: codec, videoBitsPerSecond: bitrate }
-        : { videoBitsPerSecond: bitrate };
+      const mimeType = isAudioOnly
+        ? (MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm')
+        : videoCodec;
 
-      const recorder = new MediaRecorder(combined, recorderOptions);
+      const recorderOptions: MediaRecorderOptions = mimeType
+        ? { mimeType, videoBitsPerSecond: isAudioOnly ? undefined : bitrate }
+        : {};
+
+      const recorder = new MediaRecorder(recordedStream, recorderOptions);
       const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
 
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      const finishExport = async () => {
+        try {
+          const recordedBlob = new Blob(chunks, { type: mimeType || (isAudioOnly ? 'audio/webm' : 'video/webm') });
+
+          const { jobId } = await api.startExportRender(recordedBlob, {
+            exportType: settings.exportType,
+            format: settings.format,
+            codec: settings.exportType === 'video' ? settings.codec : undefined,
+            quality: settings.quality,
+            removeWatermark: settings.removeWatermark,
+            rangeInSec: 0,
+            rangeOutSec: Math.max(0.1, rangeOut - rangeIn),
+          });
+
+          const job = await api.waitForExportJob(jobId);
+          const fileBlob = await api.downloadExportJob(jobId);
+          triggerBrowserDownload(fileBlob, `vokop_export.${job.outputFormat ?? settings.format}`);
+        } catch (err) {
+          console.error('[export] failed', err);
+          setStatus('error');
+        } finally {
+          setIsExporting(false);
+        }
+      };
 
       recorder.onstop = () => {
-        const isMP4 = codec.includes('mp4') || codec.includes('avc1');
-        const mimeType = isMP4 ? 'video/mp4' : 'video/webm';
-        const ext = isMP4 ? 'mp4' : 'webm';
-        const blob = new Blob(chunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `vokop_export_${settings.resolution}_${settings.quality}.${ext}`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        setIsExporting(false);
+        // Targeted disconnect — only drops the recorder tap, leaving the shared
+        // gain's permanent connection to speakers intact for other consumers.
+        videoGain.disconnect(dest);
+        videoGain.gain.value = 1.0;
+        void finishExport();
       };
 
       recorder.start(100); // 100ms chunks for smooth streaming
-      video.currentTime = 0;
+      video.currentTime = rangeIn;
       await video.play();
 
       if (audioBase64 && settings.includeVoiceover) {
         await refs.playMixedAudio();
       }
 
-      const drawFrame = () => {
-        if (video.paused || video.ended) {
+      const tick = () => {
+        if (video.paused || video.ended || video.currentTime >= rangeOut) {
           recorder.stop();
           return;
         }
-        ctx.drawImage(video, 0, 0, outW, outH);
 
-        renderCaptionsOnCanvas(
-          ctx,
-          captions,
-          video.currentTime,
-          outW,
-          outH,
-          settings.captionStyle,
-          settings.captionScale,
-        );
+        if (!isAudioOnly && ctx && canvas) {
+          ctx.drawImage(video, 0, 0, outW, outH);
+          renderCaptionsOnCanvas(ctx, captions, video.currentTime, outW, outH, settings.captionStyle, settings.captionScale);
+        }
 
-        requestAnimationFrame(drawFrame);
+        requestAnimationFrame(tick);
       };
 
-      drawFrame();
+      tick();
     },
     [refs, setIsExporting, setStatus],
   );
