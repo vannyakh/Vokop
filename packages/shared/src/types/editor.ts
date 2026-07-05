@@ -57,11 +57,21 @@ export interface ClipEditState {
   effectId?: string;
 }
 
+/** Cross-clip transition between adjacent video clips (export / xfade). */
+export interface TimelineTransition {
+  id: string;
+  presetId: string;
+  outgoingClipId: string;
+  incomingClipId: string;
+  durationSec: number;
+}
+
 export interface ProjectEditorState {
   videoFilterId: string | null;
   captionStyle: CaptionStyle;
   captionScale: number;
   clipEdits: Record<string, ClipEditState>;
+  timelineTransitions: TimelineTransition[];
 }
 
 export const DEFAULT_PROJECT_EDITOR_STATE: ProjectEditorState = {
@@ -69,4 +79,5 @@ export const DEFAULT_PROJECT_EDITOR_STATE: ProjectEditorState = {
   captionStyle: 'standard',
   captionScale: 1,
   clipEdits: {},
+  timelineTransitions: [],
 };

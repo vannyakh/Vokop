@@ -5,6 +5,21 @@ import {
   type Timeline,
   type VideoClip,
 } from "./timeline.js";
+import {
+  areSequentialClips,
+  buildXfadeChain,
+  transitionsBetweenClips,
+  type XfadeTransition,
+} from "./xfade.js";
+
+export type { XfadeTransition } from "./xfade.js";
+export {
+  buildXfadeChain,
+  resolveXfadeName,
+  transitionsBetweenClips,
+  areSequentialClips,
+  PRESET_TO_XFADE,
+} from "./xfade.js";
 
 /**
  * Compiles a Timeline into a single deterministic ffmpeg invocation.
@@ -52,6 +67,8 @@ export interface RenderOptions {
   extraOutputArgs?: string[];
   /** override output duration (used by segment rendering) */
   durationSec?: number;
+  /** Cross-clip xfade transitions (sequential video track). */
+  transitions?: XfadeTransition[];
 }
 
 export interface CompiledRender {
@@ -105,20 +122,61 @@ export function buildRenderArgs(opts: RenderOptions): CompiledRender {
     );
   }
 
+  const sequentialRefs = videoClips.map((c) => ({
+    id: c.id,
+    startSec: c.start,
+    durationSec: c.duration,
+  }));
+  const useXfade =
+    videoClips.length > 1 &&
+    opts.transitions?.length &&
+    areSequentialClips(sequentialRefs);
+
   let vSeq = 0;
-  for (const clip of videoClips) {
-    const flags = opts.assetFlags?.[clip.assetId];
-    if (flags?.hasVideo === false) continue;
-    const idx = addInput(assetPath(clip.assetId));
-    const label = `v${vSeq++}`;
-    filters.push(videoClipChain(clip, idx, label, W, H, fps));
+  if (useXfade) {
+    const prepLabels: string[] = [];
+    const prepDurations: number[] = [];
+    for (const clip of videoClips) {
+      const flags = opts.assetFlags?.[clip.assetId];
+      if (flags?.hasVideo === false) continue;
+      const idx = addInput(assetPath(clip.assetId));
+      const label = `v${vSeq++}`;
+      filters.push(videoClipChain(clip, idx, label, W, H, fps, { shiftPts: false }));
+      prepLabels.push(label);
+      prepDurations.push(clip.duration);
+    }
+    const clipIds = videoClips.map((c) => c.id);
+    const pairTransitions = transitionsBetweenClips(clipIds, opts.transitions ?? []);
+    const chain = buildXfadeChain({
+      clipLabels: prepLabels,
+      clipDurations: prepDurations,
+      transitions: pairTransitions,
+    });
+    filters.push(...chain.filters);
+    const shifted = `vx`;
+    filters.push(`[${chain.outputLabel}]setpts=PTS+${num(videoClips[0]!.start)}/TB[${shifted}]`);
     const out = `c${vSeq}`;
-    const end = clip.start + clip.duration;
+    const end = videoClips[0]!.start + chain.outputDurationSec;
     filters.push(
-      `[${cur}][${label}]overlay=x=${overlayX(clip, W)}:y=${overlayY(clip, H)}:` +
-        `eof_action=pass:enable='between(t,${num(clip.start)},${num(end)})'[${out}]`,
+      `[${cur}][${shifted}]overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2:` +
+        `eof_action=pass:enable='between(t,${num(videoClips[0]!.start)},${num(end)})'[${out}]`,
     );
     cur = out;
+  } else {
+    for (const clip of videoClips) {
+      const flags = opts.assetFlags?.[clip.assetId];
+      if (flags?.hasVideo === false) continue;
+      const idx = addInput(assetPath(clip.assetId));
+      const label = `v${vSeq++}`;
+      filters.push(videoClipChain(clip, idx, label, W, H, fps));
+      const out = `c${vSeq}`;
+      const end = clip.start + clip.duration;
+      filters.push(
+        `[${cur}][${label}]overlay=x=${overlayX(clip, W)}:y=${overlayY(clip, H)}:` +
+          `eof_action=pass:enable='between(t,${num(clip.start)},${num(end)})'[${out}]`,
+      );
+      cur = out;
+    }
   }
 
   // --- text clips ---
@@ -241,7 +299,9 @@ function videoClipChain(
   W: number,
   H: number,
   fps: number,
+  options?: { shiftPts?: boolean },
 ): string {
+  const shiftPts = options?.shiftPts !== false;
   const srcConsumed = clip.duration * clip.speed;
   const steps: string[] = [];
 
@@ -288,8 +348,10 @@ function videoClipChain(
     );
   }
 
-  // shift frames into timeline position so overlay's enable window sees them
-  steps.push(`setpts=PTS+${num(clip.start)}/TB`);
+  // shift frames into timeline position (skip when xfade chain handles placement)
+  if (shiftPts) {
+    steps.push(`setpts=PTS+${num(clip.start)}/TB`);
+  }
 
   return `[${inputIndex}:v]${steps.join(",")}[${outLabel}]`;
 }

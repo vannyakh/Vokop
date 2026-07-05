@@ -1,11 +1,13 @@
 import type { MediaAssetKind } from '@/features/studio/lib/mediaLibrary';
-import { MEDIA_ASSET_DRAG_MIME } from '@/features/studio/lib/mediaLibrary';
+import { kindFromFile, MEDIA_ASSET_DRAG_MIME } from '@/features/studio/lib/mediaLibrary';
 import { TEXT_TEMPLATE_DRAG_MIME } from '@/features/studio/constants/textTemplates';
 import type { TimelineTrackType } from '@/features/studio/lib/timelineTypes';
 import {
+  coreTrackIdForMediaKind,
   isAudioLikeTimelineTrack,
   isTextTimelineTrack,
   isVisualTimelineTrack,
+  trackTypeForMediaDrop,
 } from '@/features/studio/lib/timelineTrackUtils';
 
 /** Secondary drag type so lanes can accept/reject before drop. */
@@ -122,4 +124,24 @@ export function dropHintForTrack(
     }
   }
   return 'Drop to add';
+}
+
+/** Pick the track lane to target when dropping onto an empty timeline. */
+export function resolveEmptyTimelineDrop(
+  types: readonly string[],
+  files?: File[],
+): { trackId: string; trackType: TimelineTrackType } {
+  const source = getTimelineDropSource(types);
+  if (source === 'template') {
+    return { trackId: 'text', trackType: 'text' };
+  }
+
+  let kind = getDragMediaKind(types);
+  if (!kind && files?.length) {
+    kind = kindFromFile(files[0]!) ?? null;
+  }
+  if (!kind) kind = 'video';
+
+  const trackId = coreTrackIdForMediaKind(kind);
+  return { trackId, trackType: trackTypeForMediaDrop(kind, trackId) };
 }

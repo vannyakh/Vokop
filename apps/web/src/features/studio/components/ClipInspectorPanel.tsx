@@ -3,6 +3,7 @@ import { useAppStore } from '@/features/project';
 import { CanvasElementPanel } from '@/features/studio/components/CanvasElementPanel';
 import { RightPanelEmpty } from '@/features/studio/components/RightPanelEmpty';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
+import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
 import { Label, Slider, StudioIcon } from '@vokop/ui';
 import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
 import { isOverlayTimelineTrack } from '@/features/studio/lib/timelineTrackUtils';
@@ -26,9 +27,14 @@ function MediaClipInspector({
 }) {
   const videoClips = useAppStore((s) => s.videoClips);
   const audioClips = useAppStore((s) => s.audioClips);
-  const updateMediaClip = useAppStore((s) => s.updateMediaClip);
+  const {
+    updateMediaClip,
+    updateVideoTransform,
+    extractAudioFromVideo,
+    detachAudioFromVideo,
+    splitAtPlayhead,
+  } = useStudioEdit();
   const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
-  const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
   const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
   const originalVolume = useAppStore((s) => s.originalVolume);
@@ -122,32 +128,133 @@ function MediaClipInspector({
       </InspectorSection>
 
       {trackId === 'video' && (
-        <InspectorSection id="clip-video" title="Video settings" defaultOpen={false}>
-          <div className="space-y-1.5">
-            <Label>Original volume</Label>
-            <Slider
-              min={0}
-              max={1}
-              step={0.01}
-              value={originalVolume}
-              onChange={(e) => setOriginalVolume(Number(e.target.value))}
-            />
-          </div>
-          <div className="clip-inspector-grid">
-            <Field
-              label="Filter"
-              value={projectEditor.videoFilterId ?? (getVideoCssFilter() === 'none' ? 'None' : 'Custom')}
-            />
-            <Field
-              label="Transition in"
-              value={projectEditor.clipEdits[clip.id]?.transitionInId ?? 'None'}
-            />
-            <Field
-              label="Transition out"
-              value={projectEditor.clipEdits[clip.id]?.transitionOutId ?? 'None'}
-            />
-          </div>
-        </InspectorSection>
+        <>
+          <InspectorSection
+            id="clip-composition"
+            title="Composition"
+            summary={
+              clip.width != null
+                ? `${Math.round(clip.width)}×${Math.round(clip.height ?? 0)}`
+                : 'Frame'
+            }
+            defaultOpen
+          >
+            <div className="clip-inspector-grid">
+              <div className="space-y-1.5">
+                <Label>X</Label>
+                <input
+                  type="number"
+                  step={1}
+                  className="clip-inspector-input"
+                  value={Number((clip.x ?? 0).toFixed(0))}
+                  onChange={(e) =>
+                    updateVideoTransform(clip.id, { x: Number(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Y</Label>
+                <input
+                  type="number"
+                  step={1}
+                  className="clip-inspector-input"
+                  value={Number((clip.y ?? 0).toFixed(0))}
+                  onChange={(e) =>
+                    updateVideoTransform(clip.id, { y: Number(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Width</Label>
+                <input
+                  type="number"
+                  min={48}
+                  step={1}
+                  className="clip-inspector-input"
+                  value={Number((clip.width ?? 0).toFixed(0))}
+                  onChange={(e) =>
+                    updateVideoTransform(clip.id, {
+                      width: Math.max(48, Number(e.target.value) || 48),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Height</Label>
+                <input
+                  type="number"
+                  min={48}
+                  step={1}
+                  className="clip-inspector-input"
+                  value={Number((clip.height ?? 0).toFixed(0))}
+                  onChange={(e) =>
+                    updateVideoTransform(clip.id, {
+                      height: Math.max(48, Number(e.target.value) || 48),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Rotation</Label>
+                <input
+                  type="number"
+                  step={1}
+                  className="clip-inspector-input"
+                  value={Number((clip.rotation ?? 0).toFixed(0))}
+                  onChange={(e) =>
+                    updateVideoTransform(clip.id, {
+                      rotation: Number(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Opacity</Label>
+                <Slider
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={clip.opacity ?? 1}
+                  onChange={(e) =>
+                    updateVideoTransform(clip.id, {
+                      opacity: Number(e.target.value),
+                    })
+                  }
+                />
+              </div>
+            </div>
+          </InspectorSection>
+
+          <InspectorSection id="clip-video" title="Video settings" defaultOpen={false}>
+            <div className="space-y-1.5">
+              <Label>Original volume</Label>
+              <Slider
+                min={0}
+                max={1}
+                step={0.01}
+                value={originalVolume}
+                onChange={(e) => setOriginalVolume(Number(e.target.value))}
+              />
+            </div>
+            <div className="clip-inspector-grid">
+              <Field
+                label="Filter"
+                value={
+                  projectEditor.videoFilterId ??
+                  (getVideoCssFilter() === 'none' ? 'None' : 'Custom')
+                }
+              />
+              <Field
+                label="Transition in"
+                value={projectEditor.clipEdits[clip.id]?.transitionInId ?? 'None'}
+              />
+              <Field
+                label="Transition out"
+                value={projectEditor.clipEdits[clip.id]?.transitionOutId ?? 'None'}
+              />
+            </div>
+          </InspectorSection>
+        </>
       )}
 
       {trackId === 'audio' && (
@@ -165,7 +272,7 @@ function MediaClipInspector({
         </InspectorSection>
       )}
 
-      <InspectorSection id="clip-actions" title="Actions" defaultOpen={false}>
+      <InspectorSection id="clip-actions" title="Actions" defaultOpen>
         <button
           type="button"
           className="studio-tools-action-btn w-full"
@@ -174,8 +281,37 @@ function MediaClipInspector({
           {muted ? <StudioIcon name="volumeSlash" size={13} /> : <StudioIcon name="volume" size={13} />}
           {muted ? 'Unmute track' : 'Mute track'}
         </button>
+        {trackId === 'video' && (
+          <div className="clip-inspector-actions">
+            <button
+              type="button"
+              className="studio-tools-action-btn"
+              title="Copy audio to the audio track (video keeps sound)"
+              onClick={() => extractAudioFromVideo(clip.id)}
+            >
+              Extract audio
+            </button>
+            <button
+              type="button"
+              className="studio-tools-action-btn"
+              title="Move audio to the audio track and mute video"
+              onClick={() => detachAudioFromVideo(clip.id)}
+            >
+              Detach audio
+            </button>
+          </div>
+        )}
+        {trackId === 'video' && clip.muted && (
+          <button
+            type="button"
+            className="studio-tools-action-btn w-full"
+            onClick={() => updateMediaClip(clip.id, { muted: false })}
+          >
+            Restore video sound
+          </button>
+        )}
         <div className="clip-inspector-actions">
-          <button type="button" className="studio-tools-action-btn" onClick={splitTimelineAtPlayhead}>
+          <button type="button" className="studio-tools-action-btn" onClick={splitAtPlayhead}>
             <StudioIcon name="scissors" size={13} />
             Split
           </button>

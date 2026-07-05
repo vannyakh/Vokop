@@ -364,7 +364,7 @@ export function UploadDropzone() {
         </motion.div>
       </section>
 
-      <LandingSections onScrollToUpload={scrollToUpload} />
+      <LandingSections onScrollToUpload={scrollToUpload} onRequestLogin={requestLogin} />
 
       <WhatsNewFab onClick={() => setWhatsNewOpen(true)} />
       <WhatsNewModal

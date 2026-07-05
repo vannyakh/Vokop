@@ -58,7 +58,13 @@ export {
   escapeDrawtext,
   atempoChain,
   ffColor,
+  buildXfadeChain,
+  resolveXfadeName,
+  transitionsBetweenClips,
+  areSequentialClips,
+  PRESET_TO_XFADE,
 } from "./filtergraph.js";
+export type { XfadeTransition } from "./filtergraph.js";
 export type {
   RenderOptions,
   CompiledRender,

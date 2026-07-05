@@ -4,8 +4,8 @@ import { useAppStore } from '@/features/project';
 import type { CanvasTool } from '@/types/canvas';
 
 const TOOLS: { id: CanvasTool; label: string; icon: typeof MousePointer2 }[] = [
-  { id: 'select', label: 'Select', icon: MousePointer2 },
-  { id: 'pan', label: 'Pan', icon: Hand },
+  { id: 'select', label: 'Select (V)', icon: MousePointer2 },
+  { id: 'pan', label: 'Pan (H)', icon: Hand },
 ];
 
 export function StudioHeaderCanvasTools() {

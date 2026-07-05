@@ -27,6 +27,7 @@ export type TimelineTrackType =
 
 /** User-created tracks (core tracks stay built-in). */
 export type ExtraTrackType =
+  | 'video'
   | 'text'
   | 'image'
   | 'sticker'
@@ -51,6 +52,7 @@ export const CORE_TRACK_IDS = [
 ] as const;
 
 export const ADDABLE_TRACK_TYPES: { type: ExtraTrackType; label: string }[] = [
+  { type: 'video', label: 'Video track' },
   { type: 'image', label: 'Image track' },
   { type: 'sticker', label: 'Sticker track' },
   { type: 'text', label: 'Text track' },
@@ -91,6 +93,17 @@ export interface MediaClip {
   rotation?: number;
   /** Opacity 0–1. */
   opacity?: number;
+  /** Timeline track id (defaults to `video` / `audio`). */
+  trackId?: string;
+  /** Source media library asset for playback. */
+  mediaAssetId?: string;
+  /** Mute embedded audio on this video clip (after detach). */
+  muted?: boolean;
+  /**
+   * Audio clip plays from the main video media (extract / detach).
+   * Points at the source video clip id when created.
+   */
+  linkedVideoClipId?: string;
 }
 
 export interface TimelineClipModel {
@@ -128,6 +141,16 @@ export const DEFAULT_TIMELINE_TRACK_ORDER: string[] = [
   'effect',
   'sound',
   'audio',
+];
+
+/** Core tracks hidden until the user adds content or drops media on the timeline. */
+export const DEFAULT_HIDDEN_CORE_TRACKS: string[] = [
+  'video',
+  'text',
+  'image',
+  'sticker',
+  'effect',
+  'sound',
 ];
 
 /** Track header column width (room for label + menu). */

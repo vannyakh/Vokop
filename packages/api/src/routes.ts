@@ -9,6 +9,7 @@ export const routes = {
 
   /** video-tools — sessions, jobs, probe, filmstrip */
   video: {
+    health: `${API_PREFIX}/video/health`,
     probe: `${API_PREFIX}/video/probe`,
     filmstrip: `${API_PREFIX}/video/filmstrip`,
     session: `${API_PREFIX}/video/session`,

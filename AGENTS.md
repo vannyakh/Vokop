@@ -20,7 +20,7 @@ pnpm db:up && pnpm dev
 
 ## Project skill
 
-Read `.cursor/skills/vokop/SKILL.md` when implementing features across UI, API, video, or AI processing. Details in `reference.md`.
+Read `.cursor/skills/vokop/SKILL.md` when implementing features across UI, API, video, or AI processing. Details in `reference.md`; product feature checklist and build order in `roadmap.md`.
 
 ## External references
 

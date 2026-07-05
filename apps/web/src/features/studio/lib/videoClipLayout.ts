@@ -45,3 +45,24 @@ export function resolveVideoClipLayout(
     opacity: clip.opacity ?? 1,
   };
 }
+
+/** Read live box from Konva proxy while dragging / resizing (scale baked into width/height). */
+export function layoutFromKonvaVideoNode(
+  node: {
+    x: () => number;
+    y: () => number;
+    scaleX: () => number;
+    scaleY: () => number;
+    rotation: () => number;
+  },
+  base: Pick<VideoClipLayout, 'width' | 'height' | 'opacity'>,
+): VideoClipLayout {
+  return {
+    x: node.x(),
+    y: node.y(),
+    width: Math.max(48, base.width * Math.abs(node.scaleX())),
+    height: Math.max(48, base.height * Math.abs(node.scaleY())),
+    rotation: node.rotation(),
+    opacity: base.opacity,
+  };
+}

@@ -15,6 +15,7 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
   const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
   const deleteTimelineSelection = useAppStore((s) => s.deleteTimelineSelection);
   const clearTimelineSelection = useAppStore((s) => s.clearTimelineSelection);
+  const selectAllTimelineClips = useAppStore((s) => s.selectAllTimelineClips);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -45,8 +46,16 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
       if (mod && e.key === 'x') { e.preventDefault(); cutTimelineSelection(); return; }
       if (mod && e.key === 'v') { e.preventDefault(); pasteTimelineClipboard(); return; }
       if (mod && e.key === 'd') { e.preventDefault(); duplicateTimelineSelection(); return; }
+      if (mod && e.key === 'a') { e.preventDefault(); selectAllTimelineClips(); return; }
 
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteTimelineSelection(); return; }
+
+      // Blade / razor: split footage and clips under the playhead.
+      if (!mod && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        useAppStore.getState().splitTimelineAtPlayhead();
+        return;
+      }
 
       if (e.key === 'Escape') {
         clearTimelineSelection({ clearCanvas: true });
@@ -78,5 +87,6 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
     duplicateTimelineSelection,
     deleteTimelineSelection,
     clearTimelineSelection,
+    selectAllTimelineClips,
   ]);
 }

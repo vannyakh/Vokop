@@ -9,11 +9,18 @@ export const llmProviderRefSchema = z.object({
   model: z.string().min(1).optional(),
 });
 
+export const transcriptWordSchema = z.object({
+  text: z.string(),
+  startSec: z.number().nonnegative(),
+  endSec: z.number().nonnegative(),
+});
+
 export const transcriptSegmentSchema = z.object({
   startSec: z.number().nonnegative(),
   endSec: z.number().nonnegative(),
   text: z.string(),
   speakerId: z.string().optional(),
+  words: z.array(transcriptWordSchema).optional(),
 });
 
 export const clipRangeSchema = z.object({
@@ -294,6 +301,7 @@ export const videoAnalyzeResponseSchema = z.object({
 });
 
 export type LlmProviderId = z.infer<typeof llmProviderIdSchema>;
+export type TranscriptWord = z.infer<typeof transcriptWordSchema>;
 export type TranscriptSegment = z.infer<typeof transcriptSegmentSchema>;
 export type ClipRange = z.infer<typeof clipRangeSchema>;
 export type AiJobType = z.infer<typeof aiJobTypeSchema>;

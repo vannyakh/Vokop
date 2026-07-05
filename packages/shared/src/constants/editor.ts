@@ -17,18 +17,18 @@ export const AUDIO_MIX_PRESETS: EditorPreset[] = [
 ];
 
 export const TRANSITION_PRESETS: EditorPreset[] = [
-  { id: 'cut', label: 'Cut', description: 'Instant change', meta: { duration: 0 } },
-  { id: 'dissolve', label: 'Dissolve', description: 'Cross-fade blend', meta: { duration: 0.5 } },
-  { id: 'fade', label: 'Fade', description: 'Fade through black', meta: { duration: 0.4 } },
-  { id: 'wipe-left', label: 'Wipe left', description: 'Reveal from right', meta: { duration: 0.45 } },
-  { id: 'wipe-right', label: 'Wipe right', description: 'Reveal from left', meta: { duration: 0.45 } },
-  { id: 'slide-up', label: 'Slide up', description: 'Push clip upward', meta: { duration: 0.4 } },
-  { id: 'slide-down', label: 'Slide down', description: 'Push clip downward', meta: { duration: 0.4 } },
-  { id: 'zoom-in', label: 'Zoom in', description: 'Scale into next clip', meta: { duration: 0.35 } },
-  { id: 'zoom-out', label: 'Zoom out', description: 'Scale out transition', meta: { duration: 0.35 } },
-  { id: 'blur', label: 'Blur', description: 'Blur between clips', meta: { duration: 0.4 } },
-  { id: 'flash', label: 'Flash', description: 'Quick white flash', meta: { duration: 0.2 } },
-  { id: 'spin', label: 'Spin', description: 'Rotate transition', meta: { duration: 0.5 } },
+  { id: 'cut', label: 'Cut', description: 'Instant change', meta: { duration: 0, ffmpegXfade: null } },
+  { id: 'dissolve', label: 'Dissolve', description: 'Cross-fade blend', meta: { duration: 0.5, ffmpegXfade: 'fade' } },
+  { id: 'fade', label: 'Fade', description: 'Fade through black', meta: { duration: 0.4, ffmpegXfade: 'fadeblack' } },
+  { id: 'wipe-left', label: 'Wipe left', description: 'Reveal from right', meta: { duration: 0.45, ffmpegXfade: 'wipeleft' } },
+  { id: 'wipe-right', label: 'Wipe right', description: 'Reveal from left', meta: { duration: 0.45, ffmpegXfade: 'wiperight' } },
+  { id: 'slide-up', label: 'Slide up', description: 'Push clip upward', meta: { duration: 0.4, ffmpegXfade: 'slideup' } },
+  { id: 'slide-down', label: 'Slide down', description: 'Push clip downward', meta: { duration: 0.4, ffmpegXfade: 'slidedown' } },
+  { id: 'zoom-in', label: 'Zoom in', description: 'Scale into next clip', meta: { duration: 0.35, ffmpegXfade: 'zoomin' } },
+  { id: 'zoom-out', label: 'Zoom out', description: 'Scale out transition', meta: { duration: 0.35, ffmpegXfade: 'fade' } },
+  { id: 'blur', label: 'Blur', description: 'Blur between clips', meta: { duration: 0.4, ffmpegXfade: 'hblur' } },
+  { id: 'flash', label: 'Flash', description: 'Quick white flash', meta: { duration: 0.2, ffmpegXfade: 'fadewhite' } },
+  { id: 'spin', label: 'Spin', description: 'Rotate transition', meta: { duration: 0.5, ffmpegXfade: 'circleopen' } },
 ];
 
 export const FILTER_PRESETS: EditorPreset[] = [
@@ -144,4 +144,17 @@ export function getFilterCss(filterId: string | null | undefined): string {
 export function getFilterFfmpeg(filterId: string | null | undefined): string {
   if (!filterId || filterId === 'original') return '';
   return FILTER_PRESETS.find((p) => p.id === filterId)?.ffmpegFilter ?? '';
+}
+
+export function getTransitionXfade(presetId: string | null | undefined): string | null {
+  if (!presetId || presetId === 'cut') return null;
+  const meta = findEditorPreset('transitions', presetId)?.meta as
+    | { ffmpegXfade?: string | null }
+    | undefined;
+  return meta?.ffmpegXfade ?? null;
+}
+
+export function getTransitionDefaultDurationSec(presetId: string): number {
+  const meta = findEditorPreset('transitions', presetId)?.meta as { duration?: number } | undefined;
+  return typeof meta?.duration === 'number' ? meta.duration : 0.5;
 }

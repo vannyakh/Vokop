@@ -15,6 +15,8 @@ import { useVideoSession } from '@/features/studio/hooks/useVideoSession';
 import { useCanvasKeyboardShortcuts } from '@/features/studio/hooks/useCanvasKeyboardShortcuts';
 import { useTimelineDockSplit } from '@/features/studio/hooks/useTimelineDockSplit';
 import { useTimelinePlayback } from '@/features/studio/hooks/useTimelinePlayback';
+import { useLinkedVideoAudioPlayback } from '@/features/studio/hooks/useLinkedVideoAudioPlayback';
+import { TemplateSlotBanner } from '@/features/studio/components/TemplateSlotBanner';
 import type { ExportSettings } from '@/features/studio/lib/exportSettings';
 
 export function StudioWorkspace() {
@@ -22,17 +24,13 @@ export function StudioWorkspace() {
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
   const isExporting = useAppStore((s) => s.isExporting);
-  const hydrateMediaLibrary = useAppStore((s) => s.hydrateMediaLibrary);
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const { containerRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
   useCanvasKeyboardShortcuts(videoRef);
   useTimelinePlayback(videoRef);
+  useLinkedVideoAudioPlayback(videoRef);
   useVideoSession();
-
-  useEffect(() => {
-    void hydrateMediaLibrary();
-  }, [hydrateMediaLibrary]);
 
   useEffect(() => {
     preloadLocalFonts();
@@ -74,6 +72,7 @@ export function StudioWorkspace() {
   return (
     <div className="studio-shell h-full min-h-screen flex flex-col overflow-hidden relative">
       <AppHeader onExport={() => setExportModalOpen(true)} />
+      <TemplateSlotBanner />
 
       <div className="flex-1 flex overflow-hidden relative z-10">
         <StudioToolsDock

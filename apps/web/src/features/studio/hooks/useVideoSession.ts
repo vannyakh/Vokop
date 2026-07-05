@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { queryKeys, videoFileKey } from '@/lib/api/queryKeys';
 import { useAppStore } from '@/features/project';
+import { useVideoToolsHealth } from '@/features/studio/hooks/useVideoToolsHealth';
 
 /** Upload video to editing server once; reuse session for probe/filmstrip/jobs. */
 export function useVideoSession() {
@@ -13,15 +14,17 @@ export function useVideoSession() {
   const setVideoDimensions = useAppStore((s) => s.setVideoDimensions);
   const sessionLoading = useAppStore((s) => s.videoSessionLoading);
   const setVideoSessionLoading = useAppStore((s) => s.setVideoSessionLoading);
+  const { ffmpegOk, ffmpegError, isReady } = useVideoToolsHealth();
 
   const fileKey = videoFileKey(videoFile);
 
   const query = useQuery({
     queryKey: queryKeys.video.session(fileKey ?? 'none'),
     queryFn: () => api.createVideoSession(videoFile!),
-    enabled: Boolean(videoFile && fileKey),
+    enabled: Boolean(videoFile && fileKey && isReady && ffmpegOk),
     staleTime: Infinity,
     gcTime: 30 * 60_000,
+    retry: false,
   });
 
   useEffect(() => {
@@ -67,6 +70,13 @@ export function useVideoSession() {
     setDuration,
     setVideoDimensions,
   ]);
+
+  useEffect(() => {
+    if (!videoFile || !isReady || ffmpegOk || !ffmpegError) return;
+    console.warn('[video-session] server ffmpeg unavailable, using local file only:', ffmpegError);
+    setVideoSessionId(null);
+    setVideoSessionLoading(false);
+  }, [videoFile, isReady, ffmpegOk, ffmpegError, setVideoSessionId, setVideoSessionLoading]);
 
   return {
     videoSessionId,

@@ -26,15 +26,19 @@ export function getVideoContentRect(
   if (sw <= 0 || sh <= 0) return { x: 0, y: 0, width: sw, height: sh };
 
   let aspect: number;
-  if (videoSize.width > 0 && videoSize.height > 0) {
-    aspect = videoSize.width / videoSize.height;
-  } else if (frameRatio && frameRatio > 0) {
+  if (frameRatio != null && frameRatio > 0) {
     aspect = frameRatio;
+  } else if (videoSize.width > 0 && videoSize.height > 0) {
+    aspect = videoSize.width / videoSize.height;
   } else {
     return { x: 0, y: 0, width: sw, height: sh };
   }
 
   const stageAspect = sw / sh;
+  if (Math.abs(aspect - stageAspect) < 0.02) {
+    return { x: 0, y: 0, width: sw, height: sh };
+  }
+
   if (aspect >= stageAspect) {
     const w = sw;
     const h = w / aspect;
@@ -70,6 +74,53 @@ export function clampToContentRect(
     x: Math.min(Math.max(minX, x), maxX),
     y: Math.min(Math.max(minY, y), maxY),
   };
+}
+
+/** Keep a box fully inside the composition frame (position + max size). */
+export function clampBoxToContentRect(
+  box: { x: number; y: number; width: number; height: number },
+  content: CanvasRect,
+  pad = 4,
+  minSize: { width: number; height: number } = { width: 40, height: 24 },
+): { x: number; y: number; width: number; height: number } {
+  const innerW = Math.max(minSize.width, content.width - pad * 2);
+  const innerH = Math.max(minSize.height, content.height - pad * 2);
+  const minX = content.x + pad;
+  const minY = content.y + pad;
+  const maxX = content.x + content.width - pad;
+  const maxY = content.y + content.height - pad;
+
+  let width = Math.max(minSize.width, Math.min(box.width, innerW));
+  let height = Math.max(minSize.height, Math.min(box.height, innerH));
+  let x = Math.min(Math.max(minX, box.x), maxX - width);
+  let y = Math.min(Math.max(minY, box.y), maxY - height);
+  return { x, y, width, height };
+}
+
+/** When the composition frame moves/resizes, remap a box proportionally inside it. */
+export function remapBoxInContentRect(
+  box: { x: number; y: number; width: number; height: number },
+  from: CanvasRect,
+  to: CanvasRect,
+): { x: number; y: number; width: number; height: number } {
+  if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) {
+    return box;
+  }
+  const relX = (box.x - from.x) / from.width;
+  const relY = (box.y - from.y) / from.height;
+  const relW = box.width / from.width;
+  const relH = box.height / from.height;
+  return {
+    x: to.x + relX * to.width,
+    y: to.y + relY * to.height,
+    width: Math.max(1, relW * to.width),
+    height: Math.max(1, relH * to.height),
+  };
+}
+
+export function compositionScale(from: CanvasRect, to: CanvasRect): number {
+  if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) return 1;
+  return Math.min(to.width / from.width, to.height / from.height);
 }
 
 export function centerInContentRect(

@@ -8,6 +8,8 @@ export function clampClip(start: number, duration: number, totalDuration: number
 }
 
 export function getSegmentEnd(segments: Segment[], index: number, duration: number): number {
+  const seg = segments[index];
+  if (seg?.endTime != null && seg.endTime > seg.time) return seg.endTime;
   if (index < segments.length - 1) return segments[index + 1].time;
   return Math.max(duration, segments[index].time + TIMELINE_MIN_CLIP_SEC);
 }

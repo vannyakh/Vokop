@@ -6,7 +6,6 @@ import { TimelineEditingTools } from '@/features/studio/components/TimelineEditi
 import { TimelinePlaybackControls } from '@/features/studio/components/TimelinePlaybackControls';
 import { TimelineViewTools } from '@/features/studio/components/TimelineViewTools';
 import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
-import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 
 interface TimelineBarProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -24,7 +23,6 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const isSyncPlaying = useAppStore((s) => s.isSyncPlaying);
   const timelineZoom = useAppStore((s) => s.timelineZoom);
   const setTimelineZoom = useAppStore((s) => s.setTimelineZoom);
-  const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
@@ -40,7 +38,6 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
   const seekTimeline = useAppStore((s) => s.seekTimeline);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
-  const transcriptReady = useTranscriptReady();
   const {
     primary: selectedTimelineClip,
     deleteSelection,
@@ -48,17 +45,18 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
     cutSelection,
     pasteSelection,
     duplicateSelection,
+    splitAtPlayhead,
     hasClipboard,
+    hasSelection,
     canDelete,
     canEditCanvas,
-    canSplit: canSplitTrack,
+    canSplit,
   } = useTimelineSelection();
 
   const [barMenu, setBarMenu] = useState<{ x: number; y: number } | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
 
   const isPaused = !isTimelinePlaying;
-  const canSplit = transcriptReady && canSplitTrack;
 
   const openInspector = () => {
     setActiveTab('inspector');
@@ -83,9 +81,11 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         <TimelineEditingTools
           canSplit={canSplit}
           canDelete={canDelete}
+          canDuplicate={hasSelection}
           processBusy={status !== 'idle'}
-          onSplit={splitTimelineAtPlayhead}
+          onSplit={splitAtPlayhead}
           onDelete={deleteSelection}
+          onDuplicate={duplicateSelection}
           onProcessAll={onProcessAll}
         />
 
@@ -108,6 +108,10 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
           onToggleAttachSnap={toggleCanvasAttachSnap}
           onZoomChange={setTimelineZoom}
           onToggleFullscreen={togglePreviewFullscreen}
+          onOpenVoiceTools={() => {
+            setActiveStudioTool('audio');
+            setToolsDrawerOpen(true);
+          }}
         />
       </div>
 
@@ -117,7 +121,7 @@ export function TimelineBar({ videoRef, onProcessAll, onToggleSyncPlayback }: Ti
         target={barMenu ? { x: barMenu.x, y: barMenu.y, time: currentTime } : null}
         onClose={() => setBarMenu(null)}
         onSeek={seekTimeline}
-        onSplit={splitTimelineAtPlayhead}
+        onSplit={splitAtPlayhead}
         onDelete={deleteSelection}
         onCopy={copySelection}
         onCut={cutSelection}

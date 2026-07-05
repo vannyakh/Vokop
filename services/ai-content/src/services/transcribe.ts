@@ -11,6 +11,7 @@ interface LlmTranscribePayload {
     text?: string;
     speaker?: string;
     speakerId?: string;
+    words?: Array<{ text?: string; startSec?: number; endSec?: number }>;
   }>;
 }
 
@@ -23,15 +24,46 @@ Rules:
 - Split into timed segments aligned to speech pauses.
 - Keep each segment text short enough for on-screen captions (≤ 48 characters when possible).
 - Use startSec/endSec in seconds (decimals OK).
+- Include a "words" array on each segment with per-word timing when speech is clear:
+  { "text": "hello", "startSec": 0.0, "endSec": 0.32 }
 
 Return JSON only:
 {
   "detectedLanguage": "English",
-  "transcript": "[00:00] Speaker 1: Short spoken line\\n...",
+  "transcript": "[00:00-00:03] Speaker 1: Short spoken line\\n...",
   "segments": [
-    { "startSec": 0.0, "endSec": 3.5, "speakerId": "Speaker 1", "text": "Short spoken line" }
+    {
+      "startSec": 0.0,
+      "endSec": 3.5,
+      "speakerId": "Speaker 1",
+      "text": "Short spoken line",
+      "words": [
+        { "text": "Short", "startSec": 0.0, "endSec": 0.4 },
+        { "text": "spoken", "startSec": 0.4, "endSec": 0.9 },
+        { "text": "line", "startSec": 0.9, "endSec": 1.2 }
+      ]
+    }
   ]
 }`;
+
+function normalizeWords(
+  raw: Array<{ text?: string; startSec?: number; endSec?: number }> | undefined,
+): TranscriptSegment['words'] {
+  return (raw ?? [])
+    .filter(
+      (w): w is { text: string; startSec: number; endSec: number } =>
+        typeof w.text === 'string' &&
+        w.text.trim().length > 0 &&
+        typeof w.startSec === 'number' &&
+        typeof w.endSec === 'number' &&
+        w.endSec > w.startSec,
+    )
+    .map((w) => ({
+      text: w.text.trim(),
+      startSec: w.startSec,
+      endSec: w.endSec,
+    }));
+}
 
 function normalizeSegments(raw: LlmTranscribePayload['segments']): TranscriptSegment[] {
   return (raw ?? [])
@@ -42,6 +74,7 @@ function normalizeSegments(raw: LlmTranscribePayload['segments']): TranscriptSeg
         text: string;
         speaker?: string;
         speakerId?: string;
+        words?: Array<{ text?: string; startSec?: number; endSec?: number }>;
       } =>
         typeof s.startSec === 'number' &&
         typeof s.endSec === 'number' &&
@@ -49,22 +82,30 @@ function normalizeSegments(raw: LlmTranscribePayload['segments']): TranscriptSeg
         s.text.trim().length > 0 &&
         s.endSec > s.startSec,
     )
-    .map((s) => ({
-      startSec: s.startSec,
-      endSec: s.endSec,
-      text: s.text.trim(),
-      speakerId: s.speakerId ?? s.speaker,
-    }));
+    .map((s) => {
+      const words = normalizeWords(s.words);
+      return {
+        startSec: s.startSec,
+        endSec: s.endSec,
+        text: s.text.trim(),
+        speakerId: s.speakerId ?? s.speaker,
+        ...(words.length ? { words } : {}),
+      };
+    });
+}
+
+function formatSec(sec: number): string {
+  const mm = Math.floor(sec / 60);
+  const ss = Math.floor(sec % 60);
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
 function buildTranscript(segments: TranscriptSegment[], fallback?: string): string {
   if (fallback?.trim()) return fallback.trim();
   return segments
     .map((seg) => {
-      const mm = Math.floor(seg.startSec / 60);
-      const ss = Math.floor(seg.startSec % 60);
       const speaker = seg.speakerId ? `${seg.speakerId}: ` : '';
-      return `[${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}] ${speaker}${seg.text}`;
+      return `[${formatSec(seg.startSec)}-${formatSec(seg.endSec)}] ${speaker}${seg.text}`;
     })
     .join('\n');
 }

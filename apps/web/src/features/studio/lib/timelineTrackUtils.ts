@@ -5,6 +5,7 @@ import type {
   TimelineTrackType,
 } from '@/features/studio/lib/timelineTypes';
 import { DEFAULT_TIMELINE_TRACK_ORDER } from '@/features/studio/lib/timelineTypes';
+import type { MediaAssetKind } from '@/features/studio/lib/mediaLibrary';
 
 /** Whether a clip can be moved onto a destination track (drag or menu). */
 export function clipCanMoveToTrack(
@@ -12,7 +13,9 @@ export function clipCanMoveToTrack(
   toTrackId: string,
   toType: TimelineTrackType,
 ): boolean {
-  if (clip.mediaKind === 'video') return toType === 'video' || toTrackId === 'video';
+  if (clip.mediaKind === 'video') {
+    return toType === 'video' || toTrackId === 'video' || String(toTrackId).startsWith('video-');
+  }
   if (clip.mediaKind === 'audio') return isAudioLikeTimelineTrack(toTrackId);
   if (clip.canvasKind === 'template' || clip.segmentType) {
     return isTextTimelineTrack(toTrackId) || toType === 'text';
@@ -24,6 +27,12 @@ export function clipCanMoveToTrack(
 }
 
 /** Visual tracks that hold images, stickers, effects, or legacy overlays. */
+export function isVideoTimelineTrack(trackId: TimelineTrackId | string | undefined): boolean {
+  if (!trackId) return false;
+  const id = String(trackId);
+  return id === 'video' || id.startsWith('video-');
+}
+
 export function isVisualTimelineTrack(trackId: TimelineTrackId | string | undefined): boolean {
   if (!trackId) return false;
   const id = String(trackId);
@@ -121,4 +130,29 @@ export function moveTrackInOrder(
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+/** Resolve the core track id to show/unhide for a media kind + optional drop target. */
+export function coreTrackIdForMediaKind(
+  kind: MediaAssetKind,
+  targetTrackId?: string,
+  targetTrackType?: TimelineTrackType,
+): string {
+  if (kind === 'video') return 'video';
+  if (kind === 'audio') {
+    if (targetTrackType === 'sound' || targetTrackId === 'sound') return 'sound';
+    return 'audio';
+  }
+  if (targetTrackType === 'sticker' || targetTrackId === 'sticker') return 'sticker';
+  if (targetTrackId && isVisualTimelineTrack(targetTrackId)) return String(targetTrackId);
+  return 'image';
+}
+
+export function trackTypeForMediaDrop(
+  kind: MediaAssetKind,
+  trackId: string,
+): TimelineTrackType {
+  if (kind === 'video') return 'video';
+  if (kind === 'audio') return trackId === 'sound' ? 'sound' : 'audio';
+  return trackTypeFromId(trackId, 'image');
 }

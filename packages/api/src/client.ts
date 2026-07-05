@@ -59,6 +59,7 @@ import {
   videoJobResponseSchema,
   videoProbeResponseSchema,
   videoSessionResponseSchema,
+  videoToolsHealthResponseSchema,
 } from './schemas/index.js';
 import type {
   AgentRunRequest,
@@ -92,6 +93,7 @@ import type {
   VideoJobResponse,
   VideoProbeResponse,
   VideoSessionResponse,
+  VideoToolsHealthResponse,
   VideoAnalyzeRequest,
   VideoAnalyzeResponse,
   VoiceTtsRequest,
@@ -152,6 +154,14 @@ export class ApiClient {
 
   async health(): Promise<HealthResponse> {
     return this.get(healthResponseSchema, routes.health, 'Health check failed');
+  }
+
+  async videoToolsHealth(): Promise<VideoToolsHealthResponse> {
+    return this.get(
+      videoToolsHealthResponseSchema,
+      routes.video.health,
+      'Video tools health check failed',
+    );
   }
 
   async probeVideo(file: File): Promise<VideoProbeResponse> {

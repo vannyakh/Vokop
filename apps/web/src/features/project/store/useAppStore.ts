@@ -5,47 +5,85 @@ import {
   DEFAULT_PROJECT_EDITOR_STATE,
   findEditorPreset,
   getFilterCss,
+  applyStudioTemplate as instantiateStudioTemplate,
+  getStudioTemplate,
+  captionSegmentsToTranscript,
+  updateCaptionSegmentText,
+  updateCaptionWordTiming,
+  getTransitionDefaultDurationSec,
+  type AutoCutDensity,
+  type AutoCutSuggestion,
+  type BeatAnalysis,
+  type CaptionSegment,
+  type CaptionTracks,
   type ProjectEditorState,
+  type StudioTemplateAssetBinding,
+  type TimelineTransition,
 } from '@vokop/shared';
+import {
+  findAdjacentPairForClip,
+  upsertTimelineTransition,
+} from '@/features/studio/lib/timelineTransitions';
 import { DEFAULT_VOICE, VOICES } from '@/features/translation/constants/voices';
 import { extractSpeakers } from '@/lib/utils/transcript';
-import { updateSegmentText, parseSegments, updateSegmentTime, updateSegmentDuration, removeSegment, addSegmentAtTime, splitSegmentAtTime, getSegmentIndexAtTime } from '@/lib/utils/transcript';
+import { updateSegmentText, parseSegments, updateSegmentTime, updateSegmentDuration, removeSegment, addSegmentAtTime } from '@/lib/utils/transcript';
 import type {
   ExtraTimelineTrack,
   ExtraTrackType,
   MediaClip,
   TimelineSelectionItem,
   TimelineTrackId,
+  TimelineTrackType,
 } from '@/features/studio/lib/timelineTypes';
 import {
   DEFAULT_TIMELINE_TRACK_ORDER,
+  DEFAULT_HIDDEN_CORE_TRACKS,
   isCoreTimelineTrack,
   isDeletableTimelineTrack,
   TRACK_TYPE_LABELS,
 } from '@/features/studio/lib/timelineTypes';
 import {
+  coreTrackIdForMediaKind,
   isAudioLikeTimelineTrack,
   isTextTimelineTrack,
+  isVideoTimelineTrack,
   isVisualTimelineTrack,
   moveTrackInOrder,
   trackTypeFromId,
 } from '@/features/studio/lib/timelineTrackUtils';
 import {
+  hasCanvasTrackOverlap,
+  hasMediaTrackOverlap,
+  insertTrackBelowOrder,
+} from '@/features/studio/lib/timelineTrackPlacement';
+import {
   buildTimelineSelection,
   pruneTimelineSelection,
   resolveTimelineSelectionItems,
   toggleTimelineSelectionItem,
+  collectAllTimelineSelectionItems,
   type TimelineSelectMode,
 } from '@/features/studio/lib/timelineSelection';
+import { buildTimelineTracks } from '@/features/studio/lib/buildTimelineTracks';
 import { createKeyframeAtOffset } from '@/features/studio/lib/keyframeUtils';
+import {
+  applyCanvasElementPatch,
+  applyMediaClipToLists,
+  applySplitAtPlayhead,
+  applyMediaSplitsAtTimes,
+  timelineItemForCanvasElement,
+} from '@/features/studio/services/studioEdit';
 import type { CanvasElement, CanvasTool } from '@/types/canvas';
 import { defaultProjectName, detectAspectRatioId } from '@/features/studio/constants/aspectRatios';
 import {
   computeTimelineDuration,
   createMediaClip,
+  extractAudioClipFromVideo,
   findClipAtTime,
-  splitMediaClipAt,
+  findVideoClipForPreview,
+  listVideoTrackIds,
   timelineToSourceTime,
+  timelineToVideoSourceTime,
 } from '@/features/studio/lib/mediaClips';
 import { getTimelineVideo } from '@/features/studio/lib/timelinePlaybackBridge';
 import {
@@ -55,13 +93,14 @@ import {
   probeMediaMeta,
   storeMediaFile,
   type MediaAsset,
+  type PersistedMediaAsset,
+  mergePersistedMediaAssets,
 } from '@/features/studio/lib/mediaLibrary';
 import {
   hydrateMediaFromOpfs,
   persistMediaToOpfs,
   removeMediaFromOpfs,
 } from '@/features/studio/lib/opfsMediaCache';
-import { isTranscriptReady } from '@/features/studio/lib/transcriptReady';
 import {
   cloneProjectSnapshot,
   pushProjectHistory,
@@ -239,11 +278,32 @@ function withTimelineDuration<T extends {
   };
 }
 
-function syncVideoToTimeline(clips: MediaClip[], time: number, playing: boolean) {
+function syncVideoToTimeline(
+  state: {
+    videoClips: MediaClip[];
+    extraTimelineTracks: ExtraTimelineTrack[];
+    timelineTrackOrder: string[];
+    timelineTrackHidden: string[];
+    timelineTrackPreviewHidden: Record<string, boolean>;
+  },
+  time: number,
+  playing: boolean,
+) {
   const video = getTimelineVideo();
   if (!video) return;
 
-  const sourceTime = timelineToSourceTime(clips, time);
+  const videoTrackIds = listVideoTrackIds(
+    state.extraTimelineTracks,
+    state.timelineTrackOrder,
+    state.timelineTrackHidden,
+  );
+  const mapped = timelineToVideoSourceTime(
+    state.videoClips,
+    time,
+    videoTrackIds,
+    state.timelineTrackPreviewHidden,
+  );
+  const sourceTime = mapped?.sourceTime ?? timelineToSourceTime(state.videoClips, time);
   if (sourceTime == null) {
     if (!video.paused) video.pause();
     return;
@@ -299,6 +359,8 @@ interface AppState {
   activeStudioTool: StudioToolId;
   timelineZoom: number;
   timelineTrackMuted: Record<string, boolean>;
+  /** Hide track from canvas preview (eye toggle). */
+  timelineTrackPreviewHidden: Record<string, boolean>;
   /** Display order of track ids (core + extra). */
   timelineTrackOrder: string[];
   /** Optional label overrides for core tracks. */
@@ -326,6 +388,17 @@ interface AppState {
   videoSessionId: string | null;
   videoSessionLoading: boolean;
   projectEditor: ProjectEditorState;
+  /** Active project template (asset slots may still be pending). */
+  activeStudioTemplateId: string | null;
+  pendingTemplateSlotIds: string[];
+  /** Structured captions with word-level timing (source of truth when populated). */
+  captionTracks: CaptionTracks;
+  /** Beat detection analysis for auto-cut. */
+  beatAnalysis: BeatAnalysis | null;
+  autoCutSuggestions: AutoCutSuggestion[];
+  showBeatMarkers: boolean;
+  beatSensitivity: number;
+  autoCutDensity: AutoCutDensity;
 
   setVideo: (file: File, url: string) => void;
   importMediaFiles: (files: FileList | File[]) => Promise<void>;
@@ -336,8 +409,8 @@ interface AppState {
     options?: { trackId?: string },
   ) => void;
   setPrimaryVideoAsset: (assetId: string) => void;
-  /** Restore media library from OPFS (survives reload). */
-  hydrateMediaLibrary: () => Promise<void>;
+  /** Restore media library from OPFS for the active project. */
+  hydrateMediaLibrary: (projectId: string, persistedAssets?: PersistedMediaAsset[]) => Promise<void>;
   resetProject: () => void;
   setProjectId: (projectId: string | null) => void;
   hydrateProject: (input: {
@@ -353,6 +426,10 @@ interface AppState {
       canvasElements?: CanvasElement[];
       transcript?: string;
       translatedText?: string;
+      mediaAssets?: PersistedMediaAsset[];
+      timelineTrackHidden?: string[];
+      timelineTrackOrder?: string[];
+      extraTimelineTracks?: ExtraTimelineTrack[];
     };
   }) => void;
   setProjectStatus: (status: 'done' | 'processing' | 'failed' | null, progress?: number) => void;
@@ -409,9 +486,19 @@ interface AppState {
   setCaptionStylePreset: (style: CaptionStyle) => void;
   applyAudioMixPreset: (presetId: string) => void;
   applyClipTransition: (clipId: string, transitionId: string, edge: 'in' | 'out') => void;
+  setTransitionDuration: (transitionId: string, durationSec: number) => void;
   getVideoCssFilter: () => string;
   setTimelineZoom: (zoom: number) => void;
   toggleTimelineTrackMuted: (trackId: TimelineTrackId) => void;
+  toggleTimelineTrackPreviewHidden: (trackId: TimelineTrackId) => void;
+  resolveTimelineDropTrack: (input: {
+    trackId: string;
+    trackType: TimelineTrackType;
+    atTime: number;
+    duration: number;
+    mediaKind?: 'video' | 'audio' | 'image';
+    excludeClipId?: string;
+  }) => string;
   /** Replace selection with one clip (or clear). Keeps primary + multi in sync. */
   selectTimelineClip: (
     clip: TimelineSelectionItem | null,
@@ -428,6 +515,7 @@ interface AppState {
     options?: { syncCanvas?: boolean },
   ) => void;
   clearTimelineSelection: (options?: { clearCanvas?: boolean }) => void;
+  selectAllTimelineClips: () => void;
   /** @deprecated Prefer selectTimelineClip / setTimelineSelection */
   setSelectedTimelineClip: (clip: TimelineSelectionItem | null) => void;
   /** @deprecated Prefer setTimelineSelection */
@@ -444,9 +532,17 @@ interface AppState {
   updateSegment: (index: number, newText: string, type: 'transcript' | 'translation') => void;
   updateSegmentTime: (index: number, newTime: number, type: 'transcript' | 'translation') => void;
   updateSegmentDuration: (index: number, duration: number, type: 'transcript' | 'translation') => void;
+  setCaptionTracks: (type: 'transcript' | 'translation', segments: CaptionSegment[]) => void;
+  updateCaptionWord: (
+    segmentIndex: number,
+    wordIndex: number,
+    patch: Partial<{ startSec: number; endSec: number; text: string }>,
+    type: 'transcript' | 'translation',
+  ) => void;
   removeTimelineClip: (trackId: TimelineTrackId, clipId: string) => void;
   addTimelineClip: (trackId: TimelineTrackId, time: number) => void;
-  addTimelineTrack: (type?: ExtraTrackType) => void;
+  addTimelineTrack: (type?: ExtraTrackType, options?: { insertAfter?: string }) => string;
+  ensureTimelineTrackVisible: (trackId: string) => void;
   removeTimelineTrack: (trackId: string) => void;
   reorderTimelineTracks: (fromId: string, toId: string) => void;
   renameTimelineTrack: (trackId: string, label: string) => void;
@@ -482,7 +578,21 @@ interface AppState {
   undoCanvas: () => void;
   redoCanvas: () => void;
   splitTimelineAtPlayhead: () => void;
+  /** Copy video audio onto the audio track (video keeps sound). */
+  extractAudioFromVideoClip: (clipId?: string) => string | null;
+  /** Extract audio and mute the video clip (split audio from video). */
+  detachAudioFromVideoClip: (clipId?: string) => string | null;
+  /** Apply a studio template blueprint to the current project. */
+  applyStudioTemplate: (templateId: string, bindings?: StudioTemplateAssetBinding[]) => void;
+  clearStudioTemplate: () => void;
   initSpeakersFromTranscript: (text: string) => void;
+  setBeatAnalysis: (analysis: BeatAnalysis | null) => void;
+  setAutoCutSuggestions: (suggestions: AutoCutSuggestion[]) => void;
+  setShowBeatMarkers: (show: boolean) => void;
+  setBeatSensitivity: (sensitivity: number) => void;
+  setAutoCutDensity: (density: AutoCutDensity) => void;
+  clearBeatAnalysis: () => void;
+  applyAutoCutSuggestions: () => void;
 }
 
 const initialState = {
@@ -537,9 +647,10 @@ const initialState = {
     sound: false,
     audio: false,
   } as Record<string, boolean>,
+  timelineTrackPreviewHidden: {} as Record<string, boolean>,
   timelineTrackOrder: [] as string[],
   timelineTrackLabels: {} as Record<string, string>,
-  timelineTrackHidden: [] as string[],
+  timelineTrackHidden: [...DEFAULT_HIDDEN_CORE_TRACKS],
   extraTimelineTracks: [] as ExtraTimelineTrack[],
   selectedTimelineClip: null as TimelineSelectionItem | null,
   selectedTimelineClips: [] as TimelineSelectionItem[],
@@ -559,7 +670,37 @@ const initialState = {
   videoSessionId: null as string | null,
   videoSessionLoading: false,
   projectEditor: { ...DEFAULT_PROJECT_EDITOR_STATE },
+  activeStudioTemplateId: null as string | null,
+  pendingTemplateSlotIds: [] as string[],
+  captionTracks: { transcript: [], translation: [] } as CaptionTracks,
+  beatAnalysis: null as BeatAnalysis | null,
+  autoCutSuggestions: [] as AutoCutSuggestion[],
+  showBeatMarkers: true,
+  beatSensitivity: 0.5,
+  autoCutDensity: 'every-beat' as AutoCutDensity,
 };
+
+function revokeAllMediaAssets(assets: MediaAsset[], videoUrl: string | null) {
+  for (const asset of assets) {
+    if (asset.url) URL.revokeObjectURL(asset.url);
+    forgetMediaFile(asset.id);
+  }
+  if (videoUrl && !assets.some((asset) => asset.url === videoUrl)) {
+    URL.revokeObjectURL(videoUrl);
+  }
+}
+
+function emptyMediaFields() {
+  return {
+    mediaAssets: [] as MediaAsset[],
+    videoFile: null as File | null,
+    videoUrl: null as string | null,
+    videoSessionId: null as string | null,
+    mediaDuration: 0,
+    videoWidth: 0,
+    videoHeight: 0,
+  };
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
   ...initialState,
@@ -633,7 +774,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       currentTime: 0,
     });
 
-    void persistMediaToOpfs(primaryAsset, file).catch(() => undefined);
+    void (() => {
+      const projectId = get().projectId;
+      if (projectId) void persistMediaToOpfs(projectId, primaryAsset, file).catch(() => undefined);
+    })();
   },
 
   importMediaFiles: async (files) => {
@@ -674,7 +818,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         height: meta.height,
       };
       set((s) => ({ mediaAssets: [...s.mediaAssets, asset] }));
-      void persistMediaToOpfs(asset, file).catch(() => undefined);
+      const projectId = get().projectId;
+      if (projectId) void persistMediaToOpfs(projectId, asset, file).catch(() => undefined);
     }
   },
 
@@ -690,17 +835,145 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!stillUsed) URL.revokeObjectURL(asset.url);
     forgetMediaFile(id);
     set({ mediaAssets: state.mediaAssets.filter((item) => item.id !== id) });
-    void removeMediaFromOpfs(id).catch(() => undefined);
+    const projectId = state.projectId;
+    if (projectId) void removeMediaFromOpfs(projectId, id).catch(() => undefined);
   },
 
-  hydrateMediaLibrary: async () => {
-    if (get().mediaAssets.length > 0) return;
-    try {
-      const assets = await hydrateMediaFromOpfs(storeMediaFile);
-      if (!assets.length) return;
-      set({ mediaAssets: assets });
+  setPrimaryVideoAsset: (assetId) => {
+    const state = get();
+    const asset = state.mediaAssets.find((item) => item.id === assetId);
+    if (!asset || asset.kind !== 'video' || asset.isPrimary) return;
+    const file = getMediaFile(assetId);
+    if (!file) return;
+    get().setVideo(file, asset.url);
+  },
 
-      const primary = assets.find((asset) => asset.isPrimary);
+  addMediaAssetToTimeline: (assetId, atTime, options) => {
+    const state = get();
+    const asset = state.mediaAssets.find((item) => item.id === assetId);
+    if (!asset) return;
+    const time = Math.max(0, atTime ?? state.currentTime);
+    const openInspector = true;
+    const targetTrack = options?.trackId;
+    const targetType = targetTrack
+      ? trackTypeFromId(String(targetTrack), asset.kind === 'audio' ? 'audio' : asset.kind === 'video' ? 'video' : 'image')
+      : undefined;
+
+    if (asset.kind === 'image') {
+      let trackId =
+        targetTrack &&
+        (targetTrack === 'image' ||
+          targetTrack === 'sticker' ||
+          targetTrack === 'effect' ||
+          targetTrack === 'overlay' ||
+          String(targetTrack).startsWith('image-') ||
+          String(targetTrack).startsWith('sticker-') ||
+          String(targetTrack).startsWith('effect-') ||
+          String(targetTrack).startsWith('overlay-'))
+          ? String(targetTrack) === 'overlay' || String(targetTrack).startsWith('overlay-')
+            ? 'image'
+            : String(targetTrack)
+          : 'image';
+      const clipDuration = Math.max(1, asset.duration || 4);
+      trackId = get().resolveTimelineDropTrack({
+        trackId,
+        trackType: trackTypeFromId(trackId, 'image'),
+        atTime: time,
+        duration: clipDuration,
+        mediaKind: 'image',
+      });
+      get().addCanvasImageFromUrl(asset.url, {
+        label: asset.name,
+        startTime: time,
+        endTime: time + clipDuration,
+        keepStudioTool: true,
+        trackId,
+      });
+      if (openInspector) set({ activeTab: 'inspector', editorOpen: true });
+      return;
+    }
+
+    if (asset.kind === 'video') {
+      const clipDuration = Math.max(
+        0.4,
+        asset.duration || state.mediaDuration || state.duration || 1,
+      );
+      let trackId = targetTrack && isVideoTimelineTrack(String(targetTrack)) ? String(targetTrack) : 'video';
+      trackId = get().resolveTimelineDropTrack({
+        trackId,
+        trackType: 'video',
+        atTime: time,
+        duration: clipDuration,
+        mediaKind: 'video',
+      });
+      if (!state.videoUrl) get().setPrimaryVideoAsset(assetId);
+      const latest = get();
+      const clip = createMediaClip({
+        name: asset.name,
+        duration: clipDuration,
+        start: time,
+        sourceStart: 0,
+        trackId,
+        mediaAssetId: assetId,
+      });
+      set({
+        ...pushHistory(latest),
+        ...withTimelineDuration(latest, {
+          videoClips: [...latest.videoClips, clip],
+        }),
+        selectedTimelineClip: { trackId: trackId as TimelineTrackId, clipId: clip.id },
+        selectedTimelineClips: [{ trackId: trackId as TimelineTrackId, clipId: clip.id }],
+        ...(openInspector ? { activeTab: 'inspector' as const, editorOpen: true } : {}),
+      });
+      return;
+    }
+
+    if (asset.kind === 'audio') {
+      const clipDuration = Math.max(0.4, asset.duration || 1);
+      let trackId = targetTrack && isAudioLikeTimelineTrack(String(targetTrack)) ? String(targetTrack) : 'audio';
+      trackId = get().resolveTimelineDropTrack({
+        trackId,
+        trackType: trackTypeFromId(trackId, 'audio'),
+        atTime: time,
+        duration: clipDuration,
+        mediaKind: 'audio',
+      });
+      const clip = createMediaClip({
+        name: asset.name,
+        duration: clipDuration,
+        start: time,
+        sourceStart: 0,
+        trackId,
+        mediaAssetId: assetId,
+      });
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, {
+          audioClips: [...state.audioClips, clip],
+        }),
+        selectedTimelineClip: { trackId: trackId as TimelineTrackId, clipId: clip.id },
+        selectedTimelineClips: [{ trackId: trackId as TimelineTrackId, clipId: clip.id }],
+        ...(openInspector ? { activeTab: 'inspector' as const, editorOpen: true } : {}),
+      });
+    }
+  },
+
+  hydrateMediaLibrary: async (projectId, persistedAssets) => {
+    if (!projectId) return;
+
+    try {
+      const hydrated = await hydrateMediaFromOpfs(projectId, storeMediaFile);
+      const merged = mergePersistedMediaAssets(hydrated, persistedAssets).filter(
+        (asset) => asset.url.length > 0,
+      );
+      if (!merged.length) {
+        set(emptyMediaFields());
+        return;
+      }
+
+      set({ mediaAssets: merged });
+
+      const primary = merged.find((asset) => asset.isPrimary) ?? merged.find((a) => a.kind === 'video');
       if (primary && !get().videoUrl) {
         const mediaFile = getMediaFile(primary.id);
         if (!mediaFile) return;
@@ -722,104 +995,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  setPrimaryVideoAsset: (assetId) => {
-    const state = get();
-    const asset = state.mediaAssets.find((item) => item.id === assetId);
-    if (!asset || asset.kind !== 'video' || asset.isPrimary) return;
-    const file = getMediaFile(assetId);
-    if (!file) return;
-    get().setVideo(file, asset.url);
-  },
-
-  addMediaAssetToTimeline: (assetId, atTime, options) => {
-    const state = get();
-    const asset = state.mediaAssets.find((item) => item.id === assetId);
-    if (!asset) return;
-    const time = Math.max(0, atTime ?? state.currentTime);
-    const openInspector = true;
-    const targetTrack = options?.trackId;
-
-    if (asset.kind === 'image') {
-      const tid = targetTrack ? String(targetTrack) : '';
-      const trackId =
-        tid === 'image' ||
-        tid === 'sticker' ||
-        tid === 'effect' ||
-        tid === 'overlay' ||
-        tid.startsWith('image-') ||
-        tid.startsWith('sticker-') ||
-        tid.startsWith('effect-') ||
-        tid.startsWith('overlay-')
-          ? tid === 'overlay' || tid.startsWith('overlay-')
-            ? 'image'
-            : tid
-          : 'image';
-      get().addCanvasImageFromUrl(asset.url, {
-        label: asset.name,
-        startTime: time,
-        endTime: time + Math.max(1, asset.duration || 4),
-        keepStudioTool: true,
-        trackId,
-      });
-      if (openInspector) set({ activeTab: 'inspector', editorOpen: true });
-      return;
-    }
-
-    if (asset.kind === 'video') {
-      if (!asset.isPrimary) get().setPrimaryVideoAsset(assetId);
-      const latest = get();
-      const clipDuration = Math.max(
-        0.4,
-        asset.duration || latest.mediaDuration || latest.duration || 1,
-      );
-      const clip = createMediaClip({
-        name: asset.name,
-        duration: clipDuration,
-        start: time,
-        sourceStart: 0,
-      });
-      set({
-        ...pushHistory(latest),
-        ...withTimelineDuration(latest, {
-          videoClips: [...latest.videoClips, clip],
-        }),
-        selectedTimelineClip: { trackId: 'video', clipId: clip.id },
-        selectedTimelineClips: [{ trackId: 'video', clipId: clip.id }],
-        ...(openInspector ? { activeTab: 'inspector' as const, editorOpen: true } : {}),
-      });
-      return;
-    }
-
-    if (asset.kind === 'audio') {
-      const clipDuration = Math.max(0.4, asset.duration || 1);
-      const clip = createMediaClip({
-        name: asset.name,
-        duration: clipDuration,
-        start: time,
-        sourceStart: 0,
-      });
-      set({
-        ...pushHistory(state),
-        ...withTimelineDuration(state, {
-          audioClips: [...state.audioClips, clip],
-        }),
-        selectedTimelineClip: { trackId: 'audio', clipId: clip.id },
-        selectedTimelineClips: [{ trackId: 'audio', clipId: clip.id }],
-        ...(openInspector ? { activeTab: 'inspector' as const, editorOpen: true } : {}),
-      });
-    }
-  },
-
   resetProject: () => {
     const state = get();
-    for (const asset of state.mediaAssets) {
-      URL.revokeObjectURL(asset.url);
-      forgetMediaFile(asset.id);
-    }
-    const prevUrl = state.videoUrl;
-    if (prevUrl && !state.mediaAssets.some((asset) => asset.url === prevUrl)) {
-      URL.revokeObjectURL(prevUrl);
-    }
+    revokeAllMediaAssets(state.mediaAssets, state.videoUrl);
     set({ ...initialState });
   },
 
@@ -828,26 +1006,72 @@ export const useAppStore = create<AppState>((set, get) => ({
   hydrateProject: (input) => {
     const state = get();
     const editor = input.editorState;
-    const videoClips = editor?.videoClips ?? state.videoClips;
-    const audioClips = editor?.audioClips ?? state.audioClips;
-    const fallbackDuration = input.durationSec ?? state.duration ?? 0;
+    const switching = state.projectId !== input.id;
+    if (switching) {
+      revokeAllMediaAssets(state.mediaAssets, state.videoUrl);
+    }
+    const videoClips = editor?.videoClips ?? (switching ? [] : state.videoClips);
+    const audioClips = editor?.audioClips ?? (switching ? [] : state.audioClips);
+    let timelineTrackHidden = editor?.timelineTrackHidden
+      ? [...editor.timelineTrackHidden]
+      : switching
+        ? [...DEFAULT_HIDDEN_CORE_TRACKS]
+        : [...state.timelineTrackHidden];
+
+    if (!editor?.timelineTrackHidden) {
+      if (videoClips.length > 0) {
+        timelineTrackHidden = timelineTrackHidden.filter((id) => id !== 'video');
+      }
+      if (audioClips.length > 0) {
+        timelineTrackHidden = timelineTrackHidden.filter((id) => id !== 'audio' && id !== 'sound');
+      }
+      const canvasElements = editor?.canvasElements ?? [];
+      if (canvasElements.some((el) => el.type === 'text')) {
+        timelineTrackHidden = timelineTrackHidden.filter((id) => id !== 'text');
+      }
+      if (canvasElements.some((el) => el.type === 'image' || el.type === 'logo')) {
+        timelineTrackHidden = timelineTrackHidden.filter((id) => id !== 'image' && id !== 'sticker');
+      }
+    }
+
+    const fallbackDuration = input.durationSec ?? (switching ? 0 : state.duration) ?? 0;
     const duration = computeTimelineDuration(
-      state.mediaDuration,
+      switching ? 0 : state.mediaDuration,
       [...videoClips, ...audioClips],
       fallbackDuration > 0 ? fallbackDuration : 30,
     );
     set({
+      ...(switching ? emptyMediaFields() : {}),
       projectId: input.id,
       projectName: input.title,
       aspectRatio: input.aspectRatio,
       projectStatus: input.status,
       projectProgress: input.progress ?? (input.status === 'done' ? 100 : 0),
       duration,
-      ...(editor?.videoClips ? { videoClips: editor.videoClips } : {}),
-      ...(editor?.audioClips ? { audioClips: editor.audioClips } : {}),
-      ...(editor?.canvasElements ? { canvasElements: editor.canvasElements } : {}),
-      ...(editor?.transcript != null ? { transcript: editor.transcript } : {}),
-      ...(editor?.translatedText != null ? { translatedText: editor.translatedText } : {}),
+      ...(editor?.videoClips ? { videoClips: editor.videoClips } : switching ? { videoClips: [] } : {}),
+      ...(editor?.audioClips ? { audioClips: editor.audioClips } : switching ? { audioClips: [] } : {}),
+      ...(editor?.canvasElements
+        ? { canvasElements: editor.canvasElements }
+        : switching
+          ? { canvasElements: [] }
+          : {}),
+      ...(editor?.transcript != null ? { transcript: editor.transcript } : switching ? { transcript: '' } : {}),
+      ...(editor?.translatedText != null
+        ? { translatedText: editor.translatedText }
+        : switching
+          ? { translatedText: '' }
+          : {}),
+      timelineTrackHidden,
+      ...(editor?.timelineTrackOrder
+        ? { timelineTrackOrder: editor.timelineTrackOrder }
+        : switching
+          ? { timelineTrackOrder: [] }
+          : {}),
+      ...(editor?.extraTimelineTracks
+        ? { extraTimelineTracks: editor.extraTimelineTracks }
+        : switching
+          ? { extraTimelineTracks: [] }
+          : {}),
       projectUndoStack: [],
       projectRedoStack: [],
       isTimelinePlaying: false,
@@ -900,15 +1124,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     let videoClips = state.videoClips;
     let audioClips = state.audioClips;
-    if (mediaDuration > 0 && state.videoFile && videoClips.length === 0) {
-      videoClips = [
-        createMediaClip({
-          name: state.videoFile.name,
-          duration: mediaDuration,
-          start: 0,
-          sourceStart: 0,
-        }),
-      ];
+    let pendingTemplateSlotIds = state.pendingTemplateSlotIds;
+
+    if (
+      mediaDuration > 0 &&
+      state.videoFile &&
+      videoClips.length === 0 &&
+      state.activeStudioTemplateId &&
+      pendingTemplateSlotIds.includes('primary-video')
+    ) {
+      const template = getStudioTemplate(state.activeStudioTemplateId);
+      const blueprintClip = template?.blueprint.videoClips.find((c) => c.slotId === 'primary-video');
+      if (blueprintClip) {
+        videoClips = [
+          createMediaClip({
+            name: state.videoFile.name,
+            duration: Math.min(blueprintClip.duration, mediaDuration),
+            start: blueprintClip.start,
+            sourceStart: blueprintClip.sourceStart ?? 0,
+          }),
+        ];
+        pendingTemplateSlotIds = pendingTemplateSlotIds.filter((id) => id !== 'primary-video');
+      }
     }
     if (mediaDuration > 0 && state.audioBase64 && audioClips.length === 0) {
       audioClips = [
@@ -923,6 +1160,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({
       ...withTimelineDuration(state, { mediaDuration, videoClips, audioClips }),
+      pendingTemplateSlotIds,
       mediaAssets: state.mediaAssets.map((asset) =>
         asset.isPrimary
           ? {
@@ -946,7 +1184,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const max = state.duration > 0 ? state.duration : Number.POSITIVE_INFINITY;
     const next = Math.min(Math.max(0, time), max);
     set({ currentTime: next });
-    syncVideoToTimeline(state.videoClips, next, state.isTimelinePlaying);
+    syncVideoToTimeline(state, next, state.isTimelinePlaying);
   },
 
   setTimelinePlaying: (playing) => {
@@ -955,9 +1193,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       const atEnd = state.duration > 0 && state.currentTime >= state.duration - 0.05;
       const time = atEnd ? 0 : state.currentTime;
       set({ isTimelinePlaying: true, currentTime: time });
-      syncVideoToTimeline(state.videoClips, time, true);
+      syncVideoToTimeline(state, time, true);
       // If playhead is in a gap (or no video), the rAF clock still advances.
-      const clip = findClipAtTime(state.videoClips, time);
+      const videoTrackIds = listVideoTrackIds(
+        state.extraTimelineTracks,
+        state.timelineTrackOrder,
+        state.timelineTrackHidden,
+      );
+      const clip = findVideoClipForPreview(
+        state.videoClips,
+        time,
+        videoTrackIds,
+        state.timelineTrackPreviewHidden,
+      );
       if (!clip || !state.videoUrl) {
         getTimelineVideo()?.pause();
       }
@@ -979,15 +1227,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateMediaClip: (id, patch, options) => {
     const state = get();
     const recordHistory = options?.history !== false;
-    const inVideo = state.videoClips.some((clip) => clip.id === id);
-    const listKey = inVideo ? 'videoClips' : 'audioClips';
-    const list = state[listKey];
-    if (!list.some((clip) => clip.id === id)) return;
-
-    const nextList = list.map((clip) => (clip.id === id ? { ...clip, ...patch } : clip));
+    const applied = applyMediaClipToLists(
+      state.videoClips,
+      state.audioClips,
+      id,
+      patch,
+    );
+    if (!applied) return;
     set({
       ...(recordHistory ? pushHistory(state) : {}),
-      ...withTimelineDuration(state, { [listKey]: nextList }),
+      ...withTimelineDuration(state, { [applied.listKey]: applied.nextList }),
     });
   },
   setStatus: (status) => set({ status }),
@@ -1072,8 +1321,44 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...current,
         ...(edge === 'in' ? { transitionInId: transitionId } : { transitionOutId: transitionId }),
       };
-      return { projectEditor: { ...s.projectEditor, clipEdits } };
+
+      let timelineTransitions = s.projectEditor.timelineTransitions;
+      if (edge === 'in') {
+        const pair = findAdjacentPairForClip(s.videoClips, clipId);
+        if (pair && transitionId !== 'cut') {
+          const durationSec = getTransitionDefaultDurationSec(transitionId);
+          const id = `trans-${pair.outgoing.id}-${pair.incoming.id}`;
+          timelineTransitions = upsertTimelineTransition(timelineTransitions, {
+            id,
+            presetId: transitionId,
+            outgoingClipId: pair.outgoing.id,
+            incomingClipId: pair.incoming.id,
+            durationSec,
+          });
+        } else if (pair && transitionId === 'cut') {
+          timelineTransitions = timelineTransitions.filter(
+            (t) =>
+              !(
+                t.outgoingClipId === pair.outgoing.id && t.incomingClipId === pair.incoming.id
+              ),
+          );
+        }
+      }
+
+      return {
+        projectEditor: { ...s.projectEditor, clipEdits, timelineTransitions },
+      };
     }),
+
+  setTransitionDuration: (transitionId, durationSec) =>
+    set((s) => ({
+      projectEditor: {
+        ...s.projectEditor,
+        timelineTransitions: s.projectEditor.timelineTransitions.map((t) =>
+          t.id === transitionId ? { ...t, durationSec: Math.max(0.05, durationSec) } : t,
+        ),
+      },
+    })),
 
   getVideoCssFilter: () => getFilterCss(get().projectEditor.videoFilterId),
 
@@ -1082,6 +1367,57 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       timelineTrackMuted: { ...s.timelineTrackMuted, [trackId]: !s.timelineTrackMuted[trackId] },
     })),
+  toggleTimelineTrackPreviewHidden: (trackId) =>
+    set((s) => ({
+      timelineTrackPreviewHidden: {
+        ...s.timelineTrackPreviewHidden,
+        [trackId]: !s.timelineTrackPreviewHidden[trackId],
+      },
+    })),
+  resolveTimelineDropTrack: (input) => {
+    const state = get();
+    let trackId = input.trackId;
+    const { atTime, duration, trackType, mediaKind, excludeClipId } = input;
+
+    if (mediaKind === 'video' || trackType === 'video') {
+      if (!isVideoTimelineTrack(trackId)) trackId = 'video';
+      if (isCoreTimelineTrack(trackId)) get().ensureTimelineTrackVisible(trackId);
+      if (hasMediaTrackOverlap(state.videoClips, trackId, atTime, duration, 'video', excludeClipId)) {
+        return get().addTimelineTrack('video', { insertAfter: trackId });
+      }
+      return trackId;
+    }
+
+    if (mediaKind === 'audio' || trackType === 'audio' || trackType === 'sound') {
+      const audioTrack = isAudioLikeTimelineTrack(trackId) ? trackId : trackType === 'sound' ? 'sound' : 'audio';
+      if (isCoreTimelineTrack(audioTrack)) get().ensureTimelineTrackVisible(audioTrack);
+      if (hasMediaTrackOverlap(state.audioClips, audioTrack, atTime, duration, 'audio', excludeClipId)) {
+        return get().addTimelineTrack(trackType === 'sound' ? 'sound' : 'audio', { insertAfter: audioTrack });
+      }
+      return audioTrack;
+    }
+
+    if (trackType === 'text' || isTextTimelineTrack(trackId)) {
+      const resolved = isTextTimelineTrack(trackId) ? trackId : 'text';
+      if (isCoreTimelineTrack(resolved)) get().ensureTimelineTrackVisible(resolved);
+      if (hasCanvasTrackOverlap(state.canvasElements, resolved, atTime, atTime + duration, excludeClipId)) {
+        return get().addTimelineTrack('text', { insertAfter: resolved });
+      }
+      return resolved;
+    }
+
+    if (isVisualTimelineTrack(trackId) || trackType === 'image' || trackType === 'sticker') {
+      const resolved =
+        isVisualTimelineTrack(trackId) ? trackId : trackType === 'sticker' ? 'sticker' : 'image';
+      if (isCoreTimelineTrack(resolved)) get().ensureTimelineTrackVisible(resolved);
+      if (hasCanvasTrackOverlap(state.canvasElements, resolved, atTime, atTime + duration, excludeClipId)) {
+        return get().addTimelineTrack(trackType === 'sticker' ? 'sticker' : 'image', { insertAfter: resolved });
+      }
+      return resolved;
+    }
+
+    return trackId;
+  },
   selectTimelineClip: (clip, options = {}) => {
     const { mode = 'replace', syncCanvas = true, openInspector = false } = options;
     const state = get();
@@ -1136,6 +1472,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedTimelineClips: [],
       ...(clearCanvas ? { selectedCanvasElementId: null } : {}),
     });
+  },
+
+  selectAllTimelineClips: () => {
+    const state = get();
+    const tracks = buildTimelineTracks({
+      duration: state.duration,
+      audioBase64: state.audioBase64,
+      videoFile: state.videoFile,
+      videoClips: state.videoClips,
+      audioClips: state.audioClips,
+      canvasElements: state.canvasElements,
+      extraTimelineTracks: state.extraTimelineTracks,
+      timelineTrackOrder: state.timelineTrackOrder,
+      timelineTrackLabels: state.timelineTrackLabels,
+      timelineTrackHidden: state.timelineTrackHidden,
+      transcript: state.transcript,
+      translatedText: state.translatedText,
+      captionTracks: state.captionTracks,
+    });
+    const items = collectAllTimelineSelectionItems(tracks);
+    if (!items.length) return;
+    get().setTimelineSelection(items, items[0] ?? null, { syncCanvas: true });
   },
 
   setSelectedTimelineClip: (clip) => {
@@ -1237,6 +1595,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updateSegment: (index, newText, type) => {
     const state = get();
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const structured = state.captionTracks[trackKey];
+
+    if (structured.length > 0 && structured[index]) {
+      const nextTracks = updateCaptionSegmentText(structured, index, newText);
+      const serialized = captionSegmentsToTranscript(nextTracks);
+      set({
+        captionTracks: { ...state.captionTracks, [trackKey]: nextTracks },
+        ...(type === 'transcript' ? { transcript: serialized } : { translatedText: serialized }),
+      });
+      return;
+    }
+
     if (type === 'transcript') {
       const segments = parseSegments(state.transcript);
       set({ transcript: updateSegmentText(segments, index, newText) });
@@ -1244,6 +1615,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       const segments = parseSegments(state.translatedText);
       set({ translatedText: updateSegmentText(segments, index, newText) });
     }
+  },
+
+  setCaptionTracks: (type, segments) => {
+    const state = get();
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const serialized = captionSegmentsToTranscript(segments);
+    set({
+      captionTracks: { ...state.captionTracks, [trackKey]: segments },
+      ...(type === 'transcript' ? { transcript: serialized } : { translatedText: serialized }),
+    });
+  },
+
+  updateCaptionWord: (segmentIndex, wordIndex, patch, type) => {
+    const state = get();
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const structured = state.captionTracks[trackKey];
+    if (!structured.length) return;
+
+    const nextTracks = updateCaptionWordTiming(structured, segmentIndex, wordIndex, patch);
+    const serialized = captionSegmentsToTranscript(nextTracks);
+    set({
+      captionTracks: { ...state.captionTracks, [trackKey]: nextTracks },
+      ...(type === 'transcript' ? { transcript: serialized } : { translatedText: serialized }),
+    });
   },
 
   updateSegmentTime: (index, newTime, type) => {
@@ -1395,24 +1790,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  addTimelineTrack: (type: ExtraTrackType = 'image') => {
+  addTimelineTrack: (type: ExtraTrackType = 'image', options?: { insertAfter?: string }) => {
     const state = get();
-    // Restore a hidden core track of this type when possible.
     const coreId = (DEFAULT_TIMELINE_TRACK_ORDER as string[]).find(
       (id) => id === type && state.timelineTrackHidden.includes(id),
     );
     if (coreId) {
-      const order =
-        state.timelineTrackOrder.length > 0
-          ? state.timelineTrackOrder
-          : [...DEFAULT_TIMELINE_TRACK_ORDER];
-      set({
-        ...pushHistory(state),
-        timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== coreId),
-        timelineTrackOrder: order.includes(coreId) ? order : [...order, coreId],
-        timelineTrackMuted: { ...state.timelineTrackMuted, [coreId]: false },
-      });
-      return;
+      get().ensureTimelineTrackVisible(coreId);
+      return coreId;
     }
 
     const sameType = state.extraTimelineTracks.filter((t) => t.type === type).length;
@@ -1421,15 +1806,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       type,
       label: `${TRACK_TYPE_LABELS[type]} ${sameType + 2}`,
     };
+    const baseOrder =
+      state.timelineTrackOrder.length > 0
+        ? state.timelineTrackOrder
+        : [...DEFAULT_TIMELINE_TRACK_ORDER];
+    const timelineTrackOrder = options?.insertAfter
+      ? insertTrackBelowOrder(baseOrder, options.insertAfter, track.id)
+      : [...baseOrder, track.id];
+    set({
+      ...pushHistory(state),
+      extraTimelineTracks: [...state.extraTimelineTracks, track],
+      timelineTrackOrder,
+      timelineTrackMuted: { ...state.timelineTrackMuted, [track.id]: false },
+      timelineTrackPreviewHidden: { ...state.timelineTrackPreviewHidden, [track.id]: false },
+    });
+    return track.id;
+  },
+
+  ensureTimelineTrackVisible: (trackId) => {
+    const state = get();
+    if (trackId === 'audio') return;
+    if (!isCoreTimelineTrack(trackId)) return;
+    if (!state.timelineTrackHidden.includes(trackId)) return;
+
     const order =
       state.timelineTrackOrder.length > 0
         ? state.timelineTrackOrder
         : [...DEFAULT_TIMELINE_TRACK_ORDER];
     set({
-      ...pushHistory(state),
-      extraTimelineTracks: [...state.extraTimelineTracks, track],
-      timelineTrackOrder: [...order, track.id],
-      timelineTrackMuted: { ...state.timelineTrackMuted, [track.id]: false },
+      timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== trackId),
+      timelineTrackOrder: order.includes(trackId) ? order : [...order, trackId],
+      timelineTrackMuted: { ...state.timelineTrackMuted, [trackId]: false },
     });
   },
 
@@ -1438,6 +1845,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const muted = { ...state.timelineTrackMuted };
     delete muted[trackId];
+    const previewHidden = { ...state.timelineTrackPreviewHidden };
+    delete previewHidden[trackId];
     const labels = { ...state.timelineTrackLabels };
     delete labels[trackId];
 
@@ -1456,6 +1865,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         timelineTrackOrder: state.timelineTrackOrder.filter((id) => id !== trackId),
         timelineTrackLabels: labels,
         timelineTrackMuted: muted,
+        timelineTrackPreviewHidden: previewHidden,
         ...selectionWithCanvasSync(state, selection, true),
       });
       return;
@@ -1468,6 +1878,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       timelineTrackOrder: state.timelineTrackOrder.filter((id) => id !== trackId),
       timelineTrackLabels: labels,
       timelineTrackMuted: muted,
+      timelineTrackPreviewHidden: previewHidden,
       canvasElements: nextCanvas,
       ...selectionWithCanvasSync({ ...state, canvasElements: nextCanvas }, selection, true),
     });
@@ -1487,16 +1898,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         ((element.type === 'image' || element.type === 'logo') &&
           isVisualTimelineTrack(toTrackId));
       if (!canMove) return;
+      const duration = Math.max(0.4, element.endTime - element.startTime);
+      let resolvedTrackId = get().resolveTimelineDropTrack({
+        trackId: toTrackId,
+        trackType: toType,
+        atTime: element.startTime,
+        duration,
+        excludeClipId: clipId,
+      });
       const nextTrackId =
-        toTrackId === 'text' || toTrackId === 'image' || toTrackId === 'sticker'
-          ? toTrackId === 'text'
+        resolvedTrackId === 'text' || resolvedTrackId === 'image' || resolvedTrackId === 'sticker'
+          ? resolvedTrackId === 'text'
             ? element.type === 'text'
               ? undefined
-              : toTrackId
-            : toTrackId
-          : toTrackId;
+              : resolvedTrackId
+            : resolvedTrackId
+          : resolvedTrackId;
       const item: TimelineSelectionItem = {
-        trackId: toTrackId as TimelineTrackId,
+        trackId: resolvedTrackId as TimelineTrackId,
         clipId,
       };
       set({
@@ -1509,17 +1928,71 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    // Media clips: video stays on video; audio can move between audio/sound
+    // Media clips: video can move between video tracks; audio between audio/sound tracks.
+    const videoClip = state.videoClips.find((c) => c.id === clipId);
+    if (videoClip && toType === 'video') {
+      let targetId = toTrackId;
+      if (
+        hasMediaTrackOverlap(
+          state.videoClips,
+          targetId,
+          videoClip.start,
+          videoClip.duration,
+          'video',
+          clipId,
+        )
+      ) {
+        targetId = get().addTimelineTrack('video', { insertAfter: targetId });
+      }
+      const videoClips = state.videoClips.map((c) =>
+        c.id === clipId ? { ...c, trackId: targetId } : c,
+      );
+      const item: TimelineSelectionItem = {
+        trackId: targetId as TimelineTrackId,
+        clipId,
+      };
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, { videoClips }),
+        ...buildTimelineSelection([item], item),
+      });
+      return;
+    }
+
     if (fromType === 'video' || toType === 'video') return;
     if (
       (fromType === 'audio' || fromType === 'sound') &&
       (toType === 'audio' || toType === 'sound')
     ) {
+      const audioClip = state.audioClips.find((c) => c.id === clipId);
+      if (!audioClip) return;
+      let targetId = toTrackId;
+      if (
+        hasMediaTrackOverlap(
+          state.audioClips,
+          targetId,
+          audioClip.start,
+          audioClip.duration,
+          'audio',
+          clipId,
+        )
+      ) {
+        targetId = get().addTimelineTrack(toType === 'sound' ? 'sound' : 'audio', {
+          insertAfter: targetId,
+        });
+      }
+      const audioClips = state.audioClips.map((c) =>
+        c.id === clipId ? { ...c, trackId: targetId } : c,
+      );
       const item: TimelineSelectionItem = {
-        trackId: toTrackId as TimelineTrackId,
+        trackId: targetId as TimelineTrackId,
         clipId,
       };
-      set(buildTimelineSelection([item], item));
+      set({
+        ...pushHistory(state),
+        ...withTimelineDuration(state, { audioClips }),
+        ...buildTimelineSelection([item], item),
+      });
     }
   },
 
@@ -1612,19 +2085,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const tool: StudioToolId =
       element.type === 'logo' || element.type === 'image' ? 'media' : 'text';
 
-    let item: TimelineSelectionItem;
-    if (element.segmentType === 'translation' || element.templateId) {
-      item = { trackId: 'text', clipId: element.id };
-    } else if (element.segmentType === 'transcript') {
-      item = { trackId: 'overlay', clipId: element.id };
-    } else if (element.type === 'logo' || element.type === 'image' || element.trackId) {
-      item = {
-        trackId: (element.trackId ?? 'overlay') as TimelineTrackId,
-        clipId: element.id,
-      };
-    } else {
-      item = { trackId: 'text', clipId: element.id };
-    }
+    const item = timelineItemForCanvasElement(element);
 
     set({
       selectedCanvasElementId: id,
@@ -1637,31 +2098,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   updateCanvasElement: (id, patch, options) => {
     const state = get();
-    const element = state.canvasElements.find((el) => el.id === id);
-    if (!element) return;
     const recordHistory = options?.history !== false;
+    const applied = applyCanvasElementPatch(
+      state.canvasElements,
+      state.transcript,
+      state.translatedText,
+      id,
+      patch,
+    );
+    if (!applied) return;
 
-    const nextElements = state.canvasElements.map((el) => (el.id === id ? { ...el, ...patch } : el));
-    const updates: Partial<AppState> = {
-      canvasElements: nextElements,
+    set({
+      canvasElements: applied.canvasElements,
+      ...(applied.transcript !== undefined ? { transcript: applied.transcript } : {}),
+      ...(applied.translatedText !== undefined
+        ? { translatedText: applied.translatedText }
+        : {}),
       ...(recordHistory ? pushHistory(state) : {}),
-    };
-
-    if (
-      patch.text !== undefined &&
-      element.segmentType !== undefined &&
-      element.segmentIndex !== undefined
-    ) {
-      if (element.segmentType === 'transcript') {
-        const segments = parseSegments(state.transcript);
-        updates.transcript = updateSegmentText(segments, element.segmentIndex, patch.text);
-      } else {
-        const segments = parseSegments(state.translatedText);
-        updates.translatedText = updateSegmentText(segments, element.segmentIndex, patch.text);
-      }
-    }
-
-    set(updates);
+    });
   },
 
   duplicateCanvasElement: (id) => {
@@ -1792,6 +2246,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       (options.trackId === 'text' || String(options.trackId).startsWith('text-'))
         ? options.trackId
         : 'text';
+    get().ensureTimelineTrackVisible(trackId === 'text' ? 'text' : trackId);
 
     const element: CanvasElement = {
       id,
@@ -1876,85 +2331,174 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   splitTimelineAtPlayhead: () => {
     const state = get();
-    const { currentTime, duration, selectedTimelineClip } = state;
-    if (!duration || !isTranscriptReady(state.transcript, state.status)) return;
-
-    const trackId = selectedTimelineClip?.trackId ?? 'text';
-    const clipId = selectedTimelineClip?.clipId;
-
-    // Omniclip-style: split video/audio media clips.
-    if (trackId === 'video' || trackId === 'audio') {
-      const listKey = trackId === 'video' ? 'videoClips' : 'audioClips';
-      const clips = state[listKey];
-      const clip =
-        (clipId ? clips.find((item) => item.id === clipId) : null) ??
-        clips.find(
-          (item) => currentTime > item.start + 0.4 && currentTime < item.start + item.duration - 0.4,
-        );
-      if (!clip) return;
-      const parts = splitMediaClipAt(clip, currentTime);
-      if (!parts) return;
-      const [left, right] = parts;
-      const nextList = clips.flatMap((item) => (item.id === clip.id ? [left, right] : [item]));
-      const item: TimelineSelectionItem = { trackId, clipId: right.id };
-      set({
-        ...pushHistory(state),
-        ...withTimelineDuration(state, { [listKey]: nextList }),
-        ...buildTimelineSelection([item], item),
-      });
-      return;
-    }
-
-    // Split canvas overlays / templates.
-    if (clipId) {
-      const element = state.canvasElements.find((el) => el.id === clipId);
-      if (element) {
-        const start = element.startTime;
-        const end = element.endTime;
-        if (currentTime <= start + 0.4 || currentTime >= end - 0.4) return;
-        const left = { ...element, endTime: currentTime };
-        const right = {
-          ...element,
-          id: `${element.type}-${Date.now()}`,
-          startTime: currentTime,
-        };
-        const item: TimelineSelectionItem = { trackId, clipId: right.id };
-        set({
-          ...pushHistory(state),
-          canvasElements: state.canvasElements.flatMap((el) =>
-            el.id === element.id ? [left, right] : [el],
-          ),
-          ...buildTimelineSelection([item], item),
-          selectedCanvasElementId: right.id,
-        });
-        return;
-      }
-    }
-
-    // Caption segments (transcript / translation).
-    const type =
-      trackId === 'overlay' ? ('transcript' as const) : ('translation' as const);
-    const source = type === 'transcript' ? state.transcript : state.translatedText;
-    const segments = parseSegments(source);
-    const index =
-      selectedTimelineClip && trackId === (type === 'translation' ? 'text' : 'overlay')
-        ? parseInt(selectedTimelineClip.clipId.split('-')[1] ?? '-1', 10)
-        : getSegmentIndexAtTime(segments, currentTime, duration);
-
-    if (index < 0) return;
-    const segStart = segments[index].time;
-    const segEnd =
-      index < segments.length - 1 ? segments[index + 1].time : duration;
-    if (currentTime <= segStart + 0.4 || currentTime >= segEnd - 0.4) return;
-
-    const next = splitSegmentAtTime(segments, currentTime, duration);
-    if (!next) return;
+    const result = applySplitAtPlayhead({
+      currentTime: state.currentTime,
+      duration: state.duration,
+      transcript: state.transcript,
+      translatedText: state.translatedText,
+      status: state.status,
+      videoClips: state.videoClips,
+      audioClips: state.audioClips,
+      canvasElements: state.canvasElements,
+      selectedTimelineClip: state.selectedTimelineClip,
+    });
+    if (!result) return;
 
     set({
       ...pushHistory(state),
-      ...(type === 'transcript' ? { transcript: next } : { translatedText: next }),
+      ...withTimelineDuration(state, {
+        videoClips: result.videoClips ?? state.videoClips,
+        audioClips: result.audioClips ?? state.audioClips,
+      }),
+      ...(result.canvasElements ? { canvasElements: result.canvasElements } : {}),
+      ...(result.transcript !== undefined ? { transcript: result.transcript } : {}),
+      ...(result.translatedText !== undefined
+        ? { translatedText: result.translatedText }
+        : {}),
+      selectedTimelineClip: result.selectedTimelineClip,
+      selectedTimelineClips: result.selectedTimelineClips,
+      selectedCanvasElementId: result.selectedCanvasElementId,
     });
   },
+
+  extractAudioFromVideoClip: (clipId) => {
+    const state = get();
+    const videoTrackIds = listVideoTrackIds(
+      state.extraTimelineTracks,
+      state.timelineTrackOrder,
+      state.timelineTrackHidden,
+    );
+    const selectedIsVideo =
+      state.selectedTimelineClip &&
+      (state.selectedTimelineClip.trackId === 'video' ||
+        String(state.selectedTimelineClip.trackId).startsWith('video-'));
+    const videoClip =
+      (clipId ? state.videoClips.find((c) => c.id === clipId) : null) ??
+      (selectedIsVideo
+        ? state.videoClips.find((c) => c.id === state.selectedTimelineClip?.clipId)
+        : null) ??
+      findVideoClipForPreview(
+        state.videoClips,
+        state.currentTime,
+        videoTrackIds,
+        state.timelineTrackPreviewHidden,
+      );
+    if (!videoClip) return null;
+
+    // Avoid duplicate extracts for the same video clip.
+    const already = state.audioClips.some((a) => a.linkedVideoClipId === videoClip.id);
+    if (already) {
+      const existing = state.audioClips.find((a) => a.linkedVideoClipId === videoClip.id)!;
+      set({
+        selectedTimelineClip: { trackId: 'audio', clipId: existing.id },
+        selectedTimelineClips: [{ trackId: 'audio', clipId: existing.id }],
+        selectedCanvasElementId: null,
+        timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== 'audio'),
+      });
+      return existing.id;
+    }
+
+    const audioClip = extractAudioClipFromVideo(videoClip);
+    const selection = buildTimelineSelection(
+      [{ trackId: 'audio', clipId: audioClip.id }],
+      { trackId: 'audio', clipId: audioClip.id },
+    );
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, {
+        audioClips: [...state.audioClips, audioClip],
+      }),
+      timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== 'audio'),
+      timelineTrackOrder: state.timelineTrackOrder.includes('audio')
+        ? state.timelineTrackOrder
+        : [...state.timelineTrackOrder, 'audio'],
+      ...selection,
+      selectedCanvasElementId: null,
+    });
+    return audioClip.id;
+  },
+
+  detachAudioFromVideoClip: (clipId) => {
+    const state = get();
+    const videoTrackIds = listVideoTrackIds(
+      state.extraTimelineTracks,
+      state.timelineTrackOrder,
+      state.timelineTrackHidden,
+    );
+    const selectedIsVideo =
+      state.selectedTimelineClip &&
+      (state.selectedTimelineClip.trackId === 'video' ||
+        String(state.selectedTimelineClip.trackId).startsWith('video-'));
+    const videoClip =
+      (clipId ? state.videoClips.find((c) => c.id === clipId) : null) ??
+      (selectedIsVideo
+        ? state.videoClips.find((c) => c.id === state.selectedTimelineClip?.clipId)
+        : null) ??
+      findVideoClipForPreview(
+        state.videoClips,
+        state.currentTime,
+        videoTrackIds,
+        state.timelineTrackPreviewHidden,
+      );
+    if (!videoClip) return null;
+
+    let audioClips = state.audioClips;
+    let audioId =
+      audioClips.find((a) => a.linkedVideoClipId === videoClip.id)?.id ?? null;
+
+    if (!audioId) {
+      const audioClip = extractAudioClipFromVideo(videoClip, { namePrefix: 'Detached' });
+      audioClips = [...audioClips, audioClip];
+      audioId = audioClip.id;
+    }
+
+    const videoClips = state.videoClips.map((c) =>
+      c.id === videoClip.id ? { ...c, muted: true } : c,
+    );
+    const selection = buildTimelineSelection(
+      [{ trackId: 'audio', clipId: audioId }],
+      { trackId: 'audio', clipId: audioId },
+    );
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, { videoClips, audioClips }),
+      timelineTrackHidden: state.timelineTrackHidden.filter((id) => id !== 'audio'),
+      timelineTrackOrder: state.timelineTrackOrder.includes('audio')
+        ? state.timelineTrackOrder
+        : [...state.timelineTrackOrder, 'audio'],
+      ...selection,
+      selectedCanvasElementId: null,
+    });
+    return audioId;
+  },
+
+  applyStudioTemplate: (templateId, bindings = []) => {
+    const template = getStudioTemplate(templateId);
+    if (!template) return;
+    const state = get();
+    const applied = instantiateStudioTemplate(template, bindings);
+    set({
+      ...pushHistory(state),
+      aspectRatio: applied.aspectRatio,
+      canvasElements: applied.canvasElements as CanvasElement[],
+      videoClips: applied.videoClips as MediaClip[],
+      audioClips: applied.audioClips as MediaClip[],
+      duration: applied.duration,
+      activeStudioTemplateId: templateId,
+      pendingTemplateSlotIds: applied.unfilledSlotIds,
+      ...buildTimelineSelection([]),
+      selectedCanvasElementId: null,
+      activeStudioTool: 'text',
+      toolsDrawerOpen: true,
+      isTimelinePlaying: false,
+    });
+  },
+
+  clearStudioTemplate: () =>
+    set({
+      activeStudioTemplateId: null,
+      pendingTemplateSlotIds: [],
+    }),
 
   initSpeakersFromTranscript: (text) => {
     const speakers = extractSpeakers(text);
@@ -1963,5 +2507,53 @@ export const useAppStore = create<AppState>((set, get) => ({
       initialVoices[s] = VOICES[i % VOICES.length].id;
     });
     set({ detectedSpeakers: speakers, speakerVoices: initialVoices });
+  },
+
+  setBeatAnalysis: (analysis) => set({ beatAnalysis: analysis }),
+
+  setAutoCutSuggestions: (suggestions) => set({ autoCutSuggestions: suggestions }),
+
+  setShowBeatMarkers: (show) => set({ showBeatMarkers: show }),
+
+  setBeatSensitivity: (sensitivity) =>
+    set({ beatSensitivity: Math.min(1, Math.max(0, sensitivity)) }),
+
+  setAutoCutDensity: (density) => set({ autoCutDensity: density }),
+
+  clearBeatAnalysis: () =>
+    set({ beatAnalysis: null, autoCutSuggestions: [], showBeatMarkers: true }),
+
+  applyAutoCutSuggestions: () => {
+    const state = get();
+    const times = state.autoCutSuggestions.map((s) => s.timeSec);
+    if (!times.length) return;
+
+    const result = applyMediaSplitsAtTimes(
+      {
+        currentTime: state.currentTime,
+        duration: state.duration,
+        transcript: state.transcript,
+        translatedText: state.translatedText,
+        status: state.status,
+        videoClips: state.videoClips,
+        audioClips: state.audioClips,
+        canvasElements: state.canvasElements,
+        selectedTimelineClip: state.selectedTimelineClip,
+      },
+      times,
+    );
+    if (!result) return;
+
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, {
+        videoClips: result.videoClips ?? state.videoClips,
+        audioClips: result.audioClips ?? state.audioClips,
+      }),
+      selectedTimelineClip: result.selectedTimelineClip,
+      selectedTimelineClips: result.selectedTimelineClips,
+      selectedCanvasElementId: result.selectedCanvasElementId,
+      autoCutSuggestions: [],
+    });
   },
 }));

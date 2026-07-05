@@ -31,6 +31,7 @@ export const queryKeys = {
   },
   video: {
     all: ['video'] as const,
+    health: () => [...queryKeys.video.all, 'health'] as const,
     session: (fileKey: string) => [...queryKeys.video.all, 'session', fileKey] as const,
     filmstrip: (sessionId: string, duration: number) =>
       [...queryKeys.video.all, 'filmstrip', sessionId, duration] as const,

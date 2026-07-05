@@ -384,6 +384,24 @@
   background: #000000;
 }
 
+.studio-viewport-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 64rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  border-radius: 0.5rem;
+  container-type: size;
+}
+
+.studio-viewport-frame--drop-target {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
+}
+
 .studio-viewport-video-wrap--drop-target {
   outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: -2px;
@@ -418,18 +436,6 @@
 .studio-playback-icon-btn--active {
   color: var(--accent);
   background: var(--accent-soft);
-}
-
-.studio-viewport-frame {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  max-width: 64rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #000000;
-  border-radius: 0.5rem;
 }
 
 /* ── Left tools dock ── */
@@ -648,6 +654,90 @@
   line-height: 1.4;
   color: var(--text-faint);
   background: rgba(255, 255, 255, 0.03);
+}
+
+.transitions-panel-hint--warn {
+  border-color: rgba(232, 163, 61, 0.35);
+  color: var(--accent);
+}
+
+.transitions-panel-preview {
+  border-radius: 0.55rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0a0a0a;
+}
+
+.transitions-panel-pair {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.transitions-duration-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.transitions-duration-control input {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
+.transition-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.transition-preview-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #111;
+}
+
+.transition-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem 0.45rem;
+  font-size: 0.65rem;
+}
+
+.transition-preview-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.transition-preview-shader {
+  color: var(--text-faint);
+  font-size: 0.6rem;
+}
+
+.transition-preview-error {
+  margin: 0;
+  padding: 0 0.5rem 0.45rem;
+  font-size: 0.62rem;
+  color: #f87171;
+}
+
+.transition-preview--cut {
+  padding: 1.25rem 0.5rem;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-faint);
 }
 
 .transitions-grid,

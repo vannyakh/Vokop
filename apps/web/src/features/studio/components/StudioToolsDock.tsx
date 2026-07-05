@@ -22,6 +22,8 @@ import { EditorPresetGrid } from '@/features/studio/components/EditorPresetGrid'
 import { TransitionsPanel } from '@/features/studio/components/TransitionsPanel';
 import { FiltersPanel } from '@/features/studio/components/FiltersPanel';
 import { EffectsPanel } from '@/features/studio/components/EffectsPanel';
+import { AutoCaptionsPanel } from '@/features/studio/components/AutoCaptionsPanel';
+import { BeatCutPanel } from '@/features/studio/components/BeatCutPanel';
 import { useEditorCatalog } from '@/features/studio/hooks/useEditorCatalog';
 import { useEditorActions } from '@/features/studio/hooks/useEditorActions';
 import { useSidePanelSplit } from '@/features/studio/hooks/useSidePanelSplit';
@@ -90,6 +92,8 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
   const videoAnalysis = useAppStore((s) => s.videoAnalysis);
   const projectEditor = useAppStore((s) => s.projectEditor);
   const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
+  const videoClips = useAppStore((s) => s.videoClips);
+  const setTransitionDuration = useAppStore((s) => s.setTransitionDuration);
 
   const { catalog } = useEditorCatalog();
   const { applyPreset, applying } = useEditorActions();
@@ -158,6 +162,15 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
                       disabled={applying}
                       onSelect={(id) => void applyPreset('audio', id)}
                     />
+                  </InspectorSection>
+
+                  <InspectorSection
+                    id="tools-audio-beat-cut"
+                    title="Beat sync / auto-cut"
+                    icon={<StudioIcon name="volume" size={12} />}
+                    defaultOpen
+                  >
+                    <BeatCutPanel />
                   </InspectorSection>
 
                   <InspectorSection
@@ -401,6 +414,14 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
               {activeStudioTool === 'captions' && (
                 <ToolsScroll>
                   <InspectorSection
+                    id="tools-captions-generate"
+                    title="Auto captions"
+                    icon={<StudioIcon name="text" size={12} />}
+                    defaultOpen
+                  >
+                    <AutoCaptionsPanel />
+                  </InspectorSection>
+                  <InspectorSection
                     id="tools-captions-style"
                     title="Caption style"
                     icon={<StudioIcon name="timeline" size={12} />}
@@ -465,6 +486,10 @@ export function StudioToolsDock({ videoRef, onPreviewVoice, onRegenerateVoiceove
                     }
                     disabled={applying}
                     clipSelected={Boolean(selectedTimelineClip)}
+                    selectedClipId={selectedTimelineClip?.clipId ?? null}
+                    videoClips={videoClips}
+                    timelineTransitions={projectEditor.timelineTransitions}
+                    onDurationChange={setTransitionDuration}
                     onSelect={(id) => void applyPreset('transitions', id)}
                   />
                 </ToolsScroll>

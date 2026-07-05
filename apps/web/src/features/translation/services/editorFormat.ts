@@ -1,6 +1,7 @@
 import { formatSegmentTime } from '@/lib/utils/transcript';
 import type { AspectRatioId } from '@/types';
 import type { EditorCaptionLimits, EditorSegment } from '@/features/translation/types/editorAI';
+import { captionSegmentsToTranscript, parseCaptionSegmentsFromTranscript } from '@vokop/shared';
 
 export function captionLimitsForRatio(ratio: AspectRatioId): EditorCaptionLimits {
   switch (ratio) {
@@ -22,7 +23,11 @@ export function captionLimitsForRatio(ratio: AspectRatioId): EditorCaptionLimits
 }
 
 export function normalizeEditorSegment(
-  raw: Partial<EditorSegment> & { start?: number; end?: number },
+  raw: Omit<Partial<EditorSegment>, 'words'> & {
+    start?: number;
+    end?: number;
+    words?: Array<{ text?: string; startSec?: number; endSec?: number }>;
+  },
   index: number,
 ): EditorSegment {
   const startSec = Math.max(0, Number(raw.startSec ?? raw.start ?? 0));
@@ -32,10 +37,34 @@ export function normalizeEditorSegment(
       : undefined;
   const speaker = (raw.speaker ?? `Speaker ${index + 1}`).trim() || `Speaker ${index + 1}`;
   const text = (raw.text ?? '').trim();
-  return { startSec, endSec, speaker, text };
+  const words = Array.isArray(raw.words)
+    ? raw.words
+        .map((w) =>
+          typeof w.text === 'string' &&
+          typeof w.startSec === 'number' &&
+          typeof w.endSec === 'number'
+            ? { text: w.text.trim(), startSec: w.startSec, endSec: w.endSec }
+            : null,
+        )
+        .filter((w): w is { text: string; startSec: number; endSec: number } => w != null)
+    : undefined;
+  return { startSec, endSec, speaker, text, words };
 }
 
 export function editorSegmentsToTranscript(segments: EditorSegment[]): string {
+  const captionLike = segments
+    .filter((s) => s.text)
+    .sort((a, b) => a.startSec - b.startSec)
+    .map((s) => ({
+      startSec: s.startSec,
+      endSec: s.endSec ?? s.startSec + 2,
+      speaker: s.speaker,
+      text: s.text,
+      words: s.words,
+    }));
+  if (captionLike.some((s) => s.endSec != null)) {
+    return captionSegmentsToTranscript(captionLike);
+  }
   return segments
     .filter((s) => s.text)
     .sort((a, b) => a.startSec - b.startSec)
@@ -44,6 +73,22 @@ export function editorSegmentsToTranscript(segments: EditorSegment[]): string {
 }
 
 export function parseEditorSegmentsFromTranscript(transcript: string): EditorSegment[] {
+  const structured = parseCaptionSegmentsFromTranscript(transcript);
+  if (structured.length > 0) {
+    return structured.map((s, index) =>
+      normalizeEditorSegment(
+        {
+          startSec: s.startSec,
+          endSec: s.endSec,
+          speaker: s.speaker,
+          text: s.text,
+          words: s.words,
+        },
+        index,
+      ),
+    );
+  }
+
   const lines = transcript.split('\n').filter((l) => l.trim());
   return lines.map((line, index) => {
     const match = line.match(/\[(\d{2}):(\d{2})\]\s+([^:]+):\s+(.*)/);

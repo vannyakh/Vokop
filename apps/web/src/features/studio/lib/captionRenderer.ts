@@ -1,14 +1,28 @@
 import type { CaptionStyle } from '@/features/studio/lib/exportSettings';
+import type { CaptionSegment, CaptionWord } from '@vokop/shared';
+import { getActiveCaptionWordIndex, parseCaptionSegmentsFromTranscript } from '@vokop/shared';
 
 export interface TimedCaption {
   startSec: number;
   endSec: number;
   speaker: string;
   text: string;
+  words?: CaptionWord[];
 }
 
-/** Parse `[MM:SS] Speaker: text` transcript format into timed captions */
+/** Parse structured or legacy transcript strings into timed captions. */
 export function parseTranscriptCaptions(translatedText: string): TimedCaption[] {
+  const structured = parseCaptionSegmentsFromTranscript(translatedText);
+  if (structured.length > 0) {
+    return structured.map((s) => ({
+      startSec: s.startSec,
+      endSec: s.endSec,
+      speaker: s.speaker,
+      text: s.text,
+      words: s.words,
+    }));
+  }
+
   const lines = translatedText.split('\n').filter(Boolean);
   const captions: TimedCaption[] = [];
 
@@ -32,6 +46,16 @@ export function parseTranscriptCaptions(translatedText: string): TimedCaption[] 
   }
 
   return captions;
+}
+
+export function parseCaptionSegmentsToTimed(segments: CaptionSegment[]): TimedCaption[] {
+  return segments.map((s) => ({
+    startSec: s.startSec,
+    endSec: s.endSec,
+    speaker: s.speaker,
+    text: s.text,
+    words: s.words,
+  }));
 }
 
 export function getActiveCaptions(captions: TimedCaption[], currentSec: number): TimedCaption[] {
@@ -78,16 +102,20 @@ export function renderCaptionsOnCanvas(
       ctx.fillStyle = style === 'karaoke' ? 'rgba(0,0,0,0.72)' : 'rgba(20,20,20,0.78)';
       roundRect(ctx, bgX, y - baseFontSize - padY, bgW, bgH, 6);
 
-      if (style === 'karaoke') {
-        // Karaoke sweep overlay
+      if (style === 'karaoke' && cap.words?.length) {
+        renderKaraokeWords(ctx, cap, currentSec, canvasWidth / 2, y, baseFontSize);
+      } else if (style === 'karaoke') {
         const progress = Math.min(1, (currentSec - cap.startSec) / Math.max(0.1, cap.endSec - cap.startSec));
         ctx.fillStyle = 'rgba(84,214,201,0.28)';
         roundRect(ctx, bgX, y - baseFontSize - padY, bgW * progress, bgH, 6);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${baseFontSize}px "Khmer OS Battambang", "Noto Sans", "Inter", sans-serif`;
+        ctx.fillText(displayText, canvasWidth / 2, y);
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${baseFontSize}px "Khmer OS Battambang", "Noto Sans", "Inter", sans-serif`;
+        ctx.fillText(displayText, canvasWidth / 2, y);
       }
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `bold ${baseFontSize}px "Khmer OS Battambang", "Noto Sans", "Inter", sans-serif`;
-      ctx.fillText(displayText, canvasWidth / 2, y);
     } else {
       // Standard: white text + dark outline
       ctx.font = `bold ${baseFontSize}px "Khmer OS Battambang", "Noto Sans", "Inter", sans-serif`;
@@ -101,6 +129,39 @@ export function renderCaptionsOnCanvas(
   });
 
   ctx.restore();
+}
+
+function renderKaraokeWords(
+  ctx: CanvasRenderingContext2D,
+  cap: TimedCaption,
+  currentSec: number,
+  centerX: number,
+  y: number,
+  baseFontSize: number,
+) {
+  const words = cap.words ?? [];
+  const activeIndex = getActiveCaptionWordIndex(words, currentSec);
+  const font = `bold ${baseFontSize}px "Khmer OS Battambang", "Noto Sans", "Inter", sans-serif`;
+  ctx.font = font;
+
+  const gap = baseFontSize * 0.22;
+  const widths = words.map((w) => ctx.measureText(w.text).width);
+  const totalWidth = widths.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, words.length - 1);
+  let x = centerX - totalWidth / 2;
+
+  words.forEach((word, index) => {
+    const width = widths[index] ?? 0;
+    const isPast = index < activeIndex;
+    const isActive = index === activeIndex;
+
+    ctx.fillStyle = isActive ? '#54D6C9' : isPast ? '#ffffff' : 'rgba(255,255,255,0.55)';
+    ctx.font = font;
+    ctx.textAlign = 'left';
+    ctx.fillText(word.text, x, y);
+    x += width + gap;
+  });
+
+  ctx.textAlign = 'center';
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

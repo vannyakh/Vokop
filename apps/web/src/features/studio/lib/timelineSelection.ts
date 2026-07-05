@@ -91,3 +91,15 @@ export function isTimelineItemSelected(
     (c) => c.trackId === trackId && c.clipId === clipId,
   );
 }
+
+/** Every clip on visible timeline tracks (for select-all). */
+export function collectAllTimelineSelectionItems(
+  tracks: { id: string; clips: { id: string }[] }[],
+): TimelineSelectionItem[] {
+  return tracks.flatMap((track) =>
+    track.clips.map((clip) => ({
+      trackId: track.id as TimelineSelectionItem['trackId'],
+      clipId: clip.id,
+    })),
+  );
+}

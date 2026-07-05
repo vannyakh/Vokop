@@ -26,10 +26,10 @@ import { createStockRouter } from './modules/stock/routes.js';
 import { createPresetsRouter } from './modules/presets/routes.js';
 import { probeVideo } from './workers/pipeline/probe.js';
 import { generateFilmstrip, extensionForFilename } from './workers/pipeline/ffmpeg.js';
+import { getFfmpegHealth, requireFfmpegHealth } from './lib/ffmpegHealth.js';
 import {
   createJobRecord,
   enqueueJob,
-  getJob,
   logVideoJob,
   saveJob,
   updateJob,
@@ -63,21 +63,25 @@ app.use('/ai', createAiRouter());
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
-  const databases = await checkDatabaseHealth();
-  const ok = databases.mongo && databases.redis;
+  const [databases, ffmpeg] = await Promise.all([checkDatabaseHealth(), getFfmpegHealth()]);
+  const databasesOk = databases.mongo && databases.redis;
+  const ok = databasesOk && ffmpeg.ok;
   const payload = toApiResponse(videoToolsHealthResponseSchema, {
     status: ok ? 'ok' : 'degraded',
     service: 'video-tools',
     databases,
+    ffmpeg,
     timestamp: new Date().toISOString(),
   });
-  res.status(ok ? 200 : 503).json(payload);
+  res.status(databasesOk ? 200 : 503).json(payload);
 });
 
 // ─── Session / filmstrip (legacy + current) ───────────────────────────────────
 app.post('/session', upload.single('video'), async (req, res) => {
   const file = req.file;
   if (!file) { res.status(400).json({ error: 'Missing video file' }); return; }
+  const ffmpegErr = requireFfmpegHealth(await getFfmpegHealth());
+  if (ffmpegErr) { res.status(503).json({ error: ffmpegErr }); return; }
   const ext = extensionForFilename(file.originalname);
   const inputPath = path.join('/tmp', `vokop-session-probe-${Date.now()}.${ext}`);
   try {
@@ -159,12 +163,6 @@ app.post('/session/:sessionId/jobs/filmstrip', async (req, res) => {
   });
 });
 
-app.get('/jobs/:jobId', async (req, res) => {
-  const job = await getJob(req.params.jobId);
-  if (!job) { res.status(404).json({ error: 'Job not found' }); return; }
-  res.json(job);
-});
-
 // Legacy probe + filmstrip (file upload)
 app.post('/probe', upload.single('video'), async (req, res) => {
   const file = req.file;
@@ -195,6 +193,34 @@ app.post('/probe', upload.single('video'), async (req, res) => {
   }
 });
 
+app.post('/filmstrip', upload.single('video'), async (req, res) => {
+  const file = req.file;
+  if (!file) { res.status(400).json({ error: 'Missing video file' }); return; }
+  const ffmpegErr = requireFfmpegHealth(await getFfmpegHealth());
+  if (ffmpegErr) { res.status(503).json({ error: ffmpegErr }); return; }
+  const duration = Number(req.body?.duration);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    res.status(400).json({ error: 'Missing or invalid duration' });
+    return;
+  }
+  const ext = extensionForFilename(file.originalname);
+  const inputPath = path.join('/tmp', `vokop-filmstrip-${Date.now()}.${ext}`);
+  try {
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(inputPath, file.buffer);
+    const payload = toApiResponse(filmstripResponseSchema, await runFilmstrip(inputPath, duration));
+    await logVideoJob('filmstrip', file.originalname, file.size, 'completed', { duration });
+    res.json(payload);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Filmstrip generation failed';
+    await logVideoJob('filmstrip', file.originalname, file.size, 'failed', { error: message });
+    res.status(500).json({ error: message });
+  } finally {
+    const { unlink } = await import('node:fs/promises');
+    await unlink(inputPath).catch(() => undefined);
+  }
+});
+
 // Backward-compat editor routes (now also at /presets/*)
 app.use('/editor', createPresetsRouter());
 
@@ -213,6 +239,12 @@ async function start() {
   }
 
   setupGracefulShutdown();
+
+  const ffmpeg = await getFfmpegHealth();
+  if (!ffmpeg.ok) {
+    console.warn('[video-tools] FFmpeg unavailable — session/filmstrip/export will fail until fixed:');
+    console.warn(`  ${ffmpeg.error ?? 'unknown error'}`);
+  }
 
   const server = app.listen(PORT, () => {
     console.log(`[video-tools] http://localhost:${PORT}`);

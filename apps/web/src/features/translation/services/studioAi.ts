@@ -38,6 +38,7 @@ function toApiSegments(segments: EditorSegment[]) {
       endSec: endSec > startSec ? endSec : startSec + 0.4,
       text: s.text,
       speakerId: s.speaker || `Speaker ${i + 1}`,
+      ...(s.words?.length ? { words: s.words } : {}),
     };
   });
 }
@@ -48,6 +49,7 @@ function fromApiSegments(
     endSec?: number;
     text?: string;
     speakerId?: string;
+    words?: Array<{ text?: string; startSec?: number; endSec?: number }>;
   }>,
 ): EditorSegment[] {
   return segments
@@ -59,6 +61,7 @@ function fromApiSegments(
           endSec: s.endSec,
           speaker: s.speakerId,
           text: s.text,
+          words: s.words,
         },
         i,
       ),
@@ -69,10 +72,10 @@ export async function transcribeVideo(
   videoBase64: string,
   mimeType: string,
   videoDurationSec?: number,
+  sessionId?: string | null,
 ): Promise<TranscriptionResult> {
   const started = await api.startTranscribe({
-    mediaBase64: videoBase64,
-    mimeType,
+    ...(sessionId ? { sessionId } : { mediaBase64: videoBase64, mimeType }),
     durationSec: videoDurationSec,
   });
   const job = await api.waitForAiJob(started.jobId);

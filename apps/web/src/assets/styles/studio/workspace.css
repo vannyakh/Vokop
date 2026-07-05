@@ -771,3 +771,55 @@
 .studio-sidebar--right {
   border-left: none;
 }
+
+.studio-template-slot-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(232, 163, 61, 0.08);
+}
+
+.studio-template-slot-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.studio-template-slot-banner-copy strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.studio-template-slot-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-template-slot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-hi);
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.studio-template-slot-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.studio-template-slot-btn--ghost {
+  background: transparent;
+}

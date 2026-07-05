@@ -9,6 +9,7 @@ import type {
 } from '@/features/studio/lib/timelineTypes';
 import { TRACK_HEIGHT } from '@/features/studio/lib/timelineTypes';
 import { clipCanMoveToTrack } from '@/features/studio/lib/timelineTrackUtils';
+import { studioEdit } from '@/features/studio/services/studioEdit';
 
 type DragMode = 'move' | 'left' | 'right';
 
@@ -43,10 +44,6 @@ export function useTimelineClipDrag(
 
   const updateSegmentTime = useAppStore((s) => s.updateSegmentTime);
   const updateSegmentDuration = useAppStore((s) => s.updateSegmentDuration);
-  const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
-  const updateMediaClip = useAppStore((s) => s.updateMediaClip);
-  const commitProjectHistory = useAppStore((s) => s.commitProjectHistory);
-  const selectTimelineClip = useAppStore((s) => s.selectTimelineClip);
   const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
 
   const resolveTrackAtY = useCallback(
@@ -112,13 +109,13 @@ export function useTimelineClipDrag(
 
   const applyCanvasTiming = useCallback(
     (clip: TimelineClipModel, start: number, clipDuration: number) => {
-      updateCanvasElement(
+      studioEdit.updateCanvasTiming(
         clip.id,
         { startTime: start, endTime: start + clipDuration },
         { history: false },
       );
     },
-    [updateCanvasElement],
+    [],
   );
 
   const applyMediaTiming = useCallback(
@@ -132,13 +129,13 @@ export function useTimelineClipDrag(
       const baseSource = clip.sourceStart ?? 0;
       const sourceStart =
         mode === 'left' ? Math.max(0, baseSource + (start - origStart)) : baseSource;
-      updateMediaClip(
+      studioEdit.updateMediaClip(
         clip.id,
         { start, duration: clipDuration, sourceStart },
         { history: false },
       );
     },
-    [updateMediaClip],
+    [],
   );
 
   const applyClipPatch = useCallback(
@@ -189,7 +186,7 @@ export function useTimelineClipDrag(
       const deltaSec = (e.clientX - d.startClientX) / pxPerSec;
 
       // Cross-track move for canvas-backed clips
-      if (d.mode === 'move' && (d.clip.canvasKind || d.clip.mediaKind === 'audio')) {
+      if (d.mode === 'move' && (d.clip.canvasKind || d.clip.mediaKind === 'audio' || d.clip.mediaKind === 'video')) {
         const over = resolveTrackAtY(e.clientY);
         if (over && String(over.id) !== String(d.trackId)) {
           if (clipCanMoveToTrack(d.clip, String(over.id), over.type)) {
@@ -197,7 +194,7 @@ export function useTimelineClipDrag(
             d.trackId = over.id as TimelineTrackId;
             d.trackClips = over.clips;
             setHoverTrackId(String(over.id));
-            selectTimelineClip(
+            useAppStore.getState().selectTimelineClip(
               { trackId: over.id as TimelineTrackId, clipId: d.clip.id },
               { mode: 'replace', syncCanvas: true },
             );
@@ -246,7 +243,6 @@ export function useTimelineClipDrag(
       computeSnap,
       resolveTrackAtY,
       moveTimelineClipToTrack,
-      selectTimelineClip,
     ],
   );
 
@@ -269,8 +265,8 @@ export function useTimelineClipDrag(
       if (!clip.segmentType && !clip.canvasKind && !clip.mediaKind) return;
 
       e.stopPropagation();
-      commitProjectHistory();
-      selectTimelineClip(
+      studioEdit.commitHistory();
+      useAppStore.getState().selectTimelineClip(
         { trackId, clipId: clip.id },
         { mode: 'replace', syncCanvas: true },
       );
@@ -289,7 +285,7 @@ export function useTimelineClipDrag(
       window.addEventListener('pointermove', onDragMove);
       window.addEventListener('pointerup', onDragEnd);
     },
-    [commitProjectHistory, onDragMove, onDragEnd, selectTimelineClip],
+    [onDragMove, onDragEnd],
   );
 
   return { beginClipDrag, snapIndicator, hoverTrackId };

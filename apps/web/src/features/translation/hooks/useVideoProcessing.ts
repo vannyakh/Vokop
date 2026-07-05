@@ -11,6 +11,7 @@ import {
   analyzeVideo,
   retranslateSegment,
 } from '@/features/translation/services/studioAi';
+import { fromApiCaptionSegments, captionSegmentsToTranscript } from '@vokop/shared';
 
 export function useVideoProcessing() {
   const store = useAppStore();
@@ -51,11 +52,24 @@ export function useVideoProcessing() {
         base64,
         videoFile.type,
         duration > 0 ? duration : undefined,
+        useAppStore.getState().videoSessionId,
       );
 
       store.setDetectedLanguage(transcriptionResult.detectedLanguage);
-      store.setTranscript(transcriptionResult.transcript);
-      store.initSpeakersFromTranscript(transcriptionResult.transcript);
+      const transcriptSegments = fromApiCaptionSegments(
+        transcriptionResult.segments.map((s) => ({
+          startSec: s.startSec,
+          endSec: s.endSec,
+          text: s.text,
+          speakerId: s.speaker,
+          words: s.words,
+        })),
+      );
+      const transcript =
+        transcriptionResult.transcript || captionSegmentsToTranscript(transcriptSegments);
+      store.setCaptionTracks('transcript', transcriptSegments);
+      store.setTranscript(transcript);
+      store.initSpeakersFromTranscript(transcript);
 
       store.setStatus('analyzing');
       const analysis = await analyzeVideo(base64, videoFile.type, targetLang);
@@ -68,7 +82,19 @@ export function useVideoProcessing() {
         transcriptionResult.detectedLanguage,
         aspectRatio,
       );
-      store.setTranslatedText(translationResult.translatedText);
+      const translatedSegments = fromApiCaptionSegments(
+        translationResult.segments.map((s) => ({
+          startSec: s.startSec,
+          endSec: s.endSec,
+          text: s.text,
+          speakerId: s.speaker,
+          words: s.words,
+        })),
+      );
+      const translatedText =
+        translationResult.translatedText || captionSegmentsToTranscript(translatedSegments);
+      store.setCaptionTracks('translation', translatedSegments);
+      store.setTranslatedText(translatedText);
 
       store.setStatus('speaking');
       const voices = useAppStore.getState().speakerVoices;

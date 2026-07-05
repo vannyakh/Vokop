@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AspectRatioId } from '@/types';
 import type { CanvasElement } from '@/types/canvas';
-import type { MediaClip } from '@/features/studio/lib/timelineTypes';
+import type { ExtraTimelineTrack, MediaClip } from '@/features/studio/lib/timelineTypes';
+import { toPersistedMediaAsset, type PersistedMediaAsset } from '@/features/studio/lib/mediaLibrary';
 import { useAppStore } from '@/features/project/store/useAppStore';
 import { api, queryKeys } from '@/lib/api';
 
@@ -17,6 +18,10 @@ function editorStateSignature(input: {
   duration: number;
   projectName: string;
   aspectRatio: AspectRatioId;
+  mediaAssets: PersistedMediaAsset[];
+  timelineTrackHidden: string[];
+  timelineTrackOrder: string[];
+  extraTimelineTracks: ExtraTimelineTrack[];
 }): string {
   return JSON.stringify({
     title: input.projectName,
@@ -24,6 +29,10 @@ function editorStateSignature(input: {
     durationSec: input.duration,
     videoClips: input.videoClips,
     audioClips: input.audioClips,
+    mediaAssets: input.mediaAssets,
+    timelineTrackHidden: input.timelineTrackHidden,
+    timelineTrackOrder: input.timelineTrackOrder,
+    extraTimelineTracks: input.extraTimelineTracks,
     // Persist layout/timing only — skip large blob/data URLs for images.
     canvasElements: input.canvasElements.map(({ src, ...rest }) =>
       src && (src.startsWith('blob:') || src.startsWith('data:'))
@@ -53,6 +62,11 @@ export function useStudioProject(projectId: string | undefined) {
   const canvasElements = useAppStore((s) => s.canvasElements);
   const transcript = useAppStore((s) => s.transcript);
   const translatedText = useAppStore((s) => s.translatedText);
+  const mediaAssets = useAppStore((s) => s.mediaAssets);
+  const timelineTrackHidden = useAppStore((s) => s.timelineTrackHidden);
+  const timelineTrackOrder = useAppStore((s) => s.timelineTrackOrder);
+  const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
+  const hydrateMediaLibrary = useAppStore((s) => s.hydrateMediaLibrary);
 
   const skipNextSaveRef = useRef(false);
   const hydratedIdRef = useRef<string | null>(null);
@@ -95,9 +109,17 @@ export function useStudioProject(projectId: string | undefined) {
               canvasElements: editorState.canvasElements as CanvasElement[] | undefined,
               transcript: editorState.transcript,
               translatedText: editorState.translatedText,
+              mediaAssets: editorState.mediaAssets as PersistedMediaAsset[] | undefined,
+              timelineTrackHidden: editorState.timelineTrackHidden,
+              timelineTrackOrder: editorState.timelineTrackOrder,
+              extraTimelineTracks: editorState.extraTimelineTracks as ExtraTimelineTrack[] | undefined,
             }
           : undefined,
       });
+      void hydrateMediaLibrary(
+        query.data.id,
+        editorState?.mediaAssets as PersistedMediaAsset[] | undefined,
+      );
       lastSavedSigRef.current = editorStateSignature({
         projectName: query.data.title,
         aspectRatio: query.data.aspectRatio as AspectRatioId,
@@ -107,13 +129,17 @@ export function useStudioProject(projectId: string | undefined) {
         canvasElements: (editorState?.canvasElements as CanvasElement[] | undefined) ?? [],
         transcript: editorState?.transcript ?? '',
         translatedText: editorState?.translatedText ?? '',
+        mediaAssets: (editorState?.mediaAssets as PersistedMediaAsset[] | undefined) ?? [],
+        timelineTrackHidden: editorState?.timelineTrackHidden ?? [],
+        timelineTrackOrder: editorState?.timelineTrackOrder ?? [],
+        extraTimelineTracks: (editorState?.extraTimelineTracks as ExtraTimelineTrack[] | undefined) ?? [],
       });
       return;
     }
 
     // Real-time status/progress updates from polling.
     setProjectStatus(query.data.status, query.data.progress);
-  }, [hydrateProject, query.data, setProjectStatus]);
+  }, [hydrateMediaLibrary, hydrateProject, query.data, setProjectStatus]);
 
   const updateMutation = useMutation({
     mutationFn: (input: {
@@ -128,6 +154,10 @@ export function useStudioProject(projectId: string | undefined) {
         canvasElements: CanvasElement[];
         transcript: string;
         translatedText: string;
+        mediaAssets: PersistedMediaAsset[];
+        timelineTrackHidden: string[];
+        timelineTrackOrder: string[];
+        extraTimelineTracks: ExtraTimelineTrack[];
       };
     }) => api.updateProject(projectId!, input),
     onSuccess: (response) => {
@@ -156,6 +186,10 @@ export function useStudioProject(projectId: string | undefined) {
       canvasElements,
       transcript,
       translatedText,
+      mediaAssets: mediaAssets.map(toPersistedMediaAsset),
+      timelineTrackHidden,
+      timelineTrackOrder,
+      extraTimelineTracks,
     });
     if (sig === lastSavedSigRef.current) return;
 
@@ -178,6 +212,10 @@ export function useStudioProject(projectId: string | undefined) {
           canvasElements: persistableCanvas,
           transcript,
           translatedText,
+          mediaAssets: mediaAssets.map(toPersistedMediaAsset),
+          timelineTrackHidden,
+          timelineTrackOrder,
+          extraTimelineTracks,
         },
       });
     }, SAVE_DEBOUNCE_MS);
@@ -190,10 +228,14 @@ export function useStudioProject(projectId: string | undefined) {
     audioClips,
     canvasElements,
     duration,
+    extraTimelineTracks,
+    mediaAssets,
     projectId,
     projectName,
     saveProject,
     storeProjectId,
+    timelineTrackHidden,
+    timelineTrackOrder,
     transcript,
     translatedText,
     videoClips,

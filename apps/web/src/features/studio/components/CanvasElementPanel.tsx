@@ -3,6 +3,7 @@ import { useAppStore } from '@/features/project';
 import { Label, Slider } from '@vokop/ui';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
+import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
 import { getTextEffectSeed } from '@vokop/shared';
 import {
   Type,
@@ -171,8 +172,7 @@ function FontPicker({
 export function CanvasElementPanel() {
   const selectedId = useAppStore((s) => s.selectedCanvasElementId);
   const canvasElements = useAppStore((s) => s.canvasElements);
-  const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
-  const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
+  const { updateCanvasElement, clearFocus } = useStudioEdit();
   const removeCanvasElement = useAppStore((s) => s.removeCanvasElement);
   const replaceCanvasElementImage = useAppStore((s) => s.replaceCanvasElementImage);
   const duplicateCanvasElement = useAppStore((s) => s.duplicateCanvasElement);
@@ -513,7 +513,7 @@ export function CanvasElementPanel() {
         )}
         <button
           type="button"
-          onClick={() => selectCanvasElement(null)}
+          onClick={() => clearFocus()}
           className="studio-tools-action-btn w-full"
         >
           Deselect

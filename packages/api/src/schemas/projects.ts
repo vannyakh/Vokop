@@ -9,6 +9,8 @@ export const mediaClipSchema = z.object({
   duration: z.number().positive(),
   sourceStart: z.number().nonnegative(),
   name: z.string(),
+  trackId: z.string().optional(),
+  mediaAssetId: z.string().optional(),
 });
 
 export const projectCanvasTextStyleSchema = z.object({
@@ -48,12 +50,34 @@ export const projectCanvasElementSchema = z.object({
   trackId: z.string().optional(),
 });
 
+export const projectMediaAssetSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['video', 'audio', 'image']),
+  name: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  duration: z.number(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  isPrimary: z.boolean().optional(),
+});
+
+export const extraTimelineTrackSchema = z.object({
+  id: z.string(),
+  type: z.enum(['video', 'text', 'image', 'sticker', 'effect', 'sound', 'audio']),
+  label: z.string(),
+});
+
 export const projectEditorStateSchema = z.object({
   videoClips: z.array(mediaClipSchema).optional(),
   audioClips: z.array(mediaClipSchema).optional(),
   canvasElements: z.array(projectCanvasElementSchema).optional(),
   transcript: z.string().optional(),
   translatedText: z.string().optional(),
+  mediaAssets: z.array(projectMediaAssetSchema).optional(),
+  timelineTrackHidden: z.array(z.string()).optional(),
+  timelineTrackOrder: z.array(z.string()).optional(),
+  extraTimelineTracks: z.array(extraTimelineTrackSchema).optional(),
 });
 
 export const projectSchema = z.object({

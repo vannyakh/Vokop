@@ -6,6 +6,8 @@ import {
   Mic2,
   Volume2,
   VolumeX,
+  Eye,
+  EyeOff,
   Plus,
   GripVertical,
   Trash2,
@@ -17,6 +19,8 @@ import {
   Music2,
   Diamond,
   ArrowRightLeft,
+  AudioLines,
+  Unplug,
 } from 'lucide-react';
 import { Dropdown, Input, Modal, type MenuProps } from '@vokop/ui/antd';
 import { cn } from '@/lib/cn';
@@ -43,9 +47,11 @@ interface TimelineTrackHeaderProps {
   index: number;
   height: number;
   muted: boolean;
+  previewHidden?: boolean;
   dragging?: boolean;
   dropTarget?: boolean;
   onToggleMute: () => void;
+  onTogglePreview?: () => void;
   onAddClip: () => void;
   onDelete?: () => void;
   onRename: (label: string) => void;
@@ -53,6 +59,10 @@ interface TimelineTrackHeaderProps {
   moveTargets?: { id: string; label: string }[];
   onMoveClipToTrack?: (trackId: string) => void;
   hasSelectedClip?: boolean;
+  /** Video track: extract audio to audio track (video keeps sound). */
+  onExtractAudio?: () => void;
+  /** Video track: extract audio and mute video (split audio from video). */
+  onDetachAudio?: () => void;
   onDragStart: (trackId: string) => void;
   onDragOver: (trackId: string) => void;
   onDragEnd: () => void;
@@ -92,9 +102,11 @@ export function TimelineTrackHeader({
   index,
   height,
   muted,
+  previewHidden = false,
   dragging,
   dropTarget,
   onToggleMute,
+  onTogglePreview,
   onAddClip,
   onDelete,
   onRename,
@@ -102,6 +114,8 @@ export function TimelineTrackHeader({
   moveTargets,
   onMoveClipToTrack,
   hasSelectedClip,
+  onExtractAudio,
+  onDetachAudio,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -190,6 +204,32 @@ export function TimelineTrackHeader({
       });
     }
 
+    if (track.type === 'video' && (onExtractAudio || onDetachAudio)) {
+      items.push({ type: 'divider' });
+      if (onExtractAudio) {
+        items.push({
+          key: 'extract-audio',
+          icon: <AudioLines size={14} />,
+          label: 'Extract audio',
+          onClick: ({ domEvent }) => {
+            domEvent.stopPropagation();
+            onExtractAudio();
+          },
+        });
+      }
+      if (onDetachAudio) {
+        items.push({
+          key: 'detach-audio',
+          icon: <Unplug size={14} />,
+          label: 'Detach audio from video',
+          onClick: ({ domEvent }) => {
+            domEvent.stopPropagation();
+            onDetachAudio();
+          },
+        });
+      }
+    }
+
     if (canDelete && onDelete) {
       items.push({ type: 'divider' });
       items.push({
@@ -216,6 +256,8 @@ export function TimelineTrackHeader({
     onAddKeyframe,
     onDelete,
     onMoveClipToTrack,
+    onExtractAudio,
+    onDetachAudio,
     onToggleMute,
     track,
   ]);
@@ -226,6 +268,7 @@ export function TimelineTrackHeader({
         'studio-track-header',
         `studio-track-header--${track.type}`,
         muted && 'is-muted',
+        previewHidden && 'is-preview-hidden',
         dragging && 'is-dragging',
         dropTarget && 'is-drop-target',
       )}
@@ -270,6 +313,19 @@ export function TimelineTrackHeader({
       </div>
 
       <div className="studio-track-header-actions">
+        {onTogglePreview && (
+          <button
+            type="button"
+            className={cn('studio-track-header-btn', previewHidden && 'is-active')}
+            title={previewHidden ? `Show ${track.label} in preview` : `Hide ${track.label} from preview`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePreview();
+            }}
+          >
+            {previewHidden ? <EyeOff size={12} /> : <Eye size={12} />}
+          </button>
+        )}
         {canMute && (
           <button
             type="button"

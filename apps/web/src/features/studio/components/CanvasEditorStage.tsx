@@ -1,20 +1,29 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import { Stage, Layer, Text, Group, Rect, Transformer, Image as KonvaImage, Line } from 'react-konva';
 import type Konva from 'konva';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { useCanvasElementSync } from '@/features/studio/hooks/useCanvasElementSync';
 import { isElementVisible } from '@/features/studio/lib/canvasElements';
-import { getVideoContentRect, clampToContentRect, type CanvasRect } from '@/features/studio/lib/canvasCoords';
+import { getVideoContentRect, clampToContentRect, clampBoxToContentRect, compositionScale, remapBoxInContentRect, type CanvasRect } from '@/features/studio/lib/canvasCoords';
 import { getDisplayRatio } from '@/features/studio/constants/aspectRatios';
-import { snapDragPosition, type CanvasGuideLine } from '@/features/studio/lib/canvasSnap';
+import {
+  elementToSnapPeer,
+  getFrameGuideLines,
+  snapBoxEdges,
+  snapDragPosition,
+  type CanvasGuideLine,
+  type SnapPeer,
+} from '@/features/studio/lib/canvasSnap';
 import { loadStudioFont } from '@/features/studio/lib/fontLoader';
 import { getEffectProps } from '@/features/studio/constants/textEffects';
 import { sampleElementAtTime } from '@/features/studio/lib/keyframeUtils';
-import { findClipAtTime } from '@/features/studio/lib/mediaClips';
+import { findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
 import {
   resolveVideoClipLayout,
+  layoutFromKonvaVideoNode,
   videoProxyId,
+  type VideoClipLayout,
 } from '@/features/studio/lib/videoClipLayout';
 import {
   CanvasElementOverlay,
@@ -22,11 +31,16 @@ import {
 } from '@/features/studio/components/CanvasElementOverlay';
 import type { CanvasElement } from '@/types/canvas';
 import type { MediaClip } from '@/features/studio/lib/timelineTypes';
+import { studioEdit } from '@/features/studio/services/studioEdit';
 
 interface CanvasEditorStageProps {
   wrapRef: React.RefObject<HTMLDivElement | null>;
   onBackgroundClick?: () => void;
   previewMode?: boolean;
+  /** Let HTML drag-and-drop reach the preview frame while dragging media/templates. */
+  dropPassthrough?: boolean;
+  /** Live-sync DOM video while Konva proxy is dragged or resized. */
+  onVideoLiveLayoutChange?: (layout: import('@/features/studio/lib/videoClipLayout').VideoClipLayout | null) => void;
 }
 
 const PAD = 4;
@@ -62,9 +76,14 @@ function useCanvasImage(src?: string) {
 }
 
 function clampNode(node: Konva.Group, boxSize: { width: number; height: number }, content: CanvasRect) {
-  const clamped = clampToContentRect(node.x(), node.y(), boxSize, content, PAD);
-  node.x(clamped.x);
-  node.y(clamped.y);
+  const box = clampBoxToContentRect(
+    { x: node.x(), y: node.y(), width: boxSize.width, height: boxSize.height },
+    content,
+    PAD,
+  );
+  node.x(box.x);
+  node.y(box.y);
+  return box;
 }
 
 function CanvasGuideLines({
@@ -78,20 +97,30 @@ function CanvasGuideLines({
 
   return (
     <>
-      {guides.map((guide, i) => (
-        <Line
-          key={`${guide.orientation}-${guide.position}-${i}`}
-          points={
-            guide.orientation === 'vertical'
-              ? [guide.position, 0, guide.position, stageSize.height]
-              : [0, guide.position, stageSize.width, guide.position]
-          }
-          stroke={guide.snapped ? '#54D6C9' : 'rgba(84,214,201,0.45)'}
-          strokeWidth={guide.snapped ? 1.5 : 1}
-          dash={guide.snapped ? undefined : [6, 4]}
-          listening={false}
-        />
-      ))}
+      {guides.map((guide, i) => {
+        const snapped = Boolean(guide.snapped);
+        const isFrame = guide.kind === 'frame';
+        return (
+          <Line
+            key={`${guide.orientation}-${guide.position}-${guide.kind ?? 'g'}-${i}`}
+            points={
+              guide.orientation === 'vertical'
+                ? [guide.position, 0, guide.position, stageSize.height]
+                : [0, guide.position, stageSize.width, guide.position]
+            }
+            stroke={
+              snapped
+                ? '#54D6C9'
+                : isFrame
+                  ? 'rgba(244,185,66,0.55)'
+                  : 'rgba(84,214,201,0.45)'
+            }
+            strokeWidth={snapped ? 1.5 : isFrame ? 1 : 1}
+            dash={snapped ? undefined : isFrame ? [4, 6] : [6, 4]}
+            listening={false}
+          />
+        );
+      })}
     </>
   );
 }
@@ -113,7 +142,7 @@ function CanvasElementNode({
   selected: boolean;
   interactive: boolean;
   contentRect: CanvasRect;
-  snapPeers: CanvasElement[];
+  snapPeers: SnapPeer[];
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
   onSelect: () => void;
@@ -242,9 +271,9 @@ function CanvasElementNode({
       onDragEnd={(e) => {
         const node = e.target as Konva.Group;
         applySnap(node);
-        clampNode(node, elementSize, contentRect);
+        const box = clampNode(node, elementSize, contentRect);
         onDragGuideChange(null);
-        onChange({ x: node.x(), y: node.y() });
+        onChange({ x: box.x, y: box.y });
         setDragging(false);
       }}
       onTransformStart={() => {
@@ -258,16 +287,66 @@ function CanvasElementNode({
         const scaleY = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-        const nextWidth = Math.max(isImage ? 40 : 80, display.width * scaleX);
-        const nextHeight = Math.max(isImage ? 24 : boxHeight, boxHeight * scaleY);
-        clampNode(node, { width: nextWidth, height: nextHeight }, contentRect);
-        onChange({
-          x: node.x(),
-          y: node.y(),
-          width: nextWidth,
-          height: nextHeight,
-          rotation: node.rotation(),
-        });
+
+        if (isText) {
+          const scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
+          const nextFontSize = Math.max(10, Math.round(element.fontSize * scale));
+          const nextWidth = Math.max(60, display.width * scale);
+          const nextHeight = nextFontSize * 1.6;
+          const box = clampBoxToContentRect(
+            { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
+            contentRect,
+            PAD,
+            { width: 60, height: 24 },
+          );
+          node.x(box.x);
+          node.y(box.y);
+          onChange({
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            fontSize: nextFontSize,
+            height: box.height,
+            rotation: node.rotation(),
+          });
+        } else if (isImage) {
+          const scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
+          const nextWidth = Math.max(40, display.width * scale);
+          const nextHeight = Math.max(24, display.height * scale);
+          const box = clampBoxToContentRect(
+            { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
+            contentRect,
+            PAD,
+            { width: 40, height: 24 },
+          );
+          node.x(box.x);
+          node.y(box.y);
+          onChange({
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            rotation: node.rotation(),
+          });
+        } else {
+          const nextWidth = Math.max(isImage ? 40 : 80, display.width * scaleX);
+          const nextHeight = Math.max(isImage ? 24 : boxHeight, boxHeight * scaleY);
+          const box = clampBoxToContentRect(
+            { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
+            contentRect,
+            PAD,
+            { width: isImage ? 40 : 80, height: isImage ? 24 : 24 },
+          );
+          node.x(box.x);
+          node.y(box.y);
+          onChange({
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            rotation: node.rotation(),
+          });
+        }
         setTransforming(false);
       }}
     >
@@ -358,15 +437,25 @@ function VideoClipProxyNode({
   contentRect,
   selected,
   interactive,
+  snapPeers,
+  canvasPreviewAxis,
+  canvasAttachSnap,
   onSelect,
   onChange,
+  onDragGuideChange,
+  onLiveLayoutChange,
 }: {
   clip: MediaClip;
   contentRect: CanvasRect;
   selected: boolean;
   interactive: boolean;
+  snapPeers: SnapPeer[];
+  canvasPreviewAxis: boolean;
+  canvasAttachSnap: boolean;
   onSelect: () => void;
   onChange: (patch: Partial<MediaClip>) => void;
+  onDragGuideChange: (guides: CanvasGuideLine[] | null) => void;
+  onLiveLayoutChange?: (layout: VideoClipLayout | null) => void;
 }) {
   const groupRef = useRef<Konva.Group>(null);
   const [dragging, setDragging] = useState(false);
@@ -374,6 +463,48 @@ function VideoClipProxyNode({
   const layout = resolveVideoClipLayout(clip, contentRect);
   const proxyId = videoProxyId(clip.id);
   const live = selected || dragging || transforming;
+  const axisMode = canvasPreviewAxis ? 'frame' : 'none';
+
+  const emitLiveLayout = (node: Konva.Group) => {
+    onLiveLayoutChange?.(layoutFromKonvaVideoNode(node, layout));
+  };
+
+  const clearLiveLayout = () => {
+    onLiveLayoutChange?.(null);
+  };
+
+  useLayoutEffect(() => {
+    if (live) return;
+    const node = groupRef.current;
+    if (!node) return;
+    node.x(layout.x);
+    node.y(layout.y);
+    node.width(layout.width);
+    node.height(layout.height);
+    node.rotation(layout.rotation);
+    node.scaleX(1);
+    node.scaleY(1);
+    node.getLayer()?.batchDraw();
+  }, [layout.x, layout.y, layout.width, layout.height, layout.rotation, live]);
+
+  const applyDragSnap = (node: Konva.Group) => {
+    if (!canvasPreviewAxis && !canvasAttachSnap) {
+      onDragGuideChange(null);
+      return;
+    }
+    const snapped = snapDragPosition(
+      { x: node.x(), y: node.y() },
+      { width: layout.width, height: layout.height },
+      contentRect,
+      snapPeers,
+      proxyId,
+      canvasAttachSnap,
+      axisMode,
+    );
+    node.x(snapped.x);
+    node.y(snapped.y);
+    onDragGuideChange(snapped.guides);
+  };
 
   return (
     <Group
@@ -407,9 +538,18 @@ function VideoClipProxyNode({
       onDragStart={() => {
         setDragging(true);
         onSelect();
+        if (canvasPreviewAxis) {
+          onDragGuideChange(getFrameGuideLines(contentRect));
+        }
+      }}
+      onDragMove={(e) => {
+        const node = e.target as Konva.Group;
+        applyDragSnap(node);
+        emitLiveLayout(node);
       }}
       onDragEnd={(e) => {
         const node = e.target as Konva.Group;
+        applyDragSnap(node);
         onChange({
           x: node.x(),
           y: node.y(),
@@ -417,11 +557,33 @@ function VideoClipProxyNode({
           height: layout.height,
           rotation: node.rotation(),
         });
+        onDragGuideChange(null);
+        clearLiveLayout();
         setDragging(false);
       }}
       onTransformStart={() => {
         setTransforming(true);
         onSelect();
+        if (canvasPreviewAxis) {
+          onDragGuideChange(getFrameGuideLines(contentRect));
+        }
+      }}
+      onTransform={() => {
+        const node = groupRef.current;
+        if (!node) return;
+        emitLiveLayout(node);
+        if (!canvasPreviewAxis && !canvasAttachSnap) return;
+        const width = Math.max(48, layout.width * node.scaleX());
+        const height = Math.max(48, layout.height * node.scaleY());
+        const { guides } = snapBoxEdges(
+          { x: node.x(), y: node.y(), width, height },
+          contentRect,
+          snapPeers,
+          proxyId,
+          canvasAttachSnap,
+          axisMode,
+        );
+        onDragGuideChange(guides);
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
@@ -430,22 +592,39 @@ function VideoClipProxyNode({
         const scaleY = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
-        const width = Math.max(48, layout.width * scaleX);
-        const height = Math.max(48, layout.height * scaleY);
-        onChange({
+        let box = {
           x: node.x(),
           y: node.y(),
-          width,
-          height,
+          width: Math.max(48, layout.width * scaleX),
+          height: Math.max(48, layout.height * scaleY),
+        };
+        if (canvasAttachSnap || canvasPreviewAxis) {
+          const snapped = snapBoxEdges(
+            box,
+            contentRect,
+            snapPeers,
+            proxyId,
+            canvasAttachSnap,
+            axisMode,
+          );
+          box = snapped.box;
+        }
+        box = clampBoxToContentRect(box, contentRect, PAD, { width: 48, height: 48 });
+        node.x(box.x);
+        node.y(box.y);
+        onChange({
+          ...box,
           rotation: node.rotation(),
         });
+        onDragGuideChange(null);
+        clearLiveLayout();
         setTransforming(false);
       }}
     >
       <Rect
         width={layout.width}
         height={layout.height}
-        fill={live ? 'rgba(244,185,66,0.06)' : 'rgba(0,0,0,0.01)'}
+        fill="rgba(0,0,0,0.01)"
         stroke={selected ? '#F4B942' : 'transparent'}
         strokeWidth={selected ? 1.5 : 0}
         listening
@@ -454,42 +633,30 @@ function VideoClipProxyNode({
   );
 }
 
-export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = false }: CanvasEditorStageProps) {
+export function CanvasEditorStage({
+  wrapRef,
+  onBackgroundClick,
+  previewMode = false,
+  dropPassthrough = false,
+  onVideoLiveLayoutChange,
+}: CanvasEditorStageProps) {
   const currentTime = useAppStore((s) => s.currentTime);
   const canvasElements = useAppStore((s) => s.canvasElements);
   const selectedCanvasElementId = useAppStore((s) => s.selectedCanvasElementId);
   const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
   const videoClips = useAppStore((s) => s.videoClips);
+  const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
+  const timelineTrackOrder = useAppStore((s) => s.timelineTrackOrder);
+  const timelineTrackHidden = useAppStore((s) => s.timelineTrackHidden);
+  const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
   const canvasTool = useAppStore((s) => s.canvasTool);
   const canvasPreviewAxis = useAppStore((s) => s.canvasPreviewAxis);
   const canvasAttachSnap = useAppStore((s) => s.canvasAttachSnap);
   const videoWidth = useAppStore((s) => s.videoWidth);
   const videoHeight = useAppStore((s) => s.videoHeight);
   const aspectRatio = useAppStore((s) => s.aspectRatio);
-  const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
-  const updateCanvasElement = useAppStore((s) => s.updateCanvasElement);
-  const updateMediaClip = useAppStore((s) => s.updateMediaClip);
-  const selectTimelineClip = useAppStore((s) => s.selectTimelineClip);
-  const clearTimelineSelection = useAppStore((s) => s.clearTimelineSelection);
-  const setTimelinePlaying = useAppStore((s) => s.setTimelinePlaying);
-
-  const focusCanvasElement = (id: string) => {
-    // Pause composition playback so Konva selection / transform stays stable.
-    if (useAppStore.getState().isTimelinePlaying) {
-      setTimelinePlaying(false);
-    }
-    selectCanvasElement(id);
-  };
-
-  const focusVideoClip = (clipId: string) => {
-    if (useAppStore.getState().isTimelinePlaying) {
-      setTimelinePlaying(false);
-    }
-    selectTimelineClip(
-      { trackId: 'video', clipId },
-      { mode: 'replace', syncCanvas: true, openInspector: true },
-    );
-  };
+  const focusCanvasElement = (id: string) => studioEdit.focusCanvasElement(id);
+  const focusVideoClip = (clipId: string) => studioEdit.focusVideoClip(clipId);
 
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [dragGuides, setDragGuides] = useState<CanvasGuideLine[] | null>(null);
@@ -522,9 +689,20 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
     return () => ro.disconnect();
   }, [wrapRef]);
 
+  const videoTrackIds = useMemo(
+    () => listVideoTrackIds(extraTimelineTracks, timelineTrackOrder, timelineTrackHidden),
+    [extraTimelineTracks, timelineTrackOrder, timelineTrackHidden],
+  );
+
   const videoClipAtPlayhead = useMemo(
-    () => findClipAtTime(videoClips, currentTime),
-    [videoClips, currentTime],
+    () =>
+      findVideoClipForPreview(
+        videoClips,
+        currentTime,
+        videoTrackIds,
+        timelineTrackPreviewHidden,
+      ),
+    [videoClips, currentTime, videoTrackIds, timelineTrackPreviewHidden],
   );
   const videoSelected =
     selectedTimelineClip?.trackId === 'video' &&
@@ -582,24 +760,113 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
       prev.width !== contentRect.width ||
       prev.height !== contentRect.height;
     contentRectRef.current = contentRect;
-    if (!changed) return;
+    if (!changed || !prev) return;
 
-    for (const el of useAppStore.getState().canvasElements) {
+    const scale = compositionScale(prev, contentRect);
+    const state = useAppStore.getState();
+
+    for (const el of state.canvasElements) {
       const h = el.type === 'logo' || el.type === 'image' ? el.height : el.fontSize * 1.6;
-      const clamped = clampToContentRect(el.x, el.y, { width: el.width, height: h }, contentRect, PAD);
-      if (Math.abs(clamped.x - el.x) > 0.5 || Math.abs(clamped.y - el.y) > 0.5) {
-        updateCanvasElement(el.id, clamped);
+      const remapped = remapBoxInContentRect(
+        { x: el.x, y: el.y, width: el.width, height: h },
+        prev,
+        contentRect,
+      );
+      const box = clampBoxToContentRect(remapped, contentRect, PAD);
+      const patch: Partial<CanvasElement> = {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+      };
+      if (el.type === 'text' || el.type === 'overlay') {
+        patch.fontSize = Math.max(10, Math.round(el.fontSize * scale));
+        patch.height = patch.fontSize! * 1.6;
+      } else if (el.type === 'logo' || el.type === 'image') {
+        patch.height = box.height;
+      }
+      if (
+        Math.abs(patch.x! - el.x) > 0.5 ||
+        Math.abs(patch.y! - el.y) > 0.5 ||
+        Math.abs(patch.width! - el.width) > 0.5 ||
+        (patch.fontSize != null && Math.abs(patch.fontSize - el.fontSize) > 0.5)
+      ) {
+        studioEdit.updateCanvasElement(el.id, patch, { history: false });
       }
     }
-  }, [contentRect, previewMode, updateCanvasElement]);
+
+    for (const clip of state.videoClips) {
+      if (clip.x == null && clip.y == null && clip.width == null && clip.height == null) continue;
+      const base = resolveVideoClipLayout(clip, prev);
+      const remapped = remapBoxInContentRect(base, prev, contentRect);
+      const box = clampBoxToContentRect(remapped, contentRect, PAD, { width: 48, height: 48 });
+      if (
+        Math.abs(box.x - base.x) > 0.5 ||
+        Math.abs(box.y - base.y) > 0.5 ||
+        Math.abs(box.width - base.width) > 0.5 ||
+        Math.abs(box.height - base.height) > 0.5
+      ) {
+        studioEdit.updateVideoTransform(clip.id, box, { history: false });
+      }
+    }
+  }, [contentRect, previewMode]);
+
+  const visibleElements = useMemo(
+    () =>
+      canvasElements.filter((el) => {
+        if (!isElementVisible(el, currentTime)) return false;
+        const trackId =
+          el.trackId ??
+          (el.type === 'text' || el.type === 'overlay'
+            ? 'text'
+            : el.type === 'logo' || el.type === 'image'
+              ? 'image'
+              : undefined);
+        if (trackId && timelineTrackPreviewHidden[trackId]) return false;
+        return true;
+      }),
+    [canvasElements, currentTime, timelineTrackPreviewHidden],
+  );
+  const overlaySnapPeers = useMemo(
+    () => visibleElements.map(elementToSnapPeer),
+    [visibleElements],
+  );
+  const videoSnapPeer = useMemo((): SnapPeer | null => {
+    if (!videoClipAtPlayhead) return null;
+    const layout = resolveVideoClipLayout(videoClipAtPlayhead, contentRect);
+    return {
+      id: videoProxyId(videoClipAtPlayhead.id),
+      x: layout.x,
+      y: layout.y,
+      width: layout.width,
+      height: layout.height,
+    };
+  }, [videoClipAtPlayhead, contentRect]);
+  const overlayPeersWithVideo = useMemo(() => {
+    if (!videoSnapPeer) return overlaySnapPeers;
+    return [...overlaySnapPeers, videoSnapPeer];
+  }, [overlaySnapPeers, videoSnapPeer]);
+  const videoSnapPeers = overlaySnapPeers;
 
   if (size.width <= 0 || size.height <= 0) return null;
 
-  const visibleElements = canvasElements.filter((el) => isElementVisible(el, currentTime));
   const selectedElement = canvasElements.find((el) => el.id === selectedCanvasElementId) ?? null;
   const editingElement = canvasElements.find((el) => el.id === editingElementId) ?? null;
   const interactive = !previewMode;
   const transformAccent = videoSelected ? '#F4B942' : '#54D6C9';
+  const transformKeepRatio = Boolean(
+    selectedElement &&
+      (selectedElement.type === 'text' ||
+        selectedElement.type === 'overlay' ||
+        selectedElement.type === 'logo' ||
+        selectedElement.type === 'image'),
+  );
+
+  // Frame guide lines while the video clip is focused (even before drag).
+  const selectionGuides =
+    interactive && videoSelected && canvasPreviewAxis && !dragGuides
+      ? getFrameGuideLines(contentRect)
+      : null;
+  const activeGuides = dragGuides ?? selectionGuides;
 
   return (
     <>
@@ -611,11 +878,12 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
           'studio-canvas-stage',
           canvasTool === 'pan' && interactive && 'studio-canvas-stage--pan',
           previewMode && 'studio-canvas-stage--preview',
+          dropPassthrough && 'studio-canvas-stage--drop-passthrough',
           interactive && transformTargetId && 'studio-canvas-stage--selecting',
         )}
         onMouseDown={(e) => {
           if (e.target === e.target.getStage()) {
-            clearTimelineSelection({ clearCanvas: true });
+            studioEdit.clearFocus();
             setEditingElementId(null);
             setDragGuides(null);
             if (canvasTool === 'pan' && interactive) onBackgroundClick?.();
@@ -623,7 +891,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
         }}
         onTouchStart={(e) => {
           if (e.target === e.target.getStage()) {
-            clearTimelineSelection({ clearCanvas: true });
+            studioEdit.clearFocus();
             setEditingElementId(null);
           }
         }}
@@ -634,7 +902,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
             y={contentRect.y}
             width={contentRect.width}
             height={contentRect.height}
-            stroke="rgba(255,255,255,0.08)"
+            stroke="rgba(255,255,255,0.18)"
             strokeWidth={1}
             listening={false}
           />
@@ -646,14 +914,23 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
               contentRect={contentRect}
               selected={videoSelected}
               interactive={interactive}
+              snapPeers={videoSnapPeers}
+              canvasPreviewAxis={canvasPreviewAxis}
+              canvasAttachSnap={canvasAttachSnap}
               onSelect={() => focusVideoClip(videoClipAtPlayhead.id)}
               onChange={(patch) =>
-                updateMediaClip(videoClipAtPlayhead.id, patch, { history: true })
+                studioEdit.updateVideoTransform(videoClipAtPlayhead.id, patch, {
+                  history: true,
+                })
               }
+              onDragGuideChange={setDragGuides}
+              onLiveLayoutChange={onVideoLiveLayoutChange}
             />
           )}
 
-          {dragGuides && <CanvasGuideLines guides={dragGuides} stageSize={size} />}
+          {activeGuides && (
+            <CanvasGuideLines guides={activeGuides} stageSize={size} />
+          )}
 
           {visibleElements.map((element) => (
             <CanvasElementNode
@@ -662,7 +939,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
               selected={interactive && selectedCanvasElementId === element.id}
               interactive={interactive}
               contentRect={contentRect}
-              snapPeers={visibleElements}
+              snapPeers={overlayPeersWithVideo}
               canvasPreviewAxis={canvasPreviewAxis}
               canvasAttachSnap={canvasAttachSnap}
               onSelect={() => focusCanvasElement(element.id)}
@@ -670,7 +947,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
                 focusCanvasElement(element.id);
                 setEditingElementId(element.id);
               }}
-              onChange={(patch) => updateCanvasElement(element.id, patch)}
+              onChange={(patch) => studioEdit.updateCanvasElement(element.id, patch)}
               onDragGuideChange={setDragGuides}
             />
           ))}
@@ -679,22 +956,40 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
             <Transformer
               ref={transformerRef}
               rotateEnabled
-              enabledAnchors={[
-                'top-left',
-                'top-right',
-                'bottom-left',
-                'bottom-right',
-                'middle-left',
-                'middle-right',
-              ]}
+              rotateAnchorOffset={28}
+              keepRatio={transformKeepRatio}
+              enabledAnchors={
+                transformKeepRatio
+                  ? [
+                      'top-left',
+                      'top-right',
+                      'bottom-left',
+                      'bottom-right',
+                    ]
+                  : [
+                      'top-left',
+                      'top-right',
+                      'bottom-left',
+                      'bottom-right',
+                      'middle-left',
+                      'middle-right',
+                      'top-center',
+                      'bottom-center',
+                    ]
+              }
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 40 || newBox.height < 24) return oldBox;
-                return newBox;
+                const clamped = clampBoxToContentRect(newBox, contentRect, PAD);
+                return { ...newBox, ...clamped };
               }}
-              anchorSize={7}
+              anchorSize={8}
+              anchorCornerRadius={1}
+              borderStrokeWidth={1.5}
               borderStroke={transformAccent}
-              anchorStroke={transformAccent}
-              anchorFill="#0B0A08"
+              anchorStroke="#ffffff"
+              anchorFill="#ffffff"
+              borderDash={[]}
+              ignoreStroke
             />
           )}
         </Layer>
@@ -712,7 +1007,7 @@ export function CanvasEditorStage({ wrapRef, onBackgroundClick, previewMode = fa
         <CanvasInlineTextEditor
           element={editingElement}
           onCommit={(text) => {
-            updateCanvasElement(editingElement.id, { text });
+            studioEdit.updateCanvasElement(editingElement.id, { text });
             setEditingElementId(null);
           }}
           onCancel={() => setEditingElementId(null)}

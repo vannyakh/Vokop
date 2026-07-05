@@ -5,8 +5,10 @@ description: >-
   FFmpeg video-tools, AI content service (LLM registry, 302.AI, FunClip-inspired
   ASR/translate/voice), editor presets, sessions/jobs. Use when working on Vokop,
   video timeline, canvas editor, translation/voiceover, filters, transitions,
-  monorepo packages, or backend video/AI processing. References Omniclip for
-  editor core patterns and FunClip for AI generate-content service design.
+  templates, captions, export/render, product roadmap, or backend video/AI
+  processing. References Omniclip for editor core patterns and FunClip for AI
+  generate-content service design. Full feature checklist and build order in
+  roadmap.md.
 ---
 
 # Vokop Development
@@ -130,6 +132,21 @@ Requires Docker (Mongo/Redis) and ffmpeg for full server-side video features. If
 3. Use `EditorPresetGrid` + `useEditorActions()` for preset-based tools
 4. Store applied state in `useAppStore` → `projectEditor`
 
+## Product roadmap
+
+When planning or scoping studio features, read [roadmap.md](roadmap.md) for the full checklist and Vokop path hints.
+
+**Suggested build order** (highest premium ROI):
+
+1. Templates system
+2. Auto captions
+3. Transitions (xfade builder)
+4. Beat detection / auto-cut
+5. Background removal
+6. Voice changer / DSP effects
+
+Prefer this sequence when the user asks what to build next unless they specify otherwise.
+
 ## Do not
 
 - Duplicate types/constants already in `@vokop/shared` or `@vokop/api`
@@ -143,3 +160,5 @@ Requires Docker (Mongo/Redis) and ffmpeg for full server-side video features. If
 ## Reference
 
 For API route table, env vars, package map, and external reference notes, see [reference.md](reference.md).
+
+For the full product feature checklist and priority build order, see [roadmap.md](roadmap.md).

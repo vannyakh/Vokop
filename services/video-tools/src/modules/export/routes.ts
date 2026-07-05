@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import { getJob } from '../../lib/jobQueue.js';
 import { getRenderJob, listRenderJobs, startExport } from './service.js';
 
 function ownerId(req: Request): string {
@@ -36,8 +37,14 @@ export function createExportRouter(): Router {
     res.json({ jobs });
   });
 
-  /** GET /jobs/:jobId — get a specific render job */
+  /** GET /jobs/:jobId — filmstrip/probe jobs (Redis) or render jobs (Mongo) */
   router.get('/jobs/:jobId', async (req: Request, res: Response) => {
+    const videoJob = await getJob(req.params.jobId);
+    if (videoJob) {
+      res.json(videoJob);
+      return;
+    }
+
     const job = await getRenderJob(req.params.jobId, ownerId(req));
     if (!job) {
       res.status(404).json({ error: 'Job not found' });

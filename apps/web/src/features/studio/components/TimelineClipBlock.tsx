@@ -99,7 +99,6 @@ export function TimelineClipBlock({
               src={src}
               alt=""
               className="studio-timeline-filmstrip-thumb"
-              style={{ width: thumbWidth }}
               draggable={false}
             />
           ))}
@@ -122,9 +121,14 @@ export function TimelineClipBlock({
         );
       })}
 
-      {/* Clip label */}
+      {/* Clip label — overlay on audio/sound so waveform stays visible */}
       {isEditableTrack && (
-        <div className="studio-timeline-clip-inner">
+        <div
+          className={cn(
+            'studio-timeline-clip-inner',
+            isAudio && 'studio-timeline-clip-inner--audio',
+          )}
+        >
           {width > 50 && (
             <span className="studio-timeline-clip-label">{clip.name}</span>
           )}

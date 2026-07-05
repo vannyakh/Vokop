@@ -4,34 +4,29 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type DragEvent,
   type RefObject,
 } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAppStore } from '@/features/project';
 import {
   getDisplayRatio,
-  isPortraitRatio,
 } from '@/features/studio/constants/aspectRatios';
-import {
-  TEXT_TEMPLATE_DRAG_MIME,
-  type TextTemplateInput,
-} from '@/features/studio/constants/textTemplates';
 import { CanvasEditorStage } from '@/features/studio/components/CanvasEditorStage';
 import {
-  clampCanvasPoint,
-  clientToCanvas,
   getVideoContentRect,
 } from '@/features/studio/lib/canvasCoords';
-import { findClipAtTime } from '@/features/studio/lib/mediaClips';
-import { computeTemplatePlacement } from '@/features/studio/lib/textTemplatePlacement';
-import { resolveVideoClipLayout } from '@/features/studio/lib/videoClipLayout';
+import { findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
+import { resolveVideoClipLayout, type VideoClipLayout } from '@/features/studio/lib/videoClipLayout';
 import { cn } from '@/lib/cn';
 
 interface VideoPreviewFrameProps {
   videoRef: RefObject<HTMLVideoElement | null>;
+  wrapRef?: RefObject<HTMLDivElement | null>;
   cinema?: boolean;
   onTogglePlay?: () => void;
+  dropActive?: boolean;
+  dropHint?: string;
+  externalDrag?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -41,10 +36,19 @@ const STATUS_LABELS: Record<string, string> = {
   analyzing: 'Analyzing',
 };
 
-export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: VideoPreviewFrameProps) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [dropActive, setDropActive] = useState(false);
+export function VideoPreviewFrame({
+  videoRef,
+  wrapRef: wrapRefProp,
+  cinema = false,
+  onTogglePlay,
+  dropActive = false,
+  dropHint = '',
+  externalDrag = false,
+}: VideoPreviewFrameProps) {
+  const internalWrapRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = wrapRefProp ?? internalWrapRef;
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+  const [liveVideoLayout, setLiveVideoLayout] = useState<VideoClipLayout | null>(null);
 
   const videoUrl = useAppStore((s) => s.videoUrl);
   const videoFile = useAppStore((s) => s.videoFile);
@@ -53,25 +57,44 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
   const videoWidth = useAppStore((s) => s.videoWidth);
   const videoHeight = useAppStore((s) => s.videoHeight);
   const canvasTool = useAppStore((s) => s.canvasTool);
-  const addTextTemplate = useAppStore((s) => s.addTextTemplate);
+  const currentTime = useAppStore((s) => s.currentTime);
   const setMediaDuration = useAppStore((s) => s.setMediaDuration);
   const setVideoDimensions = useAppStore((s) => s.setVideoDimensions);
   const toggleTimelinePlaying = useAppStore((s) => s.toggleTimelinePlaying);
   const videoClips = useAppStore((s) => s.videoClips);
-  const currentTime = useAppStore((s) => s.currentTime);
+  const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
+  const timelineTrackOrder = useAppStore((s) => s.timelineTrackOrder);
+  const timelineTrackHidden = useAppStore((s) => s.timelineTrackHidden);
+  const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
+  const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
   const videoCssFilter = useAppStore((s) => s.getVideoCssFilter());
+  const videoTrackIds = useMemo(
+    () => listVideoTrackIds(extraTimelineTracks, timelineTrackOrder, timelineTrackHidden),
+    [extraTimelineTracks, timelineTrackOrder, timelineTrackHidden],
+  );
   const activeVideoClip = useMemo(
     () =>
       videoClips.length === 0
         ? null
-        : findClipAtTime(videoClips, currentTime),
-    [videoClips, currentTime],
+        : findVideoClipForPreview(
+            videoClips,
+            currentTime,
+            videoTrackIds,
+            timelineTrackPreviewHidden,
+          ),
+    [videoClips, currentTime, videoTrackIds, timelineTrackPreviewHidden],
   );
   const hasActiveVideoClip =
     videoClips.length === 0 ? Boolean(videoUrl) : Boolean(activeVideoClip);
+  const isEmptyCanvas = !videoUrl && videoClips.length === 0;
 
   const displayRatio = getDisplayRatio(aspectRatio, videoWidth, videoHeight);
-  const portrait = displayRatio != null && isPortraitRatio(displayRatio);
+  const frameRatioStyle =
+    displayRatio != null
+      ? ({ '--viewport-ratio': String(displayRatio) } as CSSProperties)
+      : videoWidth > 0 && videoHeight > 0
+        ? ({ '--viewport-ratio': String(videoWidth / videoHeight) } as CSSProperties)
+        : ({ '--viewport-ratio': '1.777' } as CSSProperties);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -86,7 +109,7 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
     const ro = new ResizeObserver(update);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, []);
+  }, [wrapRef]);
 
   const contentRect = useMemo(
     () =>
@@ -98,9 +121,21 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
     [frameSize, videoWidth, videoHeight, displayRatio],
   );
   const videoLayout = useMemo(
-    () => resolveVideoClipLayout(activeVideoClip, contentRect),
-    [activeVideoClip, contentRect],
+    () => liveVideoLayout ?? resolveVideoClipLayout(activeVideoClip, contentRect),
+    [liveVideoLayout, activeVideoClip, contentRect],
   );
+
+  useEffect(() => {
+    setLiveVideoLayout(null);
+  }, [
+    activeVideoClip?.id,
+    selectedTimelineClip?.clipId,
+    contentRect.x,
+    contentRect.y,
+    contentRect.width,
+    contentRect.height,
+  ]);
+
   const composedStyle: CSSProperties | undefined =
     hasActiveVideoClip && frameSize.width > 0
       ? {
@@ -109,6 +144,7 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
           width: videoLayout.width,
           height: videoLayout.height,
           opacity: videoLayout.opacity,
+          transformOrigin: 'top left',
           transform:
             videoLayout.rotation !== 0
               ? `rotate(${videoLayout.rotation}deg)`
@@ -127,82 +163,31 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
     toggleTimelinePlaying();
   };
 
-  const isTemplateDrag = (e: DragEvent) => e.dataTransfer.types.includes(TEXT_TEMPLATE_DRAG_MIME);
-
-  const onDragOver = (e: DragEvent) => {
-    if (!isTemplateDrag(e) || cinema) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setDropActive(true);
-  };
-
-  const onDragLeave = (e: DragEvent) => {
-    if (!wrapRef.current?.contains(e.relatedTarget as Node)) setDropActive(false);
-  };
-
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDropActive(false);
-    if (cinema || !wrapRef.current) return;
-
-    const raw = e.dataTransfer.getData(TEXT_TEMPLATE_DRAG_MIME);
-    if (!raw) return;
-
-    let template: TextTemplateInput;
-    try {
-      template = JSON.parse(raw) as TextTemplateInput;
-    } catch {
-      return;
-    }
-
-    const wrap = wrapRef.current;
-    const canvasW = wrap.offsetWidth;
-    const canvasH = wrap.offsetHeight;
-    const { x, y } = clientToCanvas(wrap, e.clientX, e.clientY);
-    const placement = computeTemplatePlacement(template.verticalAlign, template.style.fontSize, {
-      width: canvasW,
-      height: canvasH,
-    });
-    const centered = clampCanvasPoint(
-      x - placement.width / 2,
-      y - placement.height / 2,
-      { width: placement.width, height: placement.height },
-      { width: canvasW, height: canvasH },
-    );
-
-    addTextTemplate(template, {
-      x: centered.x,
-      y: centered.y,
-      canvasWidth: canvasW,
-      canvasHeight: canvasH,
-    });
-  };
-
   return (
     <div
       className={cn(
         'studio-viewport-video-wrap',
-        displayRatio != null && 'studio-viewport-video-wrap--ratio',
-        portrait && 'studio-viewport-video-wrap--portrait',
+        'studio-viewport-video-wrap--ratio',
         cinema && 'studio-viewport-video-wrap--cinema',
         dropActive && 'studio-viewport-video-wrap--drop-target',
       )}
       ref={wrapRef}
-      style={
-        displayRatio != null
-          ? ({ '--viewport-ratio': String(displayRatio) } as CSSProperties)
-          : undefined
-      }
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      style={frameRatioStyle}
     >
+        {isEmptyCanvas && !dropActive && (
+          <div className="studio-canvas-empty" aria-hidden>
+            <p className="studio-canvas-empty-title">Drop media or templates here</p>
+            <p className="studio-canvas-empty-hint">Adds tracks and elements at the playhead</p>
+          </div>
+        )}
+
         <video
           ref={videoRef}
           key={videoUrl ?? undefined}
           className={cn(
             'studio-video-player',
             hasActiveVideoClip && frameSize.width > 0 && 'studio-video-player--composed',
+            liveVideoLayout && 'studio-video-player--live-transform',
             !hasActiveVideoClip && videoUrl && 'studio-video-player--gap',
           )}
           style={composedStyle}
@@ -219,11 +204,17 @@ export function VideoPreviewFrame({ videoRef, cinema = false, onTogglePlay }: Vi
           {videoUrl && <source src={videoUrl} type={videoFile?.type} />}
         </video>
 
-        <CanvasEditorStage wrapRef={wrapRef} onBackgroundClick={togglePlay} previewMode={cinema} />
+        <CanvasEditorStage
+          wrapRef={wrapRef}
+          onBackgroundClick={togglePlay}
+          previewMode={cinema}
+          dropPassthrough={externalDrag}
+          onVideoLiveLayoutChange={setLiveVideoLayout}
+        />
 
         {dropActive && (
           <div className="studio-viewport-drop-hint" aria-hidden>
-            Drop text here
+            {dropHint || 'Drop to add'}
           </div>
         )}
 

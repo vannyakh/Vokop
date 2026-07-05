@@ -1,6 +1,9 @@
 import { useEffect, type RefObject } from 'react';
 import { useAppStore } from '@/features/project';
-import { findClipAtTime } from '@/features/studio/lib/mediaClips';
+import {
+  findVideoClipForPreview,
+  listVideoTrackIds,
+} from '@/features/studio/lib/mediaClips';
 import { bindTimelineVideo } from '@/features/studio/lib/timelinePlaybackBridge';
 
 /**
@@ -32,15 +35,32 @@ export function useTimelinePlayback(videoRef: RefObject<HTMLVideoElement | null>
       if (!state.isTimelinePlaying) return;
 
       const video = videoRef.current;
-      const clips = state.videoClips;
       const duration = state.duration;
       const dt = Math.min(0.1, (now - lastNow) / 1000);
       lastNow = now;
 
       let timelineTime = state.currentTime;
-      const clip = findClipAtTime(clips, timelineTime);
+      const videoTrackIds = listVideoTrackIds(
+        state.extraTimelineTracks,
+        state.timelineTrackOrder,
+        state.timelineTrackHidden,
+      );
+      const clip = findVideoClipForPreview(
+        state.videoClips,
+        timelineTime,
+        videoTrackIds,
+        state.timelineTrackPreviewHidden,
+      );
 
       if (clip && video && state.videoUrl) {
+        if (clip.mediaAssetId) {
+          const asset = state.mediaAssets.find((item) => item.id === clip.mediaAssetId);
+          if (asset?.url && video.getAttribute('src') !== asset.url) {
+            video.src = asset.url;
+            video.load();
+          }
+        }
+
         const sourceTarget = clip.sourceStart + (timelineTime - clip.start);
         const clipChanged = clip.id !== lastClipId;
         lastClipId = clip.id;

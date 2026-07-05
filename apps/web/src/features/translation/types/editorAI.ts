@@ -4,6 +4,7 @@ export interface EditorSegment {
   endSec?: number;
   speaker: string;
   text: string;
+  words?: Array<{ text: string; startSec: number; endSec: number }>;
 }
 
 export interface TranscriptionResult {

@@ -60,6 +60,9 @@ export function SegmentList({
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] font-mono font-bold text-accent tabular-nums">
               {formatDuration(seg.time)}
+              {seg.endTime != null && seg.endTime > seg.time && (
+                <> – {formatDuration(seg.endTime)}</>
+              )}
             </span>
             {seg.speaker && (
               <>

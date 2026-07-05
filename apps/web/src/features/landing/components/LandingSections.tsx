@@ -1,4 +1,5 @@
 import { RecentProjectsSection } from '@/features/landing/components/RecentProjectsSection';
+import { StudioTemplateGallery } from '@/features/landing/components/StudioTemplateGallery';
 import { FeaturesSection } from '@/features/landing/components/FeaturesSection';
 import { DemoSection } from '@/features/landing/components/DemoSection';
 import { PricingSection } from '@/features/landing/components/PricingSection';
@@ -7,9 +8,10 @@ import { AboutSection, LandingFooter } from '@/features/landing/components/About
 
 interface LandingSectionsProps {
   onScrollToUpload: () => void;
+  onRequestLogin?: () => void;
 }
 
-export function LandingSections({ onScrollToUpload }: LandingSectionsProps) {
+export function LandingSections({ onScrollToUpload, onRequestLogin }: LandingSectionsProps) {
   const highlightPro = () => {
     const el = document.getElementById('pro-card');
     if (!el) return;
@@ -22,6 +24,7 @@ export function LandingSections({ onScrollToUpload }: LandingSectionsProps) {
 
   return (
     <div className="landing-sections relative z-10">
+      <StudioTemplateGallery onRequestLogin={onRequestLogin} />
       <RecentProjectsSection />
       <FeaturesSection onScrollToUpload={onScrollToUpload} />
       <DemoSection />

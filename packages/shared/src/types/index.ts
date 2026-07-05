@@ -4,5 +4,8 @@ export * from './export.js';
 export * from './canvas.js';
 export * from './editor.js';
 export * from './auth.js';
+export * from './studioTemplate.js';
+export * from './captions.js';
+export * from './beatAnalysis.js';
 
 export type { AspectRatioId } from '../constants/aspect-ratios.js';

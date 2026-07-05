@@ -6,3 +6,4 @@ export * from './export.js';
 export * from './editor.js';
 export * from './textEffectSeeds.js';
 export * from './rbac.js';
+export * from './studioTemplates.js';

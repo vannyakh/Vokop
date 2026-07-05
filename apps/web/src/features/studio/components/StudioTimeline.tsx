@@ -34,13 +34,14 @@ import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelecti
 import type { TimelineSelectionItem } from '@/features/studio/lib/timelineTypes';
 import { TimelineTrackHeader } from '@/features/studio/components/TimelineTrackHeader';
 import { TimelineClipBlock } from '@/features/studio/components/TimelineClipBlock';
-import { TimelineVoiceWaveform } from '@/features/studio/components/TimelineVoiceWaveform';
+import { TimelineClipWaveform } from '@/features/studio/components/TimelineClipWaveform';
 import {
   TimelineContextMenu,
   type TimelineContextMenuTarget,
 } from '@/features/studio/components/TimelineContextMenu';
 import {
   ImageIcon,
+  Film,
   Mic2,
   Music2,
   Plus,
@@ -56,19 +57,20 @@ import {
   isVisualTimelineTrack,
 } from '@/features/studio/lib/timelineTrackUtils';
 import {
-  MEDIA_ASSET_DRAG_MIME,
-  parseMediaAssetDrag,
-} from '@/features/studio/lib/mediaLibrary';
-import {
-  TEXT_TEMPLATE_DRAG_MIME,
-  type TextTemplateInput,
-} from '@/features/studio/constants/textTemplates';
-import {
   dropHintForTrack,
   isTimelineExternalDrag,
+  resolveEmptyTimelineDrop,
   trackAcceptsDrop,
 } from '@/features/studio/lib/timelineDrop';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
+import { processTimelineMediaDrop } from '@/features/studio/lib/timelineMediaDrop';
+import { filmstripThumbsForClip } from '@/features/studio/lib/timelineFilmstrip';
+import { studioEdit } from '@/features/studio/services/studioEdit';
+import { TimelineEmptyState } from '@/features/studio/components/TimelineEmptyState';
+import {
+  emptyTimelineDurationSec,
+  isTimelineEmpty,
+} from '@/features/studio/lib/timelineEmpty';
 
 interface StudioTimelineProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -76,6 +78,7 @@ interface StudioTimelineProps {
 }
 
 const ADD_TRACK_ICONS = {
+  video: Film,
   image: ImageIcon,
   sticker: Sticker,
   text: Type,
@@ -98,11 +101,13 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const projectId = useAppStore((s) => s.projectId);
   const videoFile = useAppStore((s) => s.videoFile);
   const duration = useAppStore((s) => s.duration);
+  const mediaDuration = useAppStore((s) => s.mediaDuration);
   const currentTime = useAppStore((s) => s.currentTime);
-  const audioBase64 = useAppStore((s) => s.audioBase64);
   const timelineZoom = useAppStore((s) => s.timelineZoom);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
+  const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
   const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
+  const toggleTimelineTrackPreviewHidden = useAppStore((s) => s.toggleTimelineTrackPreviewHidden);
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const removeTimelineClip = useAppStore((s) => s.removeTimelineClip);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
@@ -112,7 +117,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const renameTimelineTrack = useAppStore((s) => s.renameTimelineTrack);
   const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
   const addClipKeyframe = useAppStore((s) => s.addClipKeyframe);
-  const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
   const {
@@ -130,12 +134,17 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     canDelete: canDeleteSelection,
     canEditCanvas,
     canAddKeyframe,
-    canSplit: canSplitTrack,
+    canSplit,
+    splitAtPlayhead,
   } = useTimelineSelection();
   const addMediaAssetToTimeline = useAppStore((s) => s.addMediaAssetToTimeline);
+  const ensureTimelineTrackVisible = useAppStore((s) => s.ensureTimelineTrackVisible);
   const addTextTemplate = useAppStore((s) => s.addTextTemplate);
   const importMediaFiles = useAppStore((s) => s.importMediaFiles);
   const transcriptReady = useTranscriptReady();
+  const beatAnalysis = useAppStore((s) => s.beatAnalysis);
+  const showBeatMarkers = useAppStore((s) => s.showBeatMarkers);
+  const autoCutSuggestions = useAppStore((s) => s.autoCutSuggestions);
 
   const videoSessionId = useAppStore((s) => s.videoSessionId);
   const [dragTrackId, setDragTrackId] = useState<string | null>(null);
@@ -148,8 +157,10 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     hint: string;
   } | null>(null);
   const tracks = useTimelineTracks();
-  const { thumbnails, loading: filmstripLoading, progress: filmstripProgress, thumbWidth } =
-    useVideoFilmstrip(videoFile, duration, videoSessionId);
+  const timelineIsEmpty = isTimelineEmpty(tracks);
+  const displayDuration = timelineIsEmpty ? emptyTimelineDurationSec(duration) : duration || 1;
+  const { thumbnails, loading: filmstripLoading, progress: filmstripProgress } =
+    useVideoFilmstrip(videoFile, mediaDuration || duration, videoSessionId);
 
   const [draggingPlayhead, setDraggingPlayhead] = useState(false);
   const [hoverX, setHoverX] = useState<number | null>(null);
@@ -162,7 +173,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const marqueeRef = useRef<{ rect: DOMRect; x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   const pxPerSec = TIMELINE_BASE_PX_PER_SEC * (timelineZoom / 100);
-  const timelineContentWidth = Math.max(640, timeToPx(duration || 1, pxPerSec) + 80);
+  const timelineContentWidth = Math.max(640, timeToPx(displayDuration, pxPerSec) + 80);
   const playheadX = timeToPx(currentTime, pxPerSec);
 
   const { beginClipDrag, snapIndicator, hoverTrackId } = useTimelineClipDrag(
@@ -173,20 +184,21 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   );
 
   const rulerTicks = useMemo(() => {
-    if (!duration) return [0];
+    const span = displayDuration;
+    if (!span) return [0];
     const ticks: number[] = [];
-    for (let t = 0; t <= Math.ceil(duration); t++) ticks.push(t);
+    for (let t = 0; t <= Math.ceil(span); t++) ticks.push(t);
     return ticks;
-  }, [duration]);
+  }, [displayDuration]);
 
   const seekTimeline = useAppStore((s) => s.seekTimeline);
 
   const seekTo = useCallback(
     (time: number) => {
-      if (!duration) return;
-      seekTimeline(time);
+      if (!displayDuration) return;
+      seekTimeline(Math.min(time, displayDuration));
     },
-    [duration, seekTimeline],
+    [displayDuration, seekTimeline],
   );
 
   const seekFromClientX = useCallback(
@@ -391,55 +403,41 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       clearExternalDrop();
       if (!allowed) return;
 
-      const templateRaw = e.dataTransfer.getData(TEXT_TEMPLATE_DRAG_MIME);
-      if (templateRaw) {
-        try {
-          const template = JSON.parse(templateRaw) as TextTemplateInput;
-          addTextTemplate(template, { startTime: atTime, trackId: String(trackId) });
-        } catch {
-          /* ignore invalid payload */
-        }
-        return;
+      let targetTrackId = String(trackId);
+      let targetTrackType = trackType;
+      if (timelineIsEmpty) {
+        const resolved = resolveEmptyTimelineDrop(
+          types,
+          e.dataTransfer.files?.length ? Array.from(e.dataTransfer.files) : undefined,
+        );
+        targetTrackId = resolved.trackId;
+        targetTrackType = resolved.trackType;
       }
 
-      const assetRaw = e.dataTransfer.getData(MEDIA_ASSET_DRAG_MIME);
-      if (assetRaw) {
-        const parsed = parseMediaAssetDrag(assetRaw);
-        if (parsed?.assetId) {
-          addMediaAssetToTimeline(parsed.assetId, atTime, { trackId: String(trackId) });
-          return;
-        }
-      }
-
-      if (e.dataTransfer.files?.length) {
-        const files = Array.from(e.dataTransfer.files);
-        await importMediaFiles(files);
-        const assets = useAppStore.getState().mediaAssets;
-        const newest = [...assets].reverse().find((asset) => {
-          if (trackId === 'video' || trackType === 'video') return asset.kind === 'video';
-          if (isAudioLikeTimelineTrack(trackId) || trackType === 'audio' || trackType === 'sound') {
-            return asset.kind === 'audio';
-          }
-          if (isVisualTimelineTrack(trackId) || trackType === 'image' || trackType === 'sticker') {
-            return asset.kind === 'image';
-          }
-          return true;
-        });
-        if (newest) {
-          addMediaAssetToTimeline(newest.id, atTime, { trackId: String(trackId) });
-        }
-      }
+      await processTimelineMediaDrop({
+        dataTransfer: e.dataTransfer,
+        atTime,
+        trackId: targetTrackId,
+        trackType: targetTrackType,
+        autoCreateTrack: true,
+        actions: {
+          ensureTimelineTrackVisible,
+          addMediaAssetToTimeline,
+          addTextTemplate,
+          importMediaFiles,
+        },
+      });
     },
     [
       addMediaAssetToTimeline,
       addTextTemplate,
       clearExternalDrop,
+      ensureTimelineTrackVisible,
       importMediaFiles,
       timeAtClientX,
+      timelineIsEmpty,
     ],
   );
-
-  const canSplitSelection = transcriptReady && canSplitTrack;
 
   const hoverTime = hoverX != null ? pxToTime(hoverX, pxPerSec) : null;
 
@@ -447,7 +445,10 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
 
   return (
     <div
-      className="studio-timeline-pinned-layout"
+      className={cn(
+        'studio-timeline-pinned-layout',
+        timelineIsEmpty && 'studio-timeline-pinned-layout--empty',
+      )}
       onClick={(e) => {
         // Clips stop pointerdown but click still bubbles — don't clear on clip hits.
         const target = e.target as HTMLElement;
@@ -466,6 +467,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       }}
     >
       {/* Pinned track header column */}
+      {!timelineIsEmpty && (
       <div className="studio-timeline-header-col" ref={headerColRef}>
         <div
           className="studio-timeline-header-spacer"
@@ -478,9 +480,11 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             index={index}
             height={TRACK_HEIGHT[track.type]}
             muted={timelineTrackMuted[track.id] ?? false}
+            previewHidden={timelineTrackPreviewHidden[track.id] ?? false}
             dragging={dragTrackId === track.id}
             dropTarget={dropHeaderTrackId === track.id && dragTrackId !== track.id}
             onToggleMute={() => toggleTimelineTrackMuted(track.id)}
+            onTogglePreview={() => toggleTimelineTrackPreviewHidden(track.id)}
             onAddClip={() => addTimelineClip(track.id as TimelineTrackId, currentTime)}
             onDelete={() => removeTimelineTrack(String(track.id))}
             onRename={(label) => renameTimelineTrack(String(track.id), label)}
@@ -510,6 +514,28 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       String(track.id),
                       toId,
                     )
+                : undefined
+            }
+            onExtractAudio={
+              track.type === 'video'
+                ? () => {
+                    const id =
+                      selectedTimelineClip?.trackId === track.id
+                        ? selectedTimelineClip.clipId
+                        : undefined;
+                    studioEdit.extractAudioFromVideo(id);
+                  }
+                : undefined
+            }
+            onDetachAudio={
+              track.type === 'video'
+                ? () => {
+                    const id =
+                      selectedTimelineClip?.trackId === track.id
+                        ? selectedTimelineClip.clipId
+                        : undefined;
+                    studioEdit.detachAudioFromVideo(id);
+                  }
                 : undefined
             }
             onDragStart={(id) => setDragTrackId(id)}
@@ -547,12 +573,14 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           </button>
         </Dropdown>
       </div>
+      )}
 
       {/* Scrollable timeline content */}
       <div
         className={cn(
           'studio-timeline-scroll',
           externalDrop && 'studio-timeline-scroll--drop-active',
+          timelineIsEmpty && 'studio-timeline-scroll--empty',
         )}
         ref={scrollRef}
         onScroll={syncHeaderScroll}
@@ -591,10 +619,24 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               >
                 <span className="studio-timeline-ruler-tick-line" />
                 <span className="studio-timeline-ruler-tick-label font-mono">
-                  {formatRulerTick(tick)}
+                  {timelineIsEmpty ? `${tick}s` : formatRulerTick(tick)}
                 </span>
               </div>
             ))}
+
+            {timelineIsEmpty &&
+              Array.from({ length: Math.ceil(displayDuration * 4) }, (_, i) => {
+                const subTick = (i + 1) * 0.25;
+                if (subTick >= displayDuration || Number.isInteger(subTick)) return null;
+                return (
+                  <span
+                    key={`sub-${subTick}`}
+                    className="studio-timeline-ruler-subtick"
+                    style={{ left: timeToPx(subTick, pxPerSec) }}
+                    aria-hidden
+                  />
+                );
+              })}
 
             {/* Hover time tooltip on ruler */}
             {hoverTime != null && (
@@ -608,22 +650,53 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             )}
           </div>
 
-          {/* Tracks */}
+          {/* Tracks / empty canvas */}
           <div
             ref={tracksContainerRef}
-            style={{ position: 'relative' }}
+            className={cn(timelineIsEmpty && 'studio-timeline-empty-canvas')}
+            style={{ position: 'relative', minHeight: timelineIsEmpty ? 120 : undefined }}
             onPointerDown={(e) => {
               if (
                 !(e.target as HTMLElement).closest('.studio-timeline-clip-block') &&
                 !(e.target as HTMLElement).closest('.studio-timeline-playhead')
               ) {
-                beginMarquee(e);
+                if (!timelineIsEmpty) beginMarquee(e);
+                else seekFromLaneClick(e.clientX);
               }
             }}
+            onDragOver={(e) => {
+              if (!timelineIsEmpty) return;
+              const types = Array.from(e.dataTransfer.types);
+              const { trackId, trackType } = resolveEmptyTimelineDrop(
+                types,
+                e.dataTransfer.files?.length ? Array.from(e.dataTransfer.files) : undefined,
+              );
+              updateExternalDrop(e, trackId, trackType);
+            }}
+            onDragLeave={(e) => {
+              if (!timelineIsEmpty) return;
+              const related = e.relatedTarget as Node | null;
+              if (related && e.currentTarget.contains(related)) return;
+              clearExternalDrop();
+            }}
+            onDrop={(e) => {
+              if (!timelineIsEmpty) return;
+              const types = Array.from(e.dataTransfer.types);
+              const { trackId, trackType } = resolveEmptyTimelineDrop(
+                types,
+                e.dataTransfer.files?.length ? Array.from(e.dataTransfer.files) : undefined,
+              );
+              void onLaneDrop(e, trackId as TimelineTrackId, trackType);
+            }}
           >
+          {timelineIsEmpty ? (
+            <TimelineEmptyState />
+          ) : (
+          <>
           {tracks.map((track, trackIndex) => {
             const laneHeight = TRACK_HEIGHT[track.type];
             const muted = timelineTrackMuted[track.id] ?? false;
+            const previewHidden = timelineTrackPreviewHidden[track.id] ?? false;
             const clipHeight =
               track.type === 'text' ? Math.max(22, laneHeight - 4) : laneHeight - 4;
 
@@ -644,7 +717,10 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                     'studio-timeline-lane--drop-dim',
                   hoverTrackId === track.id && 'studio-timeline-lane--clip-hover',
                 )}
-                style={{ height: laneHeight, opacity: muted ? 0.45 : 1 }}
+                style={{
+                  height: laneHeight,
+                  opacity: muted ? 0.45 : previewHidden ? 0.72 : 1,
+                }}
                 data-track-index={trackIndex}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.studio-timeline-clip-block')) return;
@@ -685,6 +761,19 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                     Boolean(clip.mediaKind || clip.canvasKind) ||
                     (Boolean(clip.segmentType) && transcriptReady);
 
+                  const clipThumbs =
+                    track.type === 'video' && thumbnails.length > 0 && mediaDuration > 0
+                      ? filmstripThumbsForClip(
+                          thumbnails,
+                          mediaDuration,
+                          {
+                            sourceStart: clip.sourceStart,
+                            duration: clip.duration,
+                          },
+                          width,
+                        )
+                      : undefined;
+
                   return (
                     <TimelineClipBlock
                       key={clip.id}
@@ -695,8 +784,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       height={clipHeight}
                       selected={selected}
                       canDrag={canDragClip}
-                      filmstripThumbs={track.type === 'video' ? thumbnails : undefined}
-                      thumbWidth={thumbWidth}
+                      filmstripThumbs={clipThumbs}
                       onSelect={(e) => selectClip(track.id as TimelineTrackId, clip.id, e)}
                       onDelete={
                         canDragClip
@@ -713,12 +801,12 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                         beginClipDrag(e, track.id, clip, mode, track.clips)
                       }
                     >
-                      {track.type === 'audio' && audioBase64 && (
-                        <TimelineVoiceWaveform
-                          audioBase64={audioBase64}
+                      {isAudioLikeTimelineTrack(String(track.id)) && width > 8 && (
+                        <TimelineClipWaveform
+                          clip={clip}
                           width={width}
-                          videoRef={videoRef}
-                          onSeek={seekTo}
+                          height={clipHeight}
+                          trackType={track.type}
                         />
                       )}
                     </TimelineClipBlock>
@@ -736,29 +824,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               </div>
             );
           })}
-
-          {externalDrop && (
-            <>
-              <div
-                className={cn(
-                  'studio-timeline-drop-caret',
-                  !externalDrop.allowed && 'is-blocked',
-                )}
-                style={{ left: externalDrop.x }}
-                aria-hidden
-              />
-              <div
-                className={cn(
-                  'studio-timeline-drop-hint',
-                  !externalDrop.allowed && 'is-blocked',
-                )}
-                style={{ left: Math.max(8, externalDrop.x - 60) }}
-              >
-                <span className="font-mono">{formatStudioTimecode(externalDrop.time)}</span>
-                <span>{externalDrop.hint}</span>
-              </div>
-            </>
-          )}
 
           <Dropdown
             trigger={['click']}
@@ -782,7 +847,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             </button>
           </Dropdown>
 
-          {/* Marquee selection box */}
           {marquee && (
             <div
               className="studio-timeline-marquee"
@@ -794,6 +858,31 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               }}
               aria-hidden
             />
+          )}
+          </>
+          )}
+
+          {externalDrop && (
+            <>
+              <div
+                className={cn(
+                  'studio-timeline-drop-caret',
+                  !externalDrop.allowed && 'is-blocked',
+                )}
+                style={{ left: externalDrop.x }}
+                aria-hidden
+              />
+              <div
+                className={cn(
+                  'studio-timeline-drop-hint',
+                  !externalDrop.allowed && 'is-blocked',
+                )}
+                style={{ left: Math.max(8, externalDrop.x - 60) }}
+              >
+                <span className="font-mono">{formatStudioTimecode(externalDrop.time)}</span>
+                <span>{externalDrop.hint}</span>
+              </div>
+            </>
           )}
           </div>
 
@@ -815,10 +904,48 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             />
           )}
 
+          {/* Beat markers */}
+          {showBeatMarkers &&
+            beatAnalysis?.beats.map((beatSec, index) => (
+              <button
+                key={`beat-${index}-${beatSec}`}
+                type="button"
+                className="studio-timeline-beat-marker"
+                style={{ left: timeToPx(beatSec, pxPerSec) }}
+                title={`Beat ${index + 1} · ${formatStudioTimecode(beatSec)}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  seekTimeline(beatSec);
+                }}
+                aria-label={`Seek to beat at ${formatStudioTimecode(beatSec)}`}
+              />
+            ))}
+
+          {/* Auto-cut suggestions */}
+          {autoCutSuggestions.map((suggestion) => (
+            <button
+              key={`cut-${suggestion.timeSec}`}
+              type="button"
+              className="studio-timeline-cut-marker"
+              style={{ left: timeToPx(suggestion.timeSec, pxPerSec) }}
+              title={`Suggested cut · ${formatStudioTimecode(suggestion.timeSec)}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                seekTimeline(suggestion.timeSec);
+              }}
+              aria-label={`Seek to suggested cut at ${formatStudioTimecode(suggestion.timeSec)}`}
+            />
+          ))}
+
           {/* Playhead */}
           <div
-            className={cn('studio-timeline-playhead', draggingPlayhead && 'is-dragging')}
+            className={cn(
+              'studio-timeline-playhead',
+              draggingPlayhead && 'is-dragging',
+              canSplit && 'is-razor-ready',
+            )}
             style={{ left: playheadX }}
+            title={canSplit ? 'Split ready — press B or use scissors' : undefined}
             onPointerDown={(e: ReactPointerEvent) => {
               e.preventDefault();
               e.stopPropagation();
@@ -836,7 +963,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         target={contextMenu}
         onClose={() => setContextMenu(null)}
         onSeek={seekTo}
-        onSplit={splitTimelineAtPlayhead}
+        onSplit={splitAtPlayhead}
         onDelete={deleteSelection}
         onCopy={copySelection}
         onCut={cutSelection}
@@ -860,7 +987,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           if (!clipId) return;
           addClipKeyframe(clipId, contextMenu?.time ?? currentTime);
         }}
-        canSplit={canSplitSelection}
+        canSplit={canSplit}
         canDelete={canDeleteSelection}
         canEditCanvas={canEditCanvas}
         canAddKeyframe={

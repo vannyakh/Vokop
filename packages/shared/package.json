@@ -13,6 +13,7 @@
     "./constants/*": "./src/constants/*.ts",
     "./types": "./src/types/index.ts",
     "./types/*": "./src/types/*.ts",
+    "./studio/*": "./src/studio/*.ts",
     "./providers": "./src/providers/index.ts"
   },
   "scripts": {

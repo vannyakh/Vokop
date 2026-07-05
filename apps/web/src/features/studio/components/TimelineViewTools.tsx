@@ -1,5 +1,13 @@
-import { Mic2, Mic, AlignCenter, Magnet } from 'lucide-react';
+import { useMemo } from 'react';
+import {
+  Mic2,
+  Mic,
+  AlignCenter,
+  Magnet,
+  MoreHorizontal,
+} from 'lucide-react';
 import { StudioIcon } from '@vokop/ui';
+import { Dropdown, type MenuProps } from '@vokop/ui/antd';
 import { TimelineToolButton } from '@/features/studio/components/TimelineToolButton';
 
 interface TimelineViewToolsProps {
@@ -14,9 +22,10 @@ interface TimelineViewToolsProps {
   onToggleAttachSnap: () => void;
   onZoomChange: (zoom: number) => void;
   onToggleFullscreen: () => void;
+  onOpenVoiceTools?: () => void;
 }
 
-/** Right toolbar cluster: voice, snap, zoom, fullscreen. */
+/** Right toolbar cluster: voice, snap, zoom, fullscreen (+ overflow menu). */
 export function TimelineViewTools({
   hasVoiceover,
   isSyncPlaying,
@@ -29,49 +38,119 @@ export function TimelineViewTools({
   onToggleAttachSnap,
   onZoomChange,
   onToggleFullscreen,
+  onOpenVoiceTools,
 }: TimelineViewToolsProps) {
+  const moreItems = useMemo<MenuProps['items']>(
+    () => [
+      {
+        key: 'voice-record',
+        icon: <Mic size={14} />,
+        label: 'Voice tools',
+        onClick: () => onOpenVoiceTools?.(),
+      },
+      {
+        key: 'voice-preview',
+        icon: <Mic2 size={14} />,
+        label: isSyncPlaying ? 'Stop voice preview' : 'Live voiceover preview',
+        disabled: !hasVoiceover,
+        onClick: () => onToggleSyncPlayback(),
+      },
+      { type: 'divider' },
+      {
+        key: 'axis',
+        icon: <AlignCenter size={14} />,
+        label: canvasPreviewAxis ? 'Hide frame guides' : 'Show frame guides',
+        onClick: () => onTogglePreviewAxis(),
+      },
+      {
+        key: 'snap',
+        icon: <Magnet size={14} />,
+        label: canvasAttachSnap ? 'Disable attach snap' : 'Enable attach snap',
+        onClick: () => onToggleAttachSnap(),
+      },
+    ],
+    [
+      canvasAttachSnap,
+      canvasPreviewAxis,
+      hasVoiceover,
+      isSyncPlaying,
+      onOpenVoiceTools,
+      onToggleAttachSnap,
+      onTogglePreviewAxis,
+      onToggleSyncPlayback,
+    ],
+  );
+
   return (
     <div className="studio-playback-cluster studio-playback-cluster--view" aria-label="View tools">
-      <div className="studio-playback-tool-group">
-        <TimelineToolButton title="Record voiceover">
-          <Mic size={15} />
-        </TimelineToolButton>
-        <TimelineToolButton
-          tone="ai"
-          active={isSyncPlaying}
-          disabled={!hasVoiceover}
-          onClick={onToggleSyncPlayback}
-          title="Live voiceover preview"
-        >
-          {isSyncPlaying ? <StudioIcon name="pause" size={14} /> : <Mic2 size={14} />}
-        </TimelineToolButton>
+      <div className="studio-playback-tool-secondary">
+        <div className="studio-playback-tool-group">
+          <TimelineToolButton
+            title="Open voice / audio tools"
+            onClick={onOpenVoiceTools}
+          >
+            <Mic size={15} />
+          </TimelineToolButton>
+          <TimelineToolButton
+            tone="ai"
+            active={isSyncPlaying}
+            disabled={!hasVoiceover}
+            onClick={onToggleSyncPlayback}
+            title={
+              hasVoiceover
+                ? isSyncPlaying
+                  ? 'Stop live voiceover preview'
+                  : 'Live voiceover preview'
+                : 'Generate a voiceover first'
+            }
+          >
+            {isSyncPlaying ? <StudioIcon name="pause" size={14} /> : <Mic2 size={14} />}
+          </TimelineToolButton>
+        </div>
+
+        <span className="studio-playback-divider studio-playback-divider--secondary" aria-hidden />
+
+        <div className="studio-playback-tool-group">
+          <TimelineToolButton
+            active={canvasPreviewAxis}
+            onClick={onTogglePreviewAxis}
+            title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} frame guides (S)`}
+          >
+            <AlignCenter size={15} />
+          </TimelineToolButton>
+          <TimelineToolButton
+            active={canvasAttachSnap}
+            onClick={onToggleAttachSnap}
+            title={`${canvasAttachSnap ? 'Turn off' : 'Turn on'} attach snap (N)`}
+          >
+            <Magnet size={15} />
+          </TimelineToolButton>
+        </div>
+
+        <span className="studio-playback-divider studio-playback-divider--secondary" aria-hidden />
       </div>
 
-      <span className="studio-playback-divider" aria-hidden />
-
-      <div className="studio-playback-tool-group">
-        <TimelineToolButton
-          active={canvasPreviewAxis}
-          onClick={onTogglePreviewAxis}
-          title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} preview axis (S)`}
-        >
-          <AlignCenter size={15} />
-        </TimelineToolButton>
-        <TimelineToolButton
-          active={canvasAttachSnap}
-          onClick={onToggleAttachSnap}
-          title={`${canvasAttachSnap ? 'Turn off' : 'Turn on'} attach snap (N)`}
-        >
-          <Magnet size={15} />
-        </TimelineToolButton>
-      </div>
-
-      <span className="studio-playback-divider" aria-hidden />
+      <Dropdown
+        trigger={['click']}
+        placement="bottomRight"
+        menu={{ items: moreItems, className: 'studio-playback-more-menu' }}
+      >
+        <div className="studio-playback-more">
+          <TimelineToolButton
+            className="studio-playback-more-trigger"
+            title="More tools"
+            aria-label="More timeline tools"
+          >
+            <MoreHorizontal size={15} />
+          </TimelineToolButton>
+        </div>
+      </Dropdown>
 
       <div className="studio-playback-tool-group studio-playback-zoom">
         <TimelineToolButton
-          onClick={() => onZoomChange(timelineZoom - 25)}
+          onClick={() => onZoomChange(Math.max(25, timelineZoom - 25))}
           title="Zoom out"
+          disabled={timelineZoom <= 25}
         >
           <StudioIcon name="zoomOut" size={15} />
         </TimelineToolButton>
@@ -87,8 +166,9 @@ export function TimelineViewTools({
         />
         <span className="studio-playback-zoom-label font-mono">{timelineZoom}%</span>
         <TimelineToolButton
-          onClick={() => onZoomChange(timelineZoom + 25)}
+          onClick={() => onZoomChange(Math.min(400, timelineZoom + 25))}
           title="Zoom in"
+          disabled={timelineZoom >= 400}
         >
           <StudioIcon name="zoomIn" size={15} />
         </TimelineToolButton>

@@ -14,6 +14,35 @@ export interface MediaAsset {
   isPrimary?: boolean;
 }
 
+/** Serializable media metadata stored on the project record (no blob URLs). */
+export type PersistedMediaAsset = Omit<MediaAsset, 'url'>;
+
+export function toPersistedMediaAsset(asset: MediaAsset): PersistedMediaAsset {
+  const { url: _url, ...rest } = asset;
+  return rest;
+}
+
+export function mergePersistedMediaAssets(
+  hydrated: MediaAsset[],
+  persisted: PersistedMediaAsset[] | undefined,
+): MediaAsset[] {
+  if (!persisted?.length) return hydrated;
+
+  const persistedById = new Map(persisted.map((asset) => [asset.id, asset]));
+  const merged = hydrated.map((asset) => {
+    const saved = persistedById.get(asset.id);
+    return saved ? { ...asset, ...saved, url: asset.url } : asset;
+  });
+
+  for (const saved of persisted) {
+    if (!merged.some((asset) => asset.id === saved.id)) {
+      merged.push({ ...saved, url: '' });
+    }
+  }
+
+  return merged;
+}
+
 export const MEDIA_ASSET_DRAG_MIME = 'application/x-vokop-media-asset';
 
 const mediaFileMap = new Map<string, File>();

@@ -20,9 +20,12 @@ export type StudioToolId =
 
 export interface Segment {
   time: number;
+  /** Explicit end time when available (word-level / structured captions). */
+  endTime?: number;
   speaker: string;
   text: string;
   raw: string;
+  words?: import('./captions.js').CaptionWord[];
 }
 
 export interface Highlight {

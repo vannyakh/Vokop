@@ -12,8 +12,8 @@ import {
 import {
   isAudioLikeTimelineTrack,
   isEditableTimelineTrack,
-  isVisualTimelineTrack,
 } from '@/features/studio/lib/timelineTrackUtils';
+import { canSplitAtPlayhead } from '@/features/studio/services/studioEdit';
 
 export type TimelineSelectEvent = Pick<
   MouseEvent,
@@ -36,6 +36,15 @@ export function useTimelineSelection() {
   const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
   const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
   const timelineClipboard = useAppStore((s) => s.timelineClipboard);
+  const currentTime = useAppStore((s) => s.currentTime);
+  const duration = useAppStore((s) => s.duration);
+  const transcript = useAppStore((s) => s.transcript);
+  const translatedText = useAppStore((s) => s.translatedText);
+  const status = useAppStore((s) => s.status);
+  const videoClips = useAppStore((s) => s.videoClips);
+  const audioClips = useAppStore((s) => s.audioClips);
+  const canvasElements = useAppStore((s) => s.canvasElements);
+  const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
 
   const items = useMemo(
     () => resolveTimelineSelectionItems(primary, selectedTimelineClips),
@@ -95,11 +104,33 @@ export function useTimelineSelection() {
       !isAudioLikeTimelineTrack(trackId) &&
       trackId !== 'video',
   );
-  const canSplit =
-    trackId === 'video' ||
-    trackId === 'audio' ||
-    trackId === 'text' ||
-    (isVisualTimelineTrack(trackId) && Boolean(clipId));
+
+  /** Razor is enabled when playhead sits on footage / a clip (transcript not required for media). */
+  const canSplit = useMemo(
+    () =>
+      canSplitAtPlayhead({
+        currentTime,
+        duration,
+        transcript,
+        translatedText,
+        status,
+        videoClips,
+        audioClips,
+        canvasElements,
+        selectedTimelineClip: primary,
+      }),
+    [
+      currentTime,
+      duration,
+      transcript,
+      translatedText,
+      status,
+      videoClips,
+      audioClips,
+      canvasElements,
+      primary,
+    ],
+  );
 
   return {
     primary,
@@ -116,6 +147,7 @@ export function useTimelineSelection() {
     cutSelection: cutTimelineSelection,
     pasteSelection: pasteTimelineClipboard,
     duplicateSelection: duplicateTimelineSelection,
+    splitAtPlayhead: splitTimelineAtPlayhead,
     canDelete,
     canEditCanvas,
     canAddKeyframe,
