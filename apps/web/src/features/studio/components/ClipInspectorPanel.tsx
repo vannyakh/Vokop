@@ -4,7 +4,9 @@ import { useAppStore } from '@/features/project';
 import { useTranslation } from '@/features/settings';
 import { cn } from '@/lib/cn';
 import { AudioClipSettingsPanel } from '@/features/studio/components/AudioClipSettingsPanel';
+import { CompositionBackgroundPanel } from '@/features/studio/components/CompositionBackgroundPanel';
 import { CanvasElementPanel } from '@/features/studio/components/CanvasElementPanel';
+import { CompositionFramePanel } from '@/features/studio/components/CompositionFramePanel';
 import { EqualizerEditor } from '@/features/studio/components/EqualizerEditor';
 import { InspectorBarSlider } from '@/features/studio/components/InspectorBarSlider';
 import { RightPanelEmpty } from '@/features/studio/components/RightPanelEmpty';
@@ -40,7 +42,7 @@ function MediaClipInspector({
   clipId: string;
 }) {
   const { t } = useTranslation();
-  const [activeSubTab, setActiveSubTab] = useState<'basic' | 'voice' | 'speed'>('basic');
+  const [activeSubTab, setActiveSubTab] = useState<'basic' | 'background' | 'voice' | 'speed'>('basic');
   const [voiceCategory, setVoiceCategory] = useState<'filters' | 'characters' | 'song'>('filters');
 
   const videoClips = useAppStore((s) => s.videoClips);
@@ -62,6 +64,8 @@ function MediaClipInspector({
   const voiceVolume = useAppStore((s) => s.voiceVolume);
   const setVoiceVolume = useAppStore((s) => s.setVoiceVolume);
   const projectEditor = useAppStore((s) => s.projectEditor);
+  const updateClipBackground = useAppStore((s) => s.updateClipBackground);
+  const applyBackgroundToAllVideoClips = useAppStore((s) => s.applyBackgroundToAllVideoClips);
   const getVideoCssFilter = useAppStore((s) => s.getVideoCssFilter);
 
   const clips = clipKind === 'video' ? videoClips : audioClips;
@@ -69,6 +73,8 @@ function MediaClipInspector({
   if (!clip) {
     return <p className="clip-inspector-empty">Clip not found.</p>;
   }
+
+  const clipBackground = clip.background ?? projectEditor.compositionBackground;
 
   const trackId = clip.trackId ?? (clipKind === 'video' ? 'video' : 'audio');
   const muted = timelineTrackMuted[trackId] ?? false;
@@ -101,6 +107,20 @@ function MediaClipInspector({
         >
           Basic
         </button>
+        {clipKind === 'video' && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('background')}
+            className={cn(
+              'flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer',
+              activeSubTab === 'background'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted hover:text-text',
+            )}
+          >
+            Background
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setActiveSubTab('voice')}
@@ -415,6 +435,15 @@ function MediaClipInspector({
             />
           </InspectorSection>
         </>
+      )}
+
+      {activeSubTab === 'background' && clipKind === 'video' && (
+        <CompositionBackgroundPanel
+          background={clipBackground}
+          onChange={(patch) => updateClipBackground(clip.id, patch)}
+          showApplyToAll
+          onApplyToAll={() => applyBackgroundToAllVideoClips(clipBackground)}
+        />
       )}
 
       {activeSubTab === 'voice' && (
@@ -742,7 +771,7 @@ export function ClipInspectorPanel() {
   const canvasElements = useAppStore((s) => s.canvasElements);
 
   if (!selectedTimelineClip && !selectedCanvasElementId) {
-    return <RightPanelEmpty message="Select an item to make adjustment" />;
+    return <CompositionFramePanel />;
   }
 
   const trackId = selectedTimelineClip?.trackId;

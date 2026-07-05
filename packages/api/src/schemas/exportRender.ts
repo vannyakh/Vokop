@@ -12,10 +12,39 @@ export const exportRenderSettingsSchema = z.object({
   rangeOutSec: z.number().positive(),
 });
 
+export const exportComposedAudioClipSchema = z.object({
+  id: z.string(),
+  start: z.number(),
+  duration: z.number(),
+  sourceStart: z.number(),
+  muted: z.boolean().optional(),
+  volume: z.number().optional(),
+  linkedVideoClipId: z.string().optional(),
+});
+
+export const exportComposedAudioSnapshotSchema = z.object({
+  sessionId: z.string().optional(),
+  originalVolume: z.number().min(0).max(2).default(1),
+  voiceVolume: z.number().min(0).max(2).default(1),
+  includeOriginalAudio: z.boolean(),
+  includeVoiceover: z.boolean(),
+  audioClips: z.array(exportComposedAudioClipSchema).default([]),
+  videoClips: z.array(exportComposedAudioClipSchema).default([]),
+});
+
+/** Metadata for WebCodecs composed video + server-side session audio mux. */
+export const exportComposedRenderMetaSchema = z.object({
+  settings: exportRenderSettingsSchema,
+  fps: z.number().int().positive(),
+  audioSnapshot: exportComposedAudioSnapshotSchema,
+});
+
 export const startExportRenderResponseSchema = z.object({
   jobId: z.string(),
   status: jobStatusSchema,
 });
 
 export type ExportRenderSettings = z.infer<typeof exportRenderSettingsSchema>;
+export type ExportComposedAudioSnapshot = z.infer<typeof exportComposedAudioSnapshotSchema>;
+export type ExportComposedRenderMeta = z.infer<typeof exportComposedRenderMetaSchema>;
 export type StartExportRenderResponse = z.infer<typeof startExportRenderResponseSchema>;

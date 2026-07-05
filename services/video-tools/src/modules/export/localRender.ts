@@ -111,7 +111,7 @@ function scheduleCleanup(jobDir: string): void {
   }, EXPORT_TTL_MS).unref();
 }
 
-async function renderExport(
+export async function renderExport(
   jobDir: string,
   inputPath: string,
   settings: ExportRenderSettings,

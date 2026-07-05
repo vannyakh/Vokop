@@ -1,5 +1,6 @@
 import { TIMELINE_MIN_CLIP_SEC, type ExtraTimelineTrack, type MediaClip } from '@/features/studio/lib/timelineTypes';
 import { clipTrackId } from '@/features/studio/lib/timelineTrackPlacement';
+import { EMPTY_TIMELINE_DURATION_SEC } from '@/features/studio/lib/timelineEmpty';
 
 export function createMediaClip(input: {
   name: string;
@@ -165,11 +166,15 @@ export function maxClipEnd(clips: MediaClip[]): number {
   return max;
 }
 
-/** Timeline length: at least media length and farthest clip end. */
+/** Timeline length: clip span when clips exist; short placeholder when empty. */
 export function computeTimelineDuration(
   mediaDuration: number,
   clips: MediaClip[],
   fallback = 0,
 ): number {
-  return Math.max(mediaDuration, maxClipEnd(clips), fallback);
+  const clipEnd = maxClipEnd(clips);
+  if (clips.length === 0) {
+    return EMPTY_TIMELINE_DURATION_SEC;
+  }
+  return Math.max(mediaDuration, clipEnd, fallback);
 }

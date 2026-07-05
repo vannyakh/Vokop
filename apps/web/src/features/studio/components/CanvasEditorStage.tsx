@@ -192,6 +192,20 @@ function CanvasElementNode({
     style?.textTransform === 'uppercase' ? element.text.toUpperCase() : element.text;
 
   const resolvedFill = effectProps.fill ?? style?.fill ?? '#ffffff';
+  const gradient = !effectProps.fill ? style?.fillGradient : undefined;
+  const gradientPoints = gradient
+    ? gradient.direction === 'vertical'
+      ? { start: { x: 0, y: 0 }, end: { x: 0, y: fontSizePx * (style?.lineHeight ?? 1.35) } }
+      : { start: { x: 0, y: 0 }, end: { x: display.width, y: 0 } }
+    : undefined;
+  const shadowAngleRad = ((style?.shadowAngle ?? 45) * Math.PI) / 180;
+  const shadowDistance = style?.shadowDistance ?? 0;
+  const manualShadowOffsetX = shadowDistance ? Math.cos(shadowAngleRad) * shadowDistance : 0;
+  const manualShadowOffsetY = shadowDistance
+    ? Math.sin(shadowAngleRad) * shadowDistance
+    : style?.shadowColor
+      ? 0
+      : 2;
   const resolvedFontFamily = element.fontFamily
     ? `${element.fontFamily}, system-ui, sans-serif`
     : 'var(--font-display, system-ui, sans-serif)';
@@ -417,16 +431,24 @@ function CanvasElementNode({
               style?.fontStyle === 'italic' ? 'italic' : '',
               style?.fontWeight === 'bold' ? 'bold' : '',
             ].filter(Boolean).join(' ') || 'normal'}
-            fill={resolvedFill}
+            fill={gradient ? undefined : resolvedFill}
+            fillPriority={gradient ? 'linear-gradient' : 'color'}
+            fillLinearGradientStartPoint={gradientPoints?.start}
+            fillLinearGradientEndPoint={gradientPoints?.end}
+            fillLinearGradientColorStops={
+              gradient ? [0, gradient.colors[0], 1, gradient.colors[1]] : undefined
+            }
             letterSpacing={style?.letterSpacing ?? 0}
+            wrap={style?.wrap ?? 'word'}
             stroke={effectProps.stroke ?? style?.stroke}
             strokeWidth={effectProps.strokeWidth ?? style?.strokeWidth ?? 0}
+            lineJoin={style?.strokeLineJoin ?? 'miter'}
             shadowEnabled={effectProps.shadowEnabled ?? !!(style?.shadowColor)}
             shadowColor={effectProps.shadowColor ?? style?.shadowColor ?? 'rgba(0,0,0,0.7)'}
             shadowBlur={effectProps.shadowBlur ?? style?.shadowBlur ?? 8}
-            shadowOffsetX={effectProps.shadowOffsetX ?? 0}
-            shadowOffsetY={effectProps.shadowOffsetY ?? (effectProps.shadowEnabled ? 0 : 2)}
-            shadowOpacity={effectProps.shadowOpacity ?? (style?.shadowColor ? 1 : 0.7)}
+            shadowOffsetX={effectProps.shadowOffsetX ?? manualShadowOffsetX}
+            shadowOffsetY={effectProps.shadowOffsetY ?? manualShadowOffsetY}
+            shadowOpacity={effectProps.shadowOpacity ?? style?.shadowOpacity ?? (style?.shadowColor ? 1 : 0.7)}
             lineHeight={style?.lineHeight ?? 1.35}
             textDecoration={style?.underline ? 'underline' : ''}
             listening={false}

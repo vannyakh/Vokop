@@ -1,4 +1,10 @@
 import { isLocalFont, loadLocalFont } from '@/assets/support';
+import {
+  getSystemFontMeta,
+  isLocalFontAccessSupported,
+  loadSystemFont,
+  registerSystemFontFamily,
+} from '@/features/studio/lib/localFonts';
 
 const loaded = new Set<string>();
 const pending = new Set<string>();
@@ -9,6 +15,38 @@ const pending = new Set<string>();
  */
 export async function loadStudioFont(family: string): Promise<void> {
   if (loaded.has(family)) return;
+
+  const systemMeta = getSystemFontMeta(family);
+  if (systemMeta) {
+    const ok = await loadSystemFont(systemMeta);
+    if (ok) {
+      loaded.add(family);
+      return;
+    }
+  }
+
+  if (isLocalFontAccessSupported() && !isLocalFont(family)) {
+    try {
+      const all = await window.queryLocalFonts!();
+      const match = all.find((f) => f.family === family);
+      if (match) {
+        const meta = {
+          family: match.family,
+          fullName: match.fullName,
+          postscriptName: match.postscriptName,
+          style: match.style,
+        };
+        registerSystemFontFamily(meta);
+        const ok = await loadSystemFont(meta);
+        if (ok) {
+          loaded.add(family);
+          return;
+        }
+      }
+    } catch {
+      /* fall through to bundled / Google fonts */
+    }
+  }
 
   if (isLocalFont(family)) {
     await loadLocalFont(family);

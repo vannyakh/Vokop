@@ -1,4 +1,5 @@
 import type { CanvasElement, CanvasKeyframe, CanvasKeyframeEasing } from '@/types/canvas';
+import { applyClipAnimations } from '@/features/studio/lib/canvasAnimations';
 
 function ease(t: number, easing: CanvasKeyframeEasing = 'ease-in-out'): number {
   const x = Math.min(1, Math.max(0, t));
@@ -39,11 +40,13 @@ export function sampleElementAtTime(
   };
 
   const frames = [...(element.keyframes ?? [])].sort((a, b) => a.offset - b.offset);
-  if (frames.length === 0) return base;
-
   const offset = time - element.startTime;
   const duration = Math.max(0.001, element.endTime - element.startTime);
   const t = Math.min(duration, Math.max(0, offset));
+
+  if (frames.length === 0) {
+    return applyClipAnimations(element, t, duration, base);
+  }
 
   const withBase: CanvasKeyframe[] = [
     {
@@ -60,12 +63,12 @@ export function sampleElementAtTime(
   ];
 
   if (t <= withBase[0].offset) {
-    return applyKeyframe(base, withBase[0]);
+    return applyClipAnimations(element, t, duration, applyKeyframe(base, withBase[0]));
   }
 
   const last = withBase[withBase.length - 1];
   if (t >= last.offset) {
-    return applyKeyframe(base, last);
+    return applyClipAnimations(element, t, duration, applyKeyframe(base, last));
   }
 
   let i = 0;
@@ -79,14 +82,14 @@ export function sampleElementAtTime(
   const scaleB = b.scale ?? scaleA;
   const scale = lerp(scaleA, scaleB, u);
 
-  return {
+  return applyClipAnimations(element, t, duration, {
     x: lerp(a.x ?? base.x, b.x ?? a.x ?? base.x, u),
     y: lerp(a.y ?? base.y, b.y ?? a.y ?? base.y, u),
     opacity: lerp(a.opacity ?? base.opacity, b.opacity ?? a.opacity ?? base.opacity, u),
     rotation: lerp(a.rotation ?? base.rotation, b.rotation ?? a.rotation ?? base.rotation, u),
     width: base.width * scale,
     height: base.height * scale,
-  };
+  });
 }
 
 function applyKeyframe(base: AnimatedCanvasProps, kf: CanvasKeyframe): AnimatedCanvasProps {

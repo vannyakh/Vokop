@@ -65,6 +65,7 @@ export const routes = {
     job: (jobId: string) => `${API_PREFIX}/export/jobs/${jobId}`,
     /** Export Video modal — upload a recorded clip for server-side transcode/watermark. */
     render: `${API_PREFIX}/export/render`,
+    renderComposed: `${API_PREFIX}/export/render/composed`,
     download: (jobId: string) => `${API_PREFIX}/export/jobs/${jobId}/download`,
   },
   /** ai-content — text, image, voice, translate, transcripts, agent */

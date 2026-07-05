@@ -39,19 +39,61 @@ export const mediaClipSchema = z.object({
 
 export const projectCanvasTextStyleSchema = z.object({
   fill: z.string().optional(),
+  fillGradient: z
+    .object({
+      colors: z.tuple([z.string(), z.string()]),
+      direction: z.enum(['vertical', 'horizontal']),
+    })
+    .optional(),
   fontWeight: z.enum(['normal', 'bold']).optional(),
   fontStyle: z.enum(['normal', 'italic']).optional(),
   underline: z.boolean().optional(),
   letterSpacing: z.number().optional(),
   lineHeight: z.number().optional(),
   textTransform: z.enum(['none', 'uppercase']).optional(),
+  wrap: z.enum(['word', 'char', 'none']).optional(),
   stroke: z.string().optional(),
   strokeWidth: z.number().optional(),
+  strokeLineJoin: z.enum(['miter', 'round', 'bevel']).optional(),
   shadowColor: z.string().optional(),
   shadowBlur: z.number().optional(),
+  shadowOpacity: z.number().optional(),
+  shadowAngle: z.number().optional(),
+  shadowDistance: z.number().optional(),
   background: z.string().optional(),
   backgroundRadius: z.number().optional(),
   align: z.enum(['left', 'center', 'right']).optional(),
+});
+
+export const projectCanvasKeyframeSchema = z.object({
+  id: z.string(),
+  offset: z.number(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  opacity: z.number().optional(),
+  rotation: z.number().optional(),
+  scale: z.number().optional(),
+  easing: z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out']).optional(),
+});
+
+export const projectCanvasClipAnimationSchema = z.object({
+  preset: z.enum([
+    'fade-in',
+    'fade-out',
+    'slide-in-left',
+    'slide-in-right',
+    'slide-in-up',
+    'slide-in-down',
+    'slide-out-left',
+    'slide-out-right',
+    'slide-out-up',
+    'slide-out-down',
+    'zoom-in',
+    'zoom-out',
+    'spin-in',
+    'spin-out',
+  ]),
+  durationSec: z.number().positive().max(10),
 });
 
 export const projectCanvasElementSchema = z.object({
@@ -75,6 +117,9 @@ export const projectCanvasElementSchema = z.object({
   startTime: z.number(),
   endTime: z.number(),
   trackId: z.string().optional(),
+  keyframes: z.array(projectCanvasKeyframeSchema).optional(),
+  animationIn: projectCanvasClipAnimationSchema.optional(),
+  animationOut: projectCanvasClipAnimationSchema.optional(),
 });
 
 export const projectMediaAssetSchema = z.object({

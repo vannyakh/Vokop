@@ -1,3 +1,4 @@
+import type { CompositionBackground } from '@vokop/shared';
 import type { ClipEq } from '@/features/studio/lib/clipEq';
 
 export type TimelineTrackId =
@@ -115,6 +116,8 @@ export interface MediaClip {
   eq?: ClipEq;
   /** Mute embedded audio on this video clip (after detach). */
   muted?: boolean;
+  /** Letterbox fill behind this clip (inherits project default when unset). */
+  background?: CompositionBackground;
   /** Voice changer filter: original, echo, high, low, etc. */
   voiceFilter?: string;
   /** Pitch 0-100 (default 50) */

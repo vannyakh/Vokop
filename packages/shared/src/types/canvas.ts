@@ -17,6 +17,8 @@ export type CanvasTextEffectId =
 
 export interface CanvasTextStyle {
   fill?: string;
+  /** Two-stop linear gradient; takes priority over `fill` when set. */
+  fillGradient?: { colors: [string, string]; direction: 'vertical' | 'horizontal' };
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
   underline?: boolean;
@@ -24,10 +26,18 @@ export interface CanvasTextStyle {
   /** Line height as a multiplier of font size (e.g. 1.35 = 135%). */
   lineHeight?: number;
   textTransform?: 'none' | 'uppercase';
+  /** How overflow text wraps within the box (Konva `wrap`). */
+  wrap?: 'word' | 'char' | 'none';
   stroke?: string;
   strokeWidth?: number;
+  strokeLineJoin?: 'miter' | 'round' | 'bevel';
   shadowColor?: string;
   shadowBlur?: number;
+  shadowOpacity?: number;
+  /** Shadow direction in degrees (0 = right, 90 = down). */
+  shadowAngle?: number;
+  /** Shadow offset distance in px. */
+  shadowDistance?: number;
   background?: string;
   /** Corner radius (px, at the reference frame size) of the background box. */
   backgroundRadius?: number;
@@ -36,6 +46,53 @@ export interface CanvasTextStyle {
 
 /** Ease curve for timeline keyframes (After Effects–style). */
 export type CanvasKeyframeEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+
+/** Omniclip-style clip entrance/exit preset ids. */
+export type CanvasAnimationPresetId =
+  | 'none'
+  | 'fade-in'
+  | 'fade-out'
+  | 'slide-in-left'
+  | 'slide-in-right'
+  | 'slide-in-up'
+  | 'slide-in-down'
+  | 'slide-out-left'
+  | 'slide-out-right'
+  | 'slide-out-up'
+  | 'slide-out-down'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'spin-in'
+  | 'spin-out';
+
+export type CanvasAnimationInPresetId =
+  | 'fade-in'
+  | 'slide-in-left'
+  | 'slide-in-right'
+  | 'slide-in-up'
+  | 'slide-in-down'
+  | 'zoom-in'
+  | 'spin-in';
+
+export type CanvasAnimationOutPresetId =
+  | 'fade-out'
+  | 'slide-out-left'
+  | 'slide-out-right'
+  | 'slide-out-up'
+  | 'slide-out-down'
+  | 'zoom-out'
+  | 'spin-out';
+
+/** Applied at clip start (in) or end (out). Duration in seconds. */
+export interface CanvasClipAnimationIn {
+  preset: CanvasAnimationInPresetId;
+  durationSec: number;
+}
+
+export interface CanvasClipAnimationOut {
+  preset: CanvasAnimationOutPresetId;
+  durationSec: number;
+}
 
 /** Keyframe relative to clip start (`offset` in seconds). */
 export interface CanvasKeyframe {
@@ -79,6 +136,10 @@ export interface CanvasElement {
   trackId?: string;
   /** Animation keyframes along the clip (EA-style). */
   keyframes?: CanvasKeyframe[];
+  /** Entrance animation preset (Omniclip-style, sampled at playback). */
+  animationIn?: CanvasClipAnimationIn;
+  /** Exit animation preset (Omniclip-style, sampled at playback). */
+  animationOut?: CanvasClipAnimationOut;
 }
 
 export type { CanvasTool as CanvasToolMode };

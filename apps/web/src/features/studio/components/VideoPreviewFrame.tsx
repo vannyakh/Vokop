@@ -13,9 +13,12 @@ import {
   getDisplayRatio,
 } from '@/features/studio/constants/aspectRatios';
 import { CanvasEditorStage } from '@/features/studio/components/CanvasEditorStage';
+import { CompositionBackgroundLayer } from '@/features/studio/components/CompositionBackgroundLayer';
 import {
   getVideoContentRect,
 } from '@/features/studio/lib/canvasCoords';
+import { isBackgroundActive, resolveClipBackground } from '@/features/studio/lib/compositionBackground';
+import { DEFAULT_COMPOSITION_BACKGROUND } from '@vokop/shared';
 import { findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
 import { resolveVideoClipLayout, type VideoClipLayout } from '@/features/studio/lib/videoClipLayout';
 import { cn } from '@/lib/cn';
@@ -69,6 +72,10 @@ export function VideoPreviewFrame({
   const timelineTrackHidden = useAppStore((s) => s.timelineTrackHidden);
   const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
   const selectedTimelineClip = useAppStore((s) => s.selectedTimelineClip);
+  const compositionBackground = useAppStore(
+    (s) => s.projectEditor.compositionBackground ?? DEFAULT_COMPOSITION_BACKGROUND,
+  );
+  const mediaAssets = useAppStore((s) => s.mediaAssets);
   const videoCssFilter = useAppStore((s) => s.getVideoCssFilter());
   const videoTrackIds = useMemo(
     () => listVideoTrackIds(extraTimelineTracks, timelineTrackOrder, timelineTrackHidden),
@@ -86,8 +93,7 @@ export function VideoPreviewFrame({
           ),
     [videoClips, currentTime, videoTrackIds, timelineTrackPreviewHidden],
   );
-  const hasActiveVideoClip =
-    videoClips.length === 0 ? Boolean(videoUrl) : Boolean(activeVideoClip);
+  const hasActiveVideoClip = Boolean(activeVideoClip);
   const isEmptyCanvas = !videoUrl && videoClips.length === 0;
 
   const displayRatio = getDisplayRatio(aspectRatio, videoWidth, videoHeight);
@@ -126,6 +132,14 @@ export function VideoPreviewFrame({
     () => liveVideoLayout ?? resolveVideoClipLayout(activeVideoClip, contentRect, currentTime),
     [liveVideoLayout, activeVideoClip, contentRect, currentTime],
   );
+  const effectiveBackground = useMemo(
+    () => resolveClipBackground(activeVideoClip, compositionBackground),
+    [activeVideoClip, compositionBackground],
+  );
+  const showBackground =
+    contentRect.width > 0 &&
+    isBackgroundActive(effectiveBackground) &&
+    (effectiveBackground.mode !== 'blur' || hasActiveVideoClip);
 
   useEffect(() => {
     setLiveVideoLayout(null);
@@ -181,6 +195,17 @@ export function VideoPreviewFrame({
             <p className="studio-canvas-empty-title">{t('emptyCanvasTitle')}</p>
             <p className="studio-canvas-empty-hint">{t('emptyCanvasHint')}</p>
           </div>
+        )}
+
+        {showBackground && (
+          <CompositionBackgroundLayer
+            contentRect={contentRect}
+            background={effectiveBackground}
+            videoRef={videoRef}
+            videoUrl={videoUrl}
+            activeClip={activeVideoClip}
+            mediaAssets={mediaAssets}
+          />
         )}
 
         <video

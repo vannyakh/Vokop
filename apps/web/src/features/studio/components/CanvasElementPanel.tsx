@@ -1,12 +1,25 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { useAppStore } from '@/features/project';
 import { Label } from '@vokop/ui';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
 import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
 import { InspectorBarSlider } from '@/features/studio/components/InspectorBarSlider';
+import { PropertyRow, PropertyRowPair } from '@/features/studio/components/PropertyRow';
+import { NumberStepper } from '@/features/studio/components/NumberStepper';
+import { CanvasFontPicker } from '@/features/studio/components/CanvasFontPicker';
 import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
 import { frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 import { getTextEffectSeed } from '@vokop/shared';
+import {
+  CANVAS_ANIMATION_IN_PRESETS,
+  CANVAS_ANIMATION_OUT_PRESETS,
+  CANVAS_ANIMATION_LABELS,
+  DEFAULT_ANIMATION_DURATION_SEC,
+} from '@/features/studio/lib/canvasAnimations';
+import type {
+  CanvasAnimationInPresetId,
+  CanvasAnimationOutPresetId,
+} from '@/types/canvas';
 import {
   Type,
   RotateCcw,
@@ -20,13 +33,16 @@ import {
   AlignRight,
   Bold,
   Italic,
-  ChevronDown,
+  Underline,
   Copy,
+  Droplet,
+  Square,
+  Zap,
+  CaseSensitive,
+  Clapperboard,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useVideoProcessing } from '@/features/translation';
-import { loadStudioFont } from '@/features/studio/lib/fontLoader';
-import { STUDIO_FONTS, FONT_CATEGORIES, type FontCategoryId } from '@/features/studio/constants/studioFonts';
 import { TEXT_EFFECTS, TEXT_EFFECT_IDS } from '@/features/studio/constants/textEffects';
 import { TextEffectPreviewCard } from '@/features/studio/components/TextEffectPreviewCard';
 import type { CanvasElement, CanvasTextEffectId } from '@/types/canvas';
@@ -76,98 +92,66 @@ function EffectThumbnail({
   );
 }
 
-function FontPicker({
+function AnimationPresetThumb({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={cn('canvas-effect-thumb', selected && 'canvas-effect-thumb--selected')}
+      style={{ background: 'rgba(255,255,255,0.04)' }}
+    >
+      <span className="canvas-effect-thumb-text" style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
+        ◆
+      </span>
+      <span className="canvas-effect-thumb-label">{label}</span>
+    </button>
+  );
+}
+
+function ColorSwatch({
   value,
   onChange,
+  title,
 }: {
-  value: string | undefined;
-  onChange: (family: string | undefined) => void;
+  value: string;
+  onChange: (value: string) => void;
+  title?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [catFilter, setCatFilter] = useState<FontCategoryId>('all');
-  const [loadedFonts, setLoadedFonts] = useState<Set<string>>(new Set());
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      const newSet = new Set(loadedFonts);
-      for (const f of STUDIO_FONTS) {
-        await loadStudioFont(f.family);
-        newSet.add(f.family);
-      }
-      setLoadedFonts(newSet);
-    };
-    void load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
-  const filtered = catFilter === 'all'
-    ? STUDIO_FONTS
-    : STUDIO_FONTS.filter((f) => f.category === catFilter);
-
-  const display = value ?? 'Default';
-
   return (
-    <div ref={containerRef} className="canvas-font-picker">
-      <button
-        type="button"
-        className="canvas-font-picker-trigger"
-        onClick={() => setOpen((p) => !p)}
-        style={{ fontFamily: value ? `${value}, system-ui` : undefined }}
-      >
-        <span className="truncate flex-1 text-left">{display}</span>
-        {value && (
-          <button
-            type="button"
-            className="canvas-font-clear"
-            onClick={(e) => { e.stopPropagation(); onChange(undefined); }}
-            title="Clear font"
-          >
-            ×
-          </button>
-        )}
-        <ChevronDown size={12} className="shrink-0 opacity-50" />
-      </button>
-
-      {open && (
-        <div className="canvas-font-dropdown">
-          <div className="canvas-font-cats">
-            {FONT_CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                className={cn('canvas-font-cat-btn', catFilter === cat.id && 'active')}
-                onClick={() => setCatFilter(cat.id)}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-          <div className="canvas-font-list">
-            {filtered.map((font) => (
-              <button
-                key={font.family}
-                type="button"
-                className={cn('canvas-font-item', value === font.family && 'active')}
-                style={{ fontFamily: `${font.family}, system-ui` }}
-                onClick={() => { onChange(font.family); setOpen(false); }}
-              >
-                {font.family}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="canvas-color-pick" title={title}>
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="canvas-color-input"
+        title={title}
+      />
+      <span className="canvas-color-swatch" style={{ background: value }} />
     </div>
+  );
+}
+
+function StyleSwitch({ on, onToggle, title }: { on: boolean; onToggle: () => void; title?: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      title={title}
+      className={cn('style-switch', on && 'is-on')}
+      onClick={onToggle}
+    >
+      <span className="style-switch-knob" />
+    </button>
   );
 }
 
@@ -217,6 +201,41 @@ export function CanvasElementPanel() {
 
   const updateStyle = (patch: Partial<NonNullable<typeof style>>) =>
     updateCanvasElement(element.id, { textStyle: { ...style, ...patch } });
+
+  const toggleAnimationIn = (preset: CanvasAnimationInPresetId) => {
+    const current = element.animationIn;
+    if (current?.preset === preset) {
+      updateCanvasElement(element.id, { animationIn: undefined });
+      return;
+    }
+    updateCanvasElement(element.id, {
+      animationIn: {
+        preset,
+        durationSec: current?.durationSec ?? DEFAULT_ANIMATION_DURATION_SEC,
+      },
+    });
+  };
+
+  const toggleAnimationOut = (preset: CanvasAnimationOutPresetId) => {
+    const current = element.animationOut;
+    if (current?.preset === preset) {
+      updateCanvasElement(element.id, { animationOut: undefined });
+      return;
+    }
+    updateCanvasElement(element.id, {
+      animationOut: {
+        preset,
+        durationSec: current?.durationSec ?? DEFAULT_ANIMATION_DURATION_SEC,
+      },
+    });
+  };
+
+  const animationSummary = [
+    element.animationIn ? CANVAS_ANIMATION_LABELS[element.animationIn.preset] : null,
+    element.animationOut ? CANVAS_ANIMATION_LABELS[element.animationOut.preset] : null,
+  ]
+    .filter(Boolean)
+    .join(' · ') || 'None';
 
   const resetLayout = () => {
     if (isImage) {
@@ -320,30 +339,74 @@ export function CanvasElementPanel() {
 
       {!isImage && (
         <InspectorSection
-          id="canvas-typography"
-          title="Typography"
+          id="canvas-text-style"
+          title="Text Style"
           icon={<Bold size={12} />}
-          summary={`${Math.round(fontSizePx)}px · ${element.fontFamily ?? 'Default'}`}
+          summary={`${element.fontFamily ?? 'Default'} · ${Math.round(fontSizePx)}px`}
           defaultOpen
         >
-          <InspectorBarSlider
-            label="Size"
-            value={fontSizePx}
-            min={8}
-            max={200}
-            step={1}
-            defaultValue={22}
-            format={(v) => `${Math.round(v)}px`}
-            onChange={(v) => updateCanvasElement(element.id, { fontSize: v / refSize.height })}
-            resetTitle="Reset font size"
-          />
           <div className="space-y-1.5">
             <Label>Font</Label>
-            <FontPicker
+            <CanvasFontPicker
               value={element.fontFamily}
               onChange={(f) => updateCanvasElement(element.id, { fontFamily: f })}
             />
           </div>
+          <PropertyRowPair>
+            <PropertyRow label="Weight">
+              <select
+                className="property-select"
+                value={style.fontWeight ?? 'normal'}
+                onChange={(e) => updateStyle({ fontWeight: e.target.value as 'normal' | 'bold' })}
+              >
+                <option value="normal">Regular</option>
+                <option value="bold">Bold</option>
+              </select>
+            </PropertyRow>
+            <PropertyRow label="Size">
+              <NumberStepper
+                value={fontSizePx}
+                min={8}
+                max={400}
+                step={1}
+                suffix="px"
+                onChange={(v) => updateCanvasElement(element.id, { fontSize: v / refSize.height })}
+              />
+            </PropertyRow>
+          </PropertyRowPair>
+          <PropertyRowPair>
+            <PropertyRow label="Line height">
+              <NumberStepper
+                value={Math.round((style.lineHeight ?? 1.35) * 100)}
+                min={50}
+                max={300}
+                step={5}
+                suffix="%"
+                onChange={(v) => updateStyle({ lineHeight: v / 100 })}
+              />
+            </PropertyRow>
+            <PropertyRow label="Spacing">
+              <NumberStepper
+                value={style.letterSpacing ?? 0}
+                min={-20}
+                max={100}
+                step={1}
+                suffix="px"
+                onChange={(v) => updateStyle({ letterSpacing: v })}
+              />
+            </PropertyRow>
+          </PropertyRowPair>
+          <PropertyRow label="Wrap">
+            <select
+              className="property-select"
+              value={style.wrap ?? 'word'}
+              onChange={(e) => updateStyle({ wrap: e.target.value as 'word' | 'char' | 'none' })}
+            >
+              <option value="word">Word</option>
+              <option value="char">Character</option>
+              <option value="none">None</option>
+            </select>
+          </PropertyRow>
           <div className="canvas-text-format-row">
             <button
               type="button"
@@ -355,11 +418,31 @@ export function CanvasElementPanel() {
             </button>
             <button
               type="button"
+              className={cn('canvas-fmt-btn', style.underline && 'active')}
+              onClick={() => updateStyle({ underline: !style.underline })}
+              title="Underline"
+            >
+              <Underline size={13} />
+            </button>
+            <button
+              type="button"
               className={cn('canvas-fmt-btn', style.fontStyle === 'italic' && 'active')}
               onClick={() => updateStyle({ fontStyle: style.fontStyle === 'italic' ? 'normal' : 'italic' })}
               title="Italic"
             >
               <Italic size={13} />
+            </button>
+            <button
+              type="button"
+              className={cn('canvas-fmt-btn', style.textTransform === 'uppercase' && 'active')}
+              onClick={() =>
+                updateStyle({
+                  textTransform: style.textTransform === 'uppercase' ? 'none' : 'uppercase',
+                })
+              }
+              title="Uppercase"
+            >
+              <CaseSensitive size={13} />
             </button>
             <div className="canvas-fmt-divider" />
             <button
@@ -386,32 +469,278 @@ export function CanvasElementPanel() {
             >
               <AlignRight size={13} />
             </button>
-            <div className="canvas-fmt-divider" />
-            <div className="canvas-color-pick" title="Text color">
-              <input
-                type="color"
-                value={style.fill ?? '#ffffff'}
-                onChange={(e) => updateStyle({ fill: e.target.value })}
-                className="canvas-color-input"
-                title="Text color"
-              />
-              <span
-                className="canvas-color-swatch"
-                style={{ background: style.fill ?? '#ffffff' }}
-              />
-            </div>
           </div>
         </InspectorSection>
       )}
 
       {!isImage && (
         <InspectorSection
+          id="canvas-fill"
+          title="Fill"
+          icon={<Droplet size={12} />}
+          summary={
+            style.fillGradient
+              ? 'Gradient'
+              : style.background
+                ? 'Text + BG'
+                : 'Solid'
+          }
+          defaultOpen={false}
+        >
+          <div className="style-color-row">
+            <ColorSwatch
+              value={style.fill ?? '#ffffff'}
+              onChange={(v) => updateStyle({ fill: v, fillGradient: undefined })}
+              title="Text color"
+            />
+            <span className="property-row-label">Text color</span>
+          </div>
+          <div className="style-toggle-row">
+            <span className="property-row-label">Gradient fill</span>
+            <StyleSwitch
+              on={!!style.fillGradient}
+              title="Toggle gradient fill"
+              onToggle={() =>
+                updateStyle(
+                  style.fillGradient
+                    ? { fillGradient: undefined }
+                    : {
+                        fillGradient: {
+                          colors: [style.fill ?? '#ffffff', '#54D6C9'],
+                          direction: 'vertical',
+                        },
+                      },
+                )
+              }
+            />
+          </div>
+          {style.fillGradient && (
+            <>
+              <div className="style-color-row">
+                <ColorSwatch
+                  value={style.fillGradient.colors[0]}
+                  onChange={(v) =>
+                    updateStyle({
+                      fillGradient: {
+                        ...style.fillGradient!,
+                        colors: [v, style.fillGradient!.colors[1]],
+                      },
+                    })
+                  }
+                  title="Gradient start"
+                />
+                <span className="property-row-label">Start color</span>
+              </div>
+              <div className="style-color-row">
+                <ColorSwatch
+                  value={style.fillGradient.colors[1]}
+                  onChange={(v) =>
+                    updateStyle({
+                      fillGradient: {
+                        ...style.fillGradient!,
+                        colors: [style.fillGradient!.colors[0], v],
+                      },
+                    })
+                  }
+                  title="Gradient end"
+                />
+                <span className="property-row-label">End color</span>
+              </div>
+              <PropertyRow label="Direction">
+                <select
+                  className="property-select"
+                  value={style.fillGradient.direction}
+                  onChange={(e) =>
+                    updateStyle({
+                      fillGradient: {
+                        ...style.fillGradient!,
+                        direction: e.target.value as 'vertical' | 'horizontal',
+                      },
+                    })
+                  }
+                >
+                  <option value="vertical">Vertical</option>
+                  <option value="horizontal">Horizontal</option>
+                </select>
+              </PropertyRow>
+            </>
+          )}
+          <div className="style-toggle-row">
+            <span className="property-row-label">Background box</span>
+            <StyleSwitch
+              on={!!style.background}
+              title="Toggle background box"
+              onToggle={() =>
+                updateStyle({ background: style.background ? undefined : '#000000' })
+              }
+            />
+          </div>
+          {style.background && (
+            <>
+              <div className="style-color-row">
+                <ColorSwatch
+                  value={style.background}
+                  onChange={(v) => updateStyle({ background: v })}
+                  title="Background color"
+                />
+                <span className="property-row-label">Background color</span>
+              </div>
+              <PropertyRow label="Radius">
+                <NumberStepper
+                  value={style.backgroundRadius ?? 8}
+                  min={0}
+                  max={64}
+                  step={1}
+                  suffix="px"
+                  onChange={(v) => updateStyle({ backgroundRadius: v })}
+                />
+              </PropertyRow>
+            </>
+          )}
+        </InspectorSection>
+      )}
+
+      {!isImage && (
+        <InspectorSection
+          id="canvas-border"
+          title="Border"
+          icon={<Square size={12} />}
+          summary={style.strokeWidth ? `${style.strokeWidth}px` : 'None'}
+          defaultOpen={false}
+        >
+          <div className="style-color-row">
+            <ColorSwatch
+              value={style.stroke ?? '#000000'}
+              onChange={(v) => updateStyle({ stroke: v })}
+              title="Border color"
+            />
+            <span className="property-row-label">Border color</span>
+          </div>
+          <PropertyRow label="Width">
+            <NumberStepper
+              value={style.strokeWidth ?? 0}
+              min={0}
+              max={20}
+              step={0.5}
+              precision={1}
+              suffix="px"
+              onChange={(v) => updateStyle({ strokeWidth: v })}
+            />
+          </PropertyRow>
+          {(style.strokeWidth ?? 0) > 0 && (
+            <PropertyRow label="Join">
+              <select
+                className="property-select"
+                value={style.strokeLineJoin ?? 'miter'}
+                onChange={(e) =>
+                  updateStyle({
+                    strokeLineJoin: e.target.value as 'miter' | 'round' | 'bevel',
+                  })
+                }
+              >
+                <option value="miter">Miter</option>
+                <option value="round">Round</option>
+                <option value="bevel">Bevel</option>
+              </select>
+            </PropertyRow>
+          )}
+        </InspectorSection>
+      )}
+
+      {!isImage && (
+        <InspectorSection
           id="canvas-effect"
-          title="Text effect"
+          title="Effects"
           icon={<Sparkles size={12} />}
           summary={effectLabel}
-          defaultOpen
+          defaultOpen={false}
         >
+          <div className="style-toggle-row">
+            <span className="property-row-label">Drop shadow</span>
+            <StyleSwitch
+              on={!!style.shadowColor}
+              title="Toggle drop shadow"
+              onToggle={() =>
+                updateStyle(
+                  style.shadowColor
+                    ? {
+                        shadowColor: undefined,
+                        shadowBlur: undefined,
+                        shadowOpacity: undefined,
+                        shadowAngle: undefined,
+                        shadowDistance: undefined,
+                      }
+                    : {
+                        shadowColor: '#000000',
+                        shadowBlur: 8,
+                        shadowOpacity: 0.7,
+                        shadowAngle: 45,
+                        shadowDistance: 4,
+                      },
+                )
+              }
+            />
+          </div>
+          {style.shadowColor && (
+            <>
+              <div className="style-color-row">
+                <ColorSwatch
+                  value={style.shadowColor ?? '#000000'}
+                  onChange={(v) => updateStyle({ shadowColor: v })}
+                  title="Shadow color"
+                />
+                <span className="property-row-label">Shadow color</span>
+              </div>
+              <PropertyRowPair>
+                <PropertyRow label="Blur">
+                  <NumberStepper
+                    value={style.shadowBlur ?? 0}
+                    min={0}
+                    max={40}
+                    step={1}
+                    suffix="px"
+                    onChange={(v) => updateStyle({ shadowBlur: v })}
+                  />
+                </PropertyRow>
+                <PropertyRow label="Opacity">
+                  <NumberStepper
+                    value={Math.round((style.shadowOpacity ?? 0.7) * 100)}
+                    min={0}
+                    max={100}
+                    step={5}
+                    suffix="%"
+                    onChange={(v) => updateStyle({ shadowOpacity: v / 100 })}
+                  />
+                </PropertyRow>
+              </PropertyRowPair>
+              <PropertyRowPair>
+                <PropertyRow label="Angle">
+                  <NumberStepper
+                    value={style.shadowAngle ?? 45}
+                    min={0}
+                    max={360}
+                    step={5}
+                    suffix="°"
+                    onChange={(v) => updateStyle({ shadowAngle: v })}
+                  />
+                </PropertyRow>
+                <PropertyRow label="Distance">
+                  <NumberStepper
+                    value={style.shadowDistance ?? 0}
+                    min={0}
+                    max={40}
+                    step={1}
+                    suffix="px"
+                    onChange={(v) => updateStyle({ shadowDistance: v })}
+                  />
+                </PropertyRow>
+              </PropertyRowPair>
+            </>
+          )}
+          <div className="inspector-section-divider">
+            <Zap size={11} />
+            <span>Presets</span>
+          </div>
           <div className="canvas-effects-grid">
             {TEXT_EFFECT_IDS.map((id) => (
               <EffectThumbnail
@@ -426,6 +755,76 @@ export function CanvasElementPanel() {
           </div>
         </InspectorSection>
       )}
+
+      <InspectorSection
+        id="canvas-animation"
+        title="Animation"
+        icon={<Clapperboard size={12} />}
+        summary={animationSummary}
+        defaultOpen={false}
+      >
+        <div className="inspector-section-divider">
+          <span>Animate in</span>
+        </div>
+        <PropertyRow label="Duration">
+          <NumberStepper
+            value={Math.round((element.animationIn?.durationSec ?? DEFAULT_ANIMATION_DURATION_SEC) * 10) / 10}
+            min={0.1}
+            max={3}
+            step={0.1}
+            precision={1}
+            suffix="s"
+            disabled={!element.animationIn}
+            onChange={(v) => {
+              if (!element.animationIn) return;
+              updateCanvasElement(element.id, {
+                animationIn: { ...element.animationIn, durationSec: v },
+              });
+            }}
+          />
+        </PropertyRow>
+        <div className="canvas-effects-grid">
+          {CANVAS_ANIMATION_IN_PRESETS.map((preset) => (
+            <AnimationPresetThumb
+              key={preset}
+              label={CANVAS_ANIMATION_LABELS[preset]}
+              selected={element.animationIn?.preset === preset}
+              onClick={() => toggleAnimationIn(preset)}
+            />
+          ))}
+        </div>
+
+        <div className="inspector-section-divider">
+          <span>Animate out</span>
+        </div>
+        <PropertyRow label="Duration">
+          <NumberStepper
+            value={Math.round((element.animationOut?.durationSec ?? DEFAULT_ANIMATION_DURATION_SEC) * 10) / 10}
+            min={0.1}
+            max={3}
+            step={0.1}
+            precision={1}
+            suffix="s"
+            disabled={!element.animationOut}
+            onChange={(v) => {
+              if (!element.animationOut) return;
+              updateCanvasElement(element.id, {
+                animationOut: { ...element.animationOut, durationSec: v },
+              });
+            }}
+          />
+        </PropertyRow>
+        <div className="canvas-effects-grid">
+          {CANVAS_ANIMATION_OUT_PRESETS.map((preset) => (
+            <AnimationPresetThumb
+              key={preset}
+              label={CANVAS_ANIMATION_LABELS[preset]}
+              selected={element.animationOut?.preset === preset}
+              onClick={() => toggleAnimationOut(preset)}
+            />
+          ))}
+        </div>
+      </InspectorSection>
 
       <InspectorSection
         id="canvas-transform"

@@ -120,10 +120,17 @@ export function CanvasInlineTextEditor({ element, contentRect, onCommit, onCance
         textDecoration: style?.underline ? 'underline' : undefined,
         lineHeight: style?.lineHeight ?? 1.35,
         textAlign: style?.align ?? 'center',
+        whiteSpace: style?.wrap === 'none' ? 'pre' : undefined,
+        wordBreak: style?.wrap === 'char' ? 'break-all' : undefined,
         color: style?.fill ?? '#ffffff',
+        background: style?.fillGradient
+          ? `linear-gradient(${style.fillGradient.direction === 'vertical' ? '180deg' : '90deg'}, ${style.fillGradient.colors[0]}, ${style.fillGradient.colors[1]})`
+          : style?.background ?? 'rgba(0,0,0,0.35)',
+        backgroundClip: style?.fillGradient ? 'text' : undefined,
+        WebkitBackgroundClip: style?.fillGradient ? 'text' : undefined,
+        WebkitTextFillColor: style?.fillGradient ? 'transparent' : undefined,
         letterSpacing: style?.letterSpacing ? `${style.letterSpacing}px` : undefined,
         textTransform: style?.textTransform,
-        background: style?.background ?? 'rgba(0,0,0,0.35)',
         borderRadius: style?.background ? (style?.backgroundRadius ?? 8) : undefined,
       }}
       autoFocus

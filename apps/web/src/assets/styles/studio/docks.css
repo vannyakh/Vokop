@@ -363,6 +363,194 @@
   margin-top: 0;
 }
 
+.composition-frame-ratio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.composition-frame-ratio-item {
+  width: 100%;
+}
+
+.composition-bg-mode-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.composition-bg-mode-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.45rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composition-bg-mode-tab:hover {
+  color: var(--text);
+  background: var(--surface-hi);
+}
+
+.composition-bg-mode-tab.is-active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.composition-bg-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.composition-bg-color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+}
+
+.composition-bg-color-swatch {
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.composition-bg-color-swatch.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.composition-bg-color-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.composition-bg-color-picker-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.composition-bg-color-input {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.composition-bg-blur-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+}
+
+.composition-bg-blur-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.composition-bg-blur-thumb-wrap {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+}
+
+.composition-bg-blur-option.is-active .composition-bg-blur-thumb-wrap {
+  border-color: var(--accent);
+}
+
+.composition-bg-blur-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.composition-bg-blur-none {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-hi);
+  color: var(--text-muted);
+}
+
+.composition-bg-blur-label,
+.composition-bg-image-label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.composition-bg-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.composition-bg-image-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.composition-bg-image-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  display: block;
+}
+
+.composition-bg-image-option.is-active .composition-bg-image-thumb {
+  border-color: var(--accent);
+}
+
+.composition-bg-image-thumb--photo {
+  object-fit: cover;
+}
+
+.composition-bg-apply-all {
+  margin-top: 0.35rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composition-bg-apply-all:hover {
+  opacity: 0.85;
+}
+
 .studio-sidebar-body--stack {
   display: flex;
   flex-direction: column;

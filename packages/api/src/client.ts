@@ -18,6 +18,7 @@ import {
   emailLookupResponseSchema,
   editorCatalogResponseSchema,
   editorPreviewResponseSchema,
+  exportComposedRenderMetaSchema,
   exportRenderSettingsSchema,
   filmstripResponseSchema,
   giphyStickersResponseSchema,
@@ -74,6 +75,7 @@ import type {
   ClipSuggestResponse,
   EditorCatalogResponse,
   EditorPreviewResponse,
+  ExportComposedRenderMeta,
   ExportRenderSettings,
   FilmstripResponse,
   GiphySticker,
@@ -261,6 +263,27 @@ export class ApiClient {
       routes.export.render,
       form,
       'Failed to start export',
+    );
+  }
+
+  /** Upload WebCodecs H.264 + timeline audio snapshot for server-side mux/transcode. */
+  async startComposedExportRender(
+    composedVideo: Blob,
+    meta: ExportComposedRenderMeta,
+    voiceAudio?: Blob | null,
+  ): Promise<StartExportRenderResponse> {
+    const parsedMeta = exportComposedRenderMetaSchema.parse(meta);
+    const form = new FormData();
+    form.append('composedVideo', composedVideo, 'composed.h264');
+    form.append('meta', JSON.stringify(parsedMeta));
+    if (voiceAudio && voiceAudio.size > 0) {
+      form.append('voiceAudio', voiceAudio, 'voice.webm');
+    }
+    return this.postForm(
+      startExportRenderResponseSchema,
+      routes.export.renderComposed,
+      form,
+      'Failed to start composed export',
     );
   }
 

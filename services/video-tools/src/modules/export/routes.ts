@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import multer from 'multer';
-import { exportRenderSettingsSchema } from '@vokop/api';
+import { exportComposedRenderMetaSchema, exportRenderSettingsSchema } from '@vokop/api';
 import { config } from '../../config.js';
 import { getFfmpegHealth, requireFfmpegHealth } from '../../lib/ffmpegHealth.js';
 import { getJob } from '../../lib/jobQueue.js';
+import { startComposedExportRender } from './composedRender.js';
 import { exportOutputPath, startLocalExportRender } from './localRender.js';
 import { getRenderJob, listRenderJobs, startExport } from './service.js';
 
@@ -19,6 +20,52 @@ const upload = multer({
 
 export function createExportRouter(): Router {
   const router = Router();
+
+  /** POST /render/composed — WebCodecs H.264 + server session audio mux + transcode. */
+  router.post(
+    '/render/composed',
+    upload.fields([
+      { name: 'composedVideo', maxCount: 1 },
+      { name: 'voiceAudio', maxCount: 1 },
+    ]),
+    async (req: Request, res: Response) => {
+      const files = req.files as
+        | { composedVideo?: Express.Multer.File[]; voiceAudio?: Express.Multer.File[] }
+        | undefined;
+      const videoFile = files?.composedVideo?.[0];
+      if (!videoFile) {
+        res.status(400).json({ error: 'Missing composedVideo file' });
+        return;
+      }
+
+      const rawMeta = typeof req.body?.meta === 'string' ? JSON.parse(req.body.meta) : req.body?.meta;
+      const parsedMeta = exportComposedRenderMetaSchema.safeParse(rawMeta);
+      if (!parsedMeta.success) {
+        res.status(400).json({ error: 'Invalid composed export meta', details: parsedMeta.error.flatten() });
+        return;
+      }
+
+      const ffmpegErr = requireFfmpegHealth(await getFfmpegHealth());
+      if (ffmpegErr) {
+        res.status(503).json({ error: ffmpegErr });
+        return;
+      }
+
+      const voiceFile = files?.voiceAudio?.[0];
+
+      try {
+        const job = await startComposedExportRender({
+          videoBuffer: videoFile.buffer,
+          voiceBuffer: voiceFile?.buffer ?? null,
+          meta: parsedMeta.data,
+        });
+        res.status(202).json({ jobId: job.jobId, status: job.status });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to start composed export';
+        res.status(500).json({ error: message });
+      }
+    },
+  );
 
   /** POST /render — Export Video modal: upload a recorded clip for transcode/watermark. */
   router.post('/render', upload.single('recording'), async (req: Request, res: Response) => {

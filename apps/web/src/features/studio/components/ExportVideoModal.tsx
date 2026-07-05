@@ -52,6 +52,7 @@ const EXPORT_SELECT_POPUP = {
 export function ExportVideoModal({ open, onClose, onExport, isExporting }: ExportVideoModalProps) {
   const { t } = useTranslation();
   const timelineDuration = useAppStore((s) => s.duration);
+  const exportProgress = useAppStore((s) => s.exportProgress);
   const fallbackDuration = timelineDuration > 0 ? timelineDuration : 3;
 
   const [settings, setSettings] = useState<ExportSettings>(() => ({
@@ -143,6 +144,20 @@ export function ExportVideoModal({ open, onClose, onExport, isExporting }: Expor
           <h2 className="studio-modal-head__title">{t('exportVideoTitle')}</h2>
           <p className="studio-modal-head__subtitle">{t('exportVideoSubtitle')}</p>
         </header>
+
+        {isExporting && (
+          <div className="export-progress" role="status" aria-live="polite">
+            <div className="export-progress__row">
+              <span className="export-progress__label">
+                {exportProgress > 0 ? t('exportRenderingStatus') : t('exportPreparingStatus')}
+              </span>
+              <span className="export-progress__pct">{Math.round(exportProgress)}%</span>
+            </div>
+            <div className="export-progress__track" aria-hidden>
+              <div className="export-progress__bar" style={{ width: `${exportProgress}%` }} />
+            </div>
+          </div>
+        )}
 
         <section className="export-panel export-panel--row">
           <div className="export-row">

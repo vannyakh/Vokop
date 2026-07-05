@@ -6,6 +6,8 @@ import {
   StudioHeaderModalShell,
 } from '@/features/studio/components/StudioHeaderModalShell';
 import { StudioSettingsModal } from '@/features/studio/components/StudioSettingsModal';
+import { STUDIO_KEYBOARD_SHORTCUTS } from '@/features/studio/constants/keyboardShortcuts';
+import { formatShortcutTokens, type ShortcutToken } from '@/features/studio/lib/shortcutKeys';
 
 export type StudioHeaderModalId = 'desktop' | 'workspace' | 'help' | 'settings';
 
@@ -14,15 +16,18 @@ interface StudioHeaderModalsProps {
   onClose: () => void;
 }
 
-const KEYBOARD_SHORTCUTS = [
-  { labelKey: 'menuExport', shortcut: '⌘E' },
-  { labelKey: 'menuUndo', shortcut: '⌘Z' },
-  { labelKey: 'menuRedo', shortcut: '⇧⌘Z' },
-  { labelKey: 'menuSelectTool', shortcut: 'V' },
-  { labelKey: 'menuPanTool', shortcut: 'H' },
-  { labelKey: 'menuFullscreen', shortcut: '⌃⌘F' },
-  { labelKey: 'menuSettings', shortcut: '⌘,' },
-] as const;
+function ShortcutKeys({ keys }: { keys: ShortcutToken[] }) {
+  const formatted = formatShortcutTokens(keys);
+  return (
+    <span className="studio-header-modal-shortcut-keys">
+      {formatted.map((key, i) => (
+        <kbd key={`${key}-${i}`} className="studio-header-modal-kbd">
+          {key}
+        </kbd>
+      ))}
+    </span>
+  );
+}
 
 export function StudioHeaderModals({ active, onClose }: StudioHeaderModalsProps) {
   const { t } = useTranslation();
@@ -95,7 +100,7 @@ export function StudioHeaderModals({ active, onClose }: StudioHeaderModalsProps)
 
       <StudioHeaderModalShell
         open={active === 'help'}
-        width={460}
+        width={720}
         title={t('headerHelpTitle')}
         subtitle={t('headerHelpSubtitle')}
         onCancel={onClose}
@@ -126,14 +131,25 @@ export function StudioHeaderModals({ active, onClose }: StudioHeaderModalsProps)
               <Keyboard size={14} aria-hidden="true" />
               <span>{t('menuShortcuts')}</span>
             </header>
-            <ul className="studio-header-modal-shortcuts">
-              {KEYBOARD_SHORTCUTS.map((item) => (
-                <li key={item.labelKey} className="studio-header-modal-shortcut-row">
-                  <span className="studio-header-modal-shortcut-label">{t(item.labelKey as any)}</span>
-                  <kbd className="studio-header-modal-kbd">{item.shortcut}</kbd>
-                </li>
+            <div className="studio-header-modal-shortcuts-grid">
+              {STUDIO_KEYBOARD_SHORTCUTS.map((group) => (
+                <div key={group.id} className="studio-header-modal-shortcuts-column">
+                  <h3 className="studio-header-modal-shortcuts-column-title">
+                    {t(group.titleKey as any)}
+                  </h3>
+                  <ul className="studio-header-modal-shortcuts">
+                    {group.items.map((item) => (
+                      <li key={item.labelKey} className="studio-header-modal-shortcut-row">
+                        <span className="studio-header-modal-shortcut-label">
+                          {t(item.labelKey as any)}
+                        </span>
+                        <ShortcutKeys keys={item.keys} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         </div>
       </StudioHeaderModalShell>

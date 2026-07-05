@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import {
   AlertCircle,
   ClipboardPaste,
@@ -35,6 +35,8 @@ import {
   type StudioMenuDefinition,
   type StudioMenuItem,
 } from '@/features/studio/components/StudioMenubar';
+import { shortcutMenuLabel } from '@/features/studio/constants/keyboardShortcuts';
+import { subscribeStudioChromeModal } from '@/features/studio/lib/studioChrome';
 import { Tooltip } from '@vokop/ui/antd';
 
 interface AppHeaderProps {
@@ -72,9 +74,15 @@ export function AppHeader({ onExport }: AppHeaderProps) {
   const setCanvasTool = useAppStore((s) => s.setCanvasTool);
   const undoCanvas = useAppStore((s) => s.undoCanvas);
   const redoCanvas = useAppStore((s) => s.redoCanvas);
+  const copyTimelineSelection = useAppStore((s) => s.copyTimelineSelection);
+  const cutTimelineSelection = useAppStore((s) => s.cutTimelineSelection);
+  const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
+  const togglePreviewFullscreen = useAppStore((s) => s.togglePreviewFullscreen);
   const canUndoCanvas = useAppStore((s) => s.projectUndoStack.length > 0);
   const canRedoCanvas = useAppStore((s) => s.projectRedoStack.length > 0);
   const { closeProject } = useProjectNavigation();
+
+  useEffect(() => subscribeStudioChromeModal(setHeaderModal), []);
 
   const toggleInspectorPanel = () => {
     if (editorOpen && activeTab === 'inspector') {
@@ -114,8 +122,8 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             id: 'settings',
             label: t('menuSettings' as any),
             icon: menuIcon(<Settings size={13} />),
-            shortcut: '⌘,',
-            soon: true,
+            shortcut: shortcutMenuLabel('shortcutSettings'),
+            onSelect: () => setHeaderModal('settings'),
           },
           { id: 'app-sep-2', label: '', separator: true },
           {
@@ -174,7 +182,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             id: 'undo',
             label: t('menuUndo' as any),
             icon: menuIcon(<Undo2 size={13} />),
-            shortcut: '⌘Z',
+            shortcut: shortcutMenuLabel('shortcutUndo'),
             disabled: !canUndoCanvas,
             onSelect: undoCanvas,
           },
@@ -182,7 +190,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             id: 'redo',
             label: t('menuRedo' as any),
             icon: menuIcon(<Redo2 size={13} />),
-            shortcut: '⇧⌘Z',
+            shortcut: shortcutMenuLabel('shortcutRedo'),
             disabled: !canRedoCanvas,
             onSelect: redoCanvas,
           },
@@ -191,22 +199,22 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             id: 'cut',
             label: t('menuCut' as any),
             icon: menuIcon(<Scissors size={13} />),
-            shortcut: '⌘X',
-            soon: true,
+            shortcut: shortcutMenuLabel('shortcutCut'),
+            onSelect: cutTimelineSelection,
           },
           {
             id: 'copy',
             label: t('menuCopy' as any),
             icon: menuIcon(<Copy size={13} />),
-            shortcut: '⌘C',
-            soon: true,
+            shortcut: shortcutMenuLabel('shortcutCopy'),
+            onSelect: copyTimelineSelection,
           },
           {
             id: 'paste',
             label: t('menuPaste' as any),
             icon: menuIcon(<ClipboardPaste size={13} />),
-            shortcut: '⌘V',
-            soon: true,
+            shortcut: shortcutMenuLabel('shortcutPaste'),
+            onSelect: pasteTimelineClipboard,
           },
         ] satisfies StudioMenuItem[],
       },
@@ -218,6 +226,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             id: 'select',
             label: t('menuSelectTool' as any),
             icon: menuIcon(<MousePointer2 size={13} />),
+            shortcut: shortcutMenuLabel('shortcutSelectTool'),
             disabled: canvasTool === 'select',
             onSelect: () => setCanvasTool('select'),
           },
@@ -225,6 +234,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             id: 'pan',
             label: t('menuPanTool' as any),
             icon: menuIcon(<Hand size={13} />),
+            shortcut: shortcutMenuLabel('shortcutPanTool'),
             disabled: canvasTool === 'pan',
             onSelect: () => setCanvasTool('pan'),
           },
@@ -237,8 +247,8 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           {
             id: 'fullscreen',
             label: t('menuFullscreen' as any),
-            shortcut: '⌃⌘F',
-            soon: true,
+            shortcut: shortcutMenuLabel('shortcutFullscreen'),
+            onSelect: togglePreviewFullscreen,
           },
         ] satisfies StudioMenuItem[],
       },
@@ -272,7 +282,7 @@ export function AppHeader({ onExport }: AppHeaderProps) {
           {
             id: 'shortcuts',
             label: t('menuShortcuts' as any),
-            soon: true,
+            onSelect: () => setHeaderModal('help'),
           },
         ] satisfies StudioMenuItem[],
       },
@@ -283,10 +293,14 @@ export function AppHeader({ onExport }: AppHeaderProps) {
       canUndoCanvas,
       canvasTool,
       closeProject,
+      copyTimelineSelection,
+      cutTimelineSelection,
       onExport,
+      pasteTimelineClipboard,
       redoCanvas,
       setCanvasTool,
       t,
+      togglePreviewFullscreen,
       undoCanvas,
     ],
   );

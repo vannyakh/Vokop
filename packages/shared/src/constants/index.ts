@@ -4,6 +4,7 @@ export * from './languages.js';
 export * from './voices.js';
 export * from './export.js';
 export * from './editor.js';
+export * from './backgroundPresets.js';
 export * from './textEffectSeeds.js';
 export * from './rbac.js';
 export * from './studioTemplates.js';

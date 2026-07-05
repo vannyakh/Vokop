@@ -66,12 +66,34 @@ export interface TimelineTransition {
   durationSec: number;
 }
 
+export type CompositionBackgroundMode = 'none' | 'color' | 'blur' | 'image';
+
+/** Letterbox / canvas fill behind scaled video clips (CapCut-style background). */
+export interface CompositionBackground {
+  mode: CompositionBackgroundMode;
+  /** Solid fill when mode is `color`. */
+  color?: string;
+  /** Blur preset level 0–3 when mode is `blur`. */
+  blurLevel?: number;
+  /** Built-in gradient/image preset id when mode is `image`. */
+  imagePresetId?: string;
+  /** Media library asset when mode is `image`. */
+  imageAssetId?: string;
+}
+
+export const DEFAULT_COMPOSITION_BACKGROUND: CompositionBackground = {
+  mode: 'none',
+  color: '#000000',
+  blurLevel: 0,
+};
+
 export interface ProjectEditorState {
   videoFilterId: string | null;
   captionStyle: CaptionStyle;
   captionScale: number;
   clipEdits: Record<string, ClipEditState>;
   timelineTransitions: TimelineTransition[];
+  compositionBackground: CompositionBackground;
 }
 
 export const DEFAULT_PROJECT_EDITOR_STATE: ProjectEditorState = {
@@ -80,4 +102,5 @@ export const DEFAULT_PROJECT_EDITOR_STATE: ProjectEditorState = {
   captionScale: 1,
   clipEdits: {},
   timelineTransitions: [],
+  compositionBackground: { ...DEFAULT_COMPOSITION_BACKGROUND },
 };

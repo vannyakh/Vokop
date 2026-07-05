@@ -3,6 +3,7 @@ import type { EditorTab, ProcessingStatus, VideoAnalysis, AspectRatioId, StudioT
 import type { CaptionStyle } from '@/features/studio/lib/exportSettings';
 import {
   DEFAULT_PROJECT_EDITOR_STATE,
+  DEFAULT_COMPOSITION_BACKGROUND,
   findEditorPreset,
   getFilterCss,
   applyStudioTemplate as instantiateStudioTemplate,
@@ -19,6 +20,7 @@ import {
   type ProjectEditorState,
   type StudioTemplateAssetBinding,
   type TimelineTransition,
+  type CompositionBackground,
 } from '@vokop/shared';
 import {
   findAdjacentPairForClip,
@@ -350,6 +352,8 @@ interface AppState {
   status: ProcessingStatus;
   errorMessage: string;
   isExporting: boolean;
+  /** Browser compositor/export capture progress (0–100). */
+  exportProgress: number;
   sidebarOpen: boolean;
   editorOpen: boolean;
   activeTab: EditorTab;
@@ -484,6 +488,7 @@ interface AppState {
   setStatus: (status: ProcessingStatus) => void;
   setErrorMessage: (message: string) => void;
   setIsExporting: (exporting: boolean) => void;
+  setExportProgress: (progress: number) => void;
   setSidebarOpen: (open: boolean) => void;
   setEditorOpen: (open: boolean) => void;
   setActiveTab: (tab: EditorTab) => void;
@@ -506,6 +511,9 @@ interface AppState {
   applyAudioMixPreset: (presetId: string) => void;
   applyClipTransition: (clipId: string, transitionId: string, edge: 'in' | 'out') => void;
   setTransitionDuration: (transitionId: string, durationSec: number) => void;
+  setCompositionBackground: (patch: Partial<CompositionBackground>) => void;
+  updateClipBackground: (clipId: string, patch: Partial<CompositionBackground>) => void;
+  applyBackgroundToAllVideoClips: (background: CompositionBackground) => void;
   getVideoCssFilter: () => string;
   setTimelineZoom: (zoom: number) => void;
   toggleTimelineTrackMuted: (trackId: TimelineTrackId) => void;
@@ -647,6 +655,7 @@ const initialState = {
   status: 'idle' as ProcessingStatus,
   errorMessage: '',
   isExporting: false,
+  exportProgress: 0,
   sidebarOpen: true,
   editorOpen: true,
   activeTab: 'translate' as EditorTab,
@@ -1304,7 +1313,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setStatus: (status) => set({ status }),
   setErrorMessage: (message) => set({ errorMessage: message }),
-  setIsExporting: (exporting) => set({ isExporting: exporting }),
+  setIsExporting: (exporting) =>
+    set({ isExporting: exporting, ...(exporting ? {} : { exportProgress: 0 }) }),
+  setExportProgress: (progress) =>
+    set({ exportProgress: Math.min(100, Math.max(0, progress)) }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setEditorOpen: (open) => set({ editorOpen: open }),
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -1421,6 +1433,33 @@ export const useAppStore = create<AppState>((set, get) => ({
           t.id === transitionId ? { ...t, durationSec: Math.max(0.05, durationSec) } : t,
         ),
       },
+    })),
+
+  setCompositionBackground: (patch) =>
+    set((s) => ({
+      projectEditor: {
+        ...s.projectEditor,
+        compositionBackground: {
+          ...(s.projectEditor.compositionBackground ?? DEFAULT_COMPOSITION_BACKGROUND),
+          ...patch,
+        },
+      },
+    })),
+
+  updateClipBackground: (clipId, patch) => {
+    const state = get();
+    const clip = state.videoClips.find((item) => item.id === clipId);
+    if (!clip) return;
+    const base =
+      clip.background ?? state.projectEditor.compositionBackground ?? DEFAULT_COMPOSITION_BACKGROUND;
+    state.updateMediaClip(clipId, {
+      background: { ...base, ...patch },
+    });
+  },
+
+  applyBackgroundToAllVideoClips: (background) =>
+    set((s) => ({
+      videoClips: s.videoClips.map((clip) => ({ ...clip, background: { ...background } })),
     })),
 
   getVideoCssFilter: () => getFilterCss(get().projectEditor.videoFilterId),

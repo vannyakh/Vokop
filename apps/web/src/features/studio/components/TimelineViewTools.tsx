@@ -9,6 +9,7 @@ import {
 import { StudioIcon } from '@vokop/ui';
 import { Dropdown, type MenuProps } from '@vokop/ui/antd';
 import { TimelineToolButton } from '@/features/studio/components/TimelineToolButton';
+import { formatMenuShortcut } from '@/features/studio/lib/shortcutKeys';
 
 interface TimelineViewToolsProps {
   hasVoiceover: boolean;
@@ -114,14 +115,14 @@ export function TimelineViewTools({
           <TimelineToolButton
             active={canvasPreviewAxis}
             onClick={onTogglePreviewAxis}
-            title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} frame guides (S)`}
+            title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} frame guides (${formatMenuShortcut(['S'])})`}
           >
             <AlignCenter size={15} />
           </TimelineToolButton>
           <TimelineToolButton
             active={canvasAttachSnap}
             onClick={onToggleAttachSnap}
-            title={`${canvasAttachSnap ? 'Turn off' : 'Turn on'} attach snap (N)`}
+            title={`${canvasAttachSnap ? 'Turn off' : 'Turn on'} attach snap (${formatMenuShortcut(['N'])})`}
           >
             <Magnet size={15} />
           </TimelineToolButton>
@@ -149,7 +150,7 @@ export function TimelineViewTools({
       <div className="studio-playback-tool-group studio-playback-zoom">
         <TimelineToolButton
           onClick={() => onZoomChange(Math.max(25, timelineZoom - 25))}
-          title="Zoom out"
+          title={`Zoom out (${formatMenuShortcut(['mod', '-'])})`}
           disabled={timelineZoom <= 25}
         >
           <StudioIcon name="zoomOut" size={15} />
@@ -167,7 +168,7 @@ export function TimelineViewTools({
         <span className="studio-playback-zoom-label font-mono">{timelineZoom}%</span>
         <TimelineToolButton
           onClick={() => onZoomChange(Math.min(400, timelineZoom + 25))}
-          title="Zoom in"
+          title={`Zoom in (${formatMenuShortcut(['mod', '+'])})`}
           disabled={timelineZoom >= 400}
         >
           <StudioIcon name="zoomIn" size={15} />
@@ -179,7 +180,11 @@ export function TimelineViewTools({
       <TimelineToolButton
         active={previewFullscreenOpen}
         onClick={onToggleFullscreen}
-        title={previewFullscreenOpen ? 'Exit fullscreen preview' : 'Fullscreen preview'}
+        title={
+          previewFullscreenOpen
+            ? 'Exit fullscreen preview'
+            : `Fullscreen preview (${formatMenuShortcut(['shift', 'mod', 'F'])})`
+        }
       >
         <StudioIcon name="fullscreen" size={15} />
       </TimelineToolButton>
