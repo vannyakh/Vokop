@@ -1,123 +1,133 @@
-# Vokop
+<div align="center">
 
-Video editing studio with a simple pnpm monorepo: React UI, API gateway, and server-side video tools.
+# VOKOP
 
-## Structure
+**Browser video studio — CapCut-style editing with AI translation, voiceover & smart tools**
 
-```
-apps/web              React + Vite studio (port 3000 — WEB_PORT)
-apps/admin            React + Vite admin (port 3001 — ADMIN_PORT)
-services/gateway      API gateway — routes /api/v1/* (port 4000)
-services/video-tools  FFmpeg video processing (port 4001)
-services/auth         Auth + RBAC API (port 4002)
-packages/shared       Config, constants, types, DEV_PORTS registry
-packages/api          API schemas, routes, and typed client
-packages/ui           Shared React UI components
-packages/db           MongoDB + Redis connections
-docker-compose.yml    MongoDB and Redis containers
-```
+<br />
 
-Default ports are defined once in `packages/shared/src/config/ports.ts`. Override any port in `.env`.
+[![Studio](https://img.shields.io/badge/Studio-CapCut--style-000000?style=for-the-badge&labelColor=1a1a1a)](http://localhost:3000)
+[![AI](https://img.shields.io/badge/AI-Translate_·_TTS_·_Captions-e8a33d?style=for-the-badge&labelColor=14100a)](README.md#ai--smart-tools)
+[![Timeline](https://img.shields.io/badge/Timeline-Multi--track-2d2d2d?style=for-the-badge&labelColor=111111)](README.md#core-editing)
+[![Export](https://img.shields.io/badge/Export-FFmpeg_render-384d3c?style=for-the-badge&labelColor=1a2420)](README.md#core-editing)
 
-## Prerequisites
+<br />
 
-- Node.js 20+
-- [pnpm](https://pnpm.io/)
-- [Docker](https://www.docker.com/) (for MongoDB and Redis)
-- [ffmpeg](https://ffmpeg.org/) (for server-side filmstrip/probe; client fallbacks work without it)
+[![Node](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![pnpm](https://img.shields.io/badge/pnpm-workspaces-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas_·_local-47A248?style=flat-square&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-cache-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-video_tools-007808?style=flat-square&logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
 
-## Setup
+<br />
+
+Upload · trim · caption · translate · export
+
+</div>
+
+---
+
+## ![Label](https://img.shields.io/badge/USE_CASES-What_you_can_build-e8a33d?style=flat-square) What you can use it for
+
+| Label | Description |
+|-------|-------------|
+| **`SOCIAL`** | Short-form video — 9:16, 1:1, 16:9 |
+| **`TRANSLATE`** | Transcribe, translate, AI voiceover |
+| **`EDIT`** | Trim, split, filters, transitions, stickers |
+| **`TEMPLATES`** | Preset projects — swap your media |
+| **`ADMIN`** | Users, roles, studio admin console |
+
+---
+
+## ![Label](https://img.shields.io/badge/CORE-Core_editing-111111?style=flat-square) Core editing
+
+| Area | Features |
+|------|----------|
+| **`TIMELINE`** | Multi-track video, audio, text, image, sticker · trim, split, drag, snap · auto new track on overlap |
+| **`CANVAS`** | Real-time preview · move, resize, rotate overlays |
+| **`MEDIA`** | Upload video/audio/image · filmstrip · audio waveforms |
+| **`TEXT`** | Templates, effects, captions with word timing |
+| **`VISUAL`** | Filters, transitions, backgrounds, aspect ratios |
+| **`AUDIO`** | Multi-track audio · volume/fade · extract/detach from video |
+| **`PROJECTS`** | Cloud save · recent list · trash & restore |
+| **`EXPORT`** | Render timeline to video file |
+
+---
+
+## ![Label](https://img.shields.io/badge/AI-Smart_tools-e8a33d?style=flat-square&labelColor=14100a) AI & smart tools
+
+Optional providers: **302.AI** · Gemini · OpenAI · Claude
+
+| Tool | Use |
+|------|-----|
+| **`TRANSCRIBE`** | Speech-to-text, subtitle segments |
+| **`TRANSLATE`** | Translate transcript or on-screen text |
+| **`VOICE`** | TTS voiceover from script |
+| **`CAPTIONS`** | Auto captions pipeline |
+| **`TEXT`** | Rewrite titles, hooks, descriptions |
+| **`IMAGE`** | Analyze uploaded images |
+| **`CLIPS`** | AI-assisted clip selection |
+| **`BEATS`** | Beat detection for auto-cut |
+
+---
+
+## ![Label](https://img.shields.io/badge/STUDIO-Tools_rail-2d2d2d?style=flat-square) Studio tools
+
+<div align="center">
+
+`Media` · `Text` · `Audio` · `Voice` · `Captions` · `Effects` · `Transitions` · `Filters` · AI clip
+
+<br />
+
+[![Project bar](https://img.shields.io/badge/Project_bar-switch_·_status_·_FPS_monitor-555555?style=flat-square)](README.md)
+
+</div>
+
+---
+
+## ![Label](https://img.shields.io/badge/START-Quick_start-339933?style=flat-square) Quick start
+
+**Prerequisites:** Node.js 20+ · pnpm · Docker (MongoDB + Redis) · ffmpeg (recommended)
 
 ```bash
 pnpm install
-cp .env.example .env
-# Edit .env with your API keys
+cp .env.example .env   # add API keys as needed
 
-pnpm db:up        # start MongoDB + Redis
-```
-
-## Development
-
-Uses [Turborepo](https://turbo.build) for parallel dev servers and cached builds/lint across the monorepo.
-
-Start databases, then run the full stack (web + admin + gateway + auth + video-tools):
-
-```bash
 pnpm db:up
-pnpm dev
+pnpm dev               # studio :3000 · admin :3001 · API :4000
 ```
-
-Filtered dev stacks (each starts the API backend the app needs):
 
 ```bash
-pnpm dev:web        # studio UI + gateway + auth + video-tools
-pnpm dev:admin      # admin UI + gateway + auth
-pnpm dev:services   # gateway + auth + video-tools only
+pnpm dev:web           # studio + API only
+pnpm build             # production build
+pnpm stop              # free dev ports
 ```
 
-Individual services:
+<div align="center">
 
-```bash
-pnpm dev:gateway    # Gateway at http://localhost:4000
-pnpm dev:video      # Video tools at http://localhost:4001
-pnpm dev:auth       # Auth at http://localhost:4002
-```
+[![Studio](https://img.shields.io/badge/Open-Studio_localhost:3000-e8a33d?style=for-the-badge&labelColor=14100a)](http://localhost:3000)
+[![Admin](https://img.shields.io/badge/Open-Admin_localhost:3001-555555?style=for-the-badge&labelColor=222222)](http://localhost:3001)
 
-Port map (override in `.env`):
+</div>
 
-| Variable | Default | Service |
-|----------|---------|---------|
-| `WEB_PORT` | 3000 | Studio app |
-| `ADMIN_PORT` | 3001 | Admin app |
-| `GATEWAY_PORT` | 4000 | API gateway |
-| `VIDEO_TOOLS_PORT` | 4001 | Video tools |
-| `AUTH_PORT` | 4002 | Auth service |
+---
 
-The web app proxies `/api` to the gateway during development.
+## ![Label](https://img.shields.io/badge/CONFIG-Environment-3178C6?style=flat-square) Configuration
 
-## Build & lint
+Copy `.env.example` to `.env` and set keys for the features you need (AI providers, database URLs, etc.). Defaults work for local development with Docker.
 
-```bash
-pnpm build          # cached parallel builds (apps + services)
-pnpm build:web      # frontend only
-pnpm build:admin    # admin app only
-pnpm build:services # gateway, auth, video-tools
-pnpm lint           # cached parallel typecheck across packages
-pnpm clean          # remove dist folders
-```
+---
 
-## API routes
+## ![Label](https://img.shields.io/badge/DEV-For_developers-111111?style=flat-square) For developers
 
-| Route | Service | Description |
-|-------|---------|-------------|
-| `GET /api/v1/health` | gateway | Gateway + database health |
-| `POST /api/v1/video/session` | video-tools | Upload once — returns sessionId + probe |
-| `POST /api/v1/video/session/:id/jobs/filmstrip` | video-tools | Async filmstrip job (poll job for progress) |
-| `GET /api/v1/video/jobs/:jobId` | video-tools | Job status, progress, partial thumbnails |
-| `GET /api/v1/video/editor/catalog` | video-tools | All tool presets (CapCut-style) |
-| `POST /api/v1/video/editor/apply` | video-tools | Apply filter/transition/caption preset |
-| `POST /api/v1/video/editor/preview` | video-tools | Server preview frame with filter |
-| `POST /api/v1/video/filmstrip` | video-tools | Timeline thumbnails (legacy) |
+See **[AGENTS.md](./AGENTS.md)** and **`.cursor/skills/vokop/`** for architecture, conventions, and feature roadmap.
 
-## Database
+<div align="center">
 
-```bash
-pnpm db:up        # start MongoDB (27017) + Redis (6379)
-pnpm db:down      # stop containers
-pnpm db:logs      # view container logs
-```
+<br />
 
-Default credentials (dev only): `vokop` / `vokop`
+**Vokop** — edit fast, publish anywhere.
 
-## Cursor / AI development
-
-- **AGENTS.md** — quick entry for AI agents
-- **`.cursor/rules/`** — project, monorepo, studio, and UI conventions
-- **`.cursor/skills/vokop/`** — detailed Vokop development skill + reference
-
-## Adding services
-
-1. Create a folder under `services/your-service`
-2. Add workspace dependencies as needed
-3. Register routes in `services/gateway/src/index.ts`
-4. Add a `dev:your-service` script in the root `package.json` (via `turbo run dev --filter=@vokop/your-service`)
+</div>
