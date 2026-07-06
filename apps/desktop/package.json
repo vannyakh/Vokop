@@ -11,7 +11,11 @@
     "dist:mac": "electron-vite build && electron-builder --mac",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:linux": "electron-vite build && electron-builder --linux",
-    "clean": "rm -rf out dist"
+    "clean": "rm -rf out dist",
+    "linecheck": "pnpm --filter @vokop/devtools exec tsx src/cli/linecheck-pkg.ts \"$PWD\"",
+    "linecheck:fix": "pnpm --filter @vokop/devtools exec tsx src/cli/linecheck-pkg.ts --fix \"$PWD\"",
+    "format": "pnpm --filter @vokop/devtools exec tsx src/cli/format-pkg.ts --write \"$PWD\"",
+    "format:check": "pnpm --filter @vokop/devtools exec tsx src/cli/format-pkg.ts --check \"$PWD\""
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",
@@ -50,16 +54,40 @@
     "appId": "app.vokop.desktop",
     "productName": "Vokop",
     "copyright": "Copyright © 2026 Vokop",
-    "files": ["out/**/*"],
+    "files": [
+      "out/**/*"
+    ],
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "category": "public.app-category.video"
     },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "category": "AudioVideo"
     }
   }

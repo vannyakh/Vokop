@@ -1,4 +1,4 @@
-import type { TranscriptSegment, TranscribeRequest, TranscribeResult } from '@vokop/api';
+import type { TranscriptSegment, TranscriptWord, TranscribeRequest, TranscribeResult } from '@vokop/api';
 import { optionsForFeature } from '../llm/capabilities.js';
 import { completeJson, completeWithMediaJson } from '../llm/index.js';
 
@@ -48,7 +48,7 @@ Return JSON only:
 
 function normalizeWords(
   raw: Array<{ text?: string; startSec?: number; endSec?: number }> | undefined,
-): TranscriptSegment['words'] {
+): TranscriptWord[] {
   return (raw ?? [])
     .filter(
       (w): w is { text: string; startSec: number; endSec: number } =>

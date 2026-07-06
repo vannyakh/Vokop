@@ -1,0 +1,47 @@
+{
+  "name": "@vokop/devtools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared format (Prettier) and line check (ESLint) for the Vokop monorepo",
+  "exports": {
+    ".": "./src/index.ts",
+    "./eslint": "./eslint.config.js",
+    "./prettier": "./prettier.config.js"
+  },
+  "files": [
+    "src",
+    "eslint.config.js",
+    "prettier.config.js",
+    ".prettierignore"
+  ],
+  "scripts": {
+    "linecheck": "tsx src/cli/linecheck-pkg.ts",
+    "linecheck:fix": "tsx src/cli/linecheck-pkg.ts --fix",
+    "linecheck:all": "tsx src/cli/linecheck.ts",
+    "linecheck:fix:all": "tsx src/cli/linecheck.ts --fix",
+    "format": "tsx src/cli/format-pkg.ts --write",
+    "format:check": "tsx src/cli/format-pkg.ts --check",
+    "format:all": "tsx src/cli/format.ts --write",
+    "format:check:all": "tsx src/cli/format.ts --check",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vokop/node-utils": "workspace:*",
+    "tinyglobby": "^0.2.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^22.14.0",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "typescript-eslint": "^8.46.4"
+  }
+}

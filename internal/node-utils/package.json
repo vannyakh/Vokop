@@ -6,9 +6,17 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "devDependencies": {
     "@types/node": "^22.14.0",
     "typescript": "~5.8.2"
+  },
+  "scripts": {
+    "linecheck": "pnpm --filter @vokop/devtools exec tsx src/cli/linecheck-pkg.ts \"$PWD\"",
+    "linecheck:fix": "pnpm --filter @vokop/devtools exec tsx src/cli/linecheck-pkg.ts --fix \"$PWD\"",
+    "format": "pnpm --filter @vokop/devtools exec tsx src/cli/format-pkg.ts --write \"$PWD\"",
+    "format:check": "pnpm --filter @vokop/devtools exec tsx src/cli/format-pkg.ts --check \"$PWD\""
   }
 }

@@ -22,6 +22,10 @@
     "build:admin": "turbo run build --filter=@vokop/admin",
     "build:services": "turbo run build --filter=@vokop/gateway --filter=@vokop/auth --filter=@vokop/studio --filter=@vokop/admin-service --filter=@vokop/video-tools --filter=@vokop/ai-content",
     "lint": "turbo run lint",
+    "linecheck": "turbo run linecheck",
+    "linecheck:fix": "turbo run linecheck:fix",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
     "clean": "turbo run clean",
     "test:templates": "pnpm exec tsx scripts/test-studio-templates.ts",
     "test:captions": "pnpm exec tsx scripts/test-caption-segments.ts",
@@ -29,6 +33,7 @@
     "test:beats": "pnpm --filter @vokop/studio exec tsx ../../scripts/test-beat-detection.ts"
   },
   "devDependencies": {
+    "@vokop/devtools": "workspace:*",
     "turbo": "^2.5.4"
   },
   "engines": {

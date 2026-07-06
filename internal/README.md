@@ -7,6 +7,7 @@ Shared monorepo configs for Vokop. These packages are workspace-local — not pu
 | `@vokop/tsconfig` | Shared TypeScript bases for apps, packages, and services |
 | `@vokop/node-utils` | Monorepo helpers (`findMonorepoRoot`, env dir resolution) |
 | `@vokop/vite-config` | Shared Vite config factory for React apps (`web`, `admin`) |
+| `@vokop/devtools` | Shared Prettier format + ESLint line check (programmatic API + CLI) |
 
 ## Usage
 
@@ -40,3 +41,20 @@ export default createReactAppViteConfig({
 ```
 
 Previously this folder contained unused [vue-vben-admin](https://github.com/vbenjs/vue-vben-admin) template tooling (Vue ESLint, Nitro mock, commitlint, etc.). That has been removed in favor of the configs above.
+
+**Format & line check** — applies to **every workspace package** (`apps`, `packages`, `services`, `internal`):
+
+```bash
+pnpm format          # Prettier write (turbo — all packages)
+pnpm format:check    # Prettier check
+pnpm linecheck       # ESLint (turbo — all packages)
+pnpm linecheck:fix   # ESLint with --fix
+pnpm lint            # TypeScript (tsc --noEmit) per package
+```
+
+Single package:
+
+```bash
+pnpm --filter @vokop/web linecheck
+pnpm --filter @vokop/web format
+```

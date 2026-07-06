@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+coverage
+.turbo
+.pnpm-store
+pnpm-lock.yaml
+*.min.js
+*.min.css
+package-lock.json

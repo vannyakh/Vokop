@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "linecheck": "pnpm --filter @vokop/devtools exec tsx src/cli/linecheck-pkg.ts \"$PWD\"",
+    "linecheck:fix": "pnpm --filter @vokop/devtools exec tsx src/cli/linecheck-pkg.ts --fix \"$PWD\"",
+    "format": "pnpm --filter @vokop/devtools exec tsx src/cli/format-pkg.ts --write \"$PWD\"",
+    "format:check": "pnpm --filter @vokop/devtools exec tsx src/cli/format-pkg.ts --check \"$PWD\""
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",

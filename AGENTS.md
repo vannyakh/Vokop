@@ -6,6 +6,7 @@ Video editing studio monorepo (CapCut-style UI + FFmpeg backend + AI translation
 
 ```bash
 pnpm db:up && pnpm dev
+pnpm linecheck    # ESLint · pnpm format · Prettier · pnpm lint · tsc per package
 ```
 
 ## Project rules (`.cursor/rules/`)

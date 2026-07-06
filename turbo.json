@@ -14,7 +14,23 @@
     },
     "lint": {
       "dependsOn": ["^lint"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"]
+      "inputs": ["src/**", "tsconfig.json", "package.json", "vite.config.ts", "*.config.ts", "*.config.js"]
+    },
+    "linecheck": {
+      "dependsOn": ["^linecheck"],
+      "inputs": ["src/**", "tsconfig.json", "package.json", "vite.config.ts", "*.config.ts", "*.config.js"]
+    },
+    "linecheck:fix": {
+      "cache": false,
+      "dependsOn": ["^linecheck:fix"],
+      "inputs": ["src/**", "tsconfig.json", "package.json", "vite.config.ts", "*.config.ts", "*.config.js"]
+    },
+    "format": {
+      "cache": false,
+      "inputs": ["src/**", "package.json", "vite.config.ts", "*.config.ts", "*.config.js", "**/*.{json,css,md}"]
+    },
+    "format:check": {
+      "inputs": ["src/**", "package.json", "vite.config.ts", "*.config.ts", "*.config.js", "**/*.{json,css,md}"]
     },
     "dev": {
       "cache": false,
