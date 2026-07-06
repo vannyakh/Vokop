@@ -8,6 +8,7 @@ import {
 } from '@vokop/shared';
 import { transcribeVideo, translateSegmentsForEditor } from '@/features/translation/services/studioAi';
 import { editorSegmentsToTranscript } from '@/features/translation/services/editorFormat';
+import { chunkCaptionSegments } from '@/features/studio/lib/captionChunking';
 
 export function useAutoCaptions() {
   const [progress, setProgress] = useState<string | null>(null);
@@ -42,14 +43,16 @@ export function useAutoCaptions() {
         duration > 0 ? duration : undefined,
         videoSessionId,
       );
-      const segments = fromApiCaptionSegments(
-        result.segments.map((s) => ({
-          startSec: s.startSec,
-          endSec: s.endSec,
-          text: s.text,
-          speakerId: s.speaker,
-          words: s.words,
-        })),
+      const segments = chunkCaptionSegments(
+        fromApiCaptionSegments(
+          result.segments.map((s) => ({
+            startSec: s.startSec,
+            endSec: s.endSec,
+            text: s.text,
+            speakerId: s.speaker,
+            words: s.words,
+          })),
+        ),
       );
       const transcript = result.transcript || captionSegmentsToTranscript(segments);
       applyCaptionResult(segments, transcript, result.detectedLanguage);
@@ -83,14 +86,16 @@ export function useAutoCaptions() {
         videoSessionId,
       );
 
-      const sourceSegments = fromApiCaptionSegments(
-        transcription.segments.map((s) => ({
-          startSec: s.startSec,
-          endSec: s.endSec,
-          text: s.text,
-          speakerId: s.speaker,
-          words: s.words,
-        })),
+      const sourceSegments = chunkCaptionSegments(
+        fromApiCaptionSegments(
+          transcription.segments.map((s) => ({
+            startSec: s.startSec,
+            endSec: s.endSec,
+            text: s.text,
+            speakerId: s.speaker,
+            words: s.words,
+          })),
+        ),
       );
       const transcript =
         transcription.transcript || captionSegmentsToTranscript(sourceSegments);
@@ -104,14 +109,16 @@ export function useAutoCaptions() {
         aspectRatio,
       );
 
-      const translatedSegments = fromApiCaptionSegments(
-        translation.segments.map((s) => ({
-          startSec: s.startSec,
-          endSec: s.endSec,
-          text: s.text,
-          speakerId: s.speaker,
-          words: s.words,
-        })),
+      const translatedSegments = chunkCaptionSegments(
+        fromApiCaptionSegments(
+          translation.segments.map((s) => ({
+            startSec: s.startSec,
+            endSec: s.endSec,
+            text: s.text,
+            speakerId: s.speaker,
+            words: s.words,
+          })),
+        ),
       );
       const translatedText =
         translation.translatedText || editorSegmentsToTranscript(translation.segments);

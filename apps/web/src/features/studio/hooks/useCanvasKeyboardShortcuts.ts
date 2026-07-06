@@ -20,7 +20,6 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
   const redoCanvas = useAppStore((s) => s.redoCanvas);
   const copyTimelineSelection = useAppStore((s) => s.copyTimelineSelection);
   const cutTimelineSelection = useAppStore((s) => s.cutTimelineSelection);
-  const pasteTimelineClipboard = useAppStore((s) => s.pasteTimelineClipboard);
   const duplicateTimelineSelection = useAppStore((s) => s.duplicateTimelineSelection);
   const deleteTimelineSelection = useAppStore((s) => s.deleteTimelineSelection);
   const clearTimelineSelection = useAppStore((s) => s.clearTimelineSelection);
@@ -107,11 +106,8 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
         cutTimelineSelection();
         return;
       }
-      if (mod && e.key === 'v') {
-        e.preventDefault();
-        pasteTimelineClipboard();
-        return;
-      }
+      // ⌘V is handled by the `paste` event (usePasteMedia): media files from the
+      // OS clipboard import to the library; otherwise it pastes the internal clip.
       if (mod && e.key === 'd') {
         e.preventDefault();
         duplicateTimelineSelection();
@@ -171,7 +167,6 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
     redoCanvas,
     copyTimelineSelection,
     cutTimelineSelection,
-    pasteTimelineClipboard,
     duplicateTimelineSelection,
     deleteTimelineSelection,
     clearTimelineSelection,

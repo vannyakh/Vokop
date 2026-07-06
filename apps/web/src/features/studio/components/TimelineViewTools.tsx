@@ -5,6 +5,7 @@ import {
   AlignCenter,
   Magnet,
   MoreHorizontal,
+  Ruler,
 } from 'lucide-react';
 import { StudioIcon } from '@vokop/ui';
 import { Dropdown, type MenuProps } from '@vokop/ui/antd';
@@ -22,11 +23,13 @@ interface TimelineViewToolsProps {
   isSyncPlaying: boolean;
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
+  timelineSnappingEnabled: boolean;
   timelineZoom: number;
   previewFullscreenOpen: boolean;
   onToggleSyncPlayback: () => void;
   onTogglePreviewAxis: () => void;
   onToggleAttachSnap: () => void;
+  onToggleTimelineSnap: () => void;
   onZoomChange: (zoom: number) => void;
   onToggleFullscreen: () => void;
   onOpenVoiceTools?: () => void;
@@ -43,11 +46,13 @@ export function TimelineViewTools({
   isSyncPlaying,
   canvasPreviewAxis,
   canvasAttachSnap,
+  timelineSnappingEnabled,
   timelineZoom,
   previewFullscreenOpen,
   onToggleSyncPlayback,
   onTogglePreviewAxis,
   onToggleAttachSnap,
+  onToggleTimelineSnap,
   onZoomChange,
   onToggleFullscreen,
   onOpenVoiceTools,
@@ -76,6 +81,12 @@ export function TimelineViewTools({
         onClick: () => onTogglePreviewAxis(),
       },
       {
+        key: 'timeline-snap',
+        icon: <Ruler size={14} />,
+        label: timelineSnappingEnabled ? 'Disable timeline snap' : 'Enable timeline snap',
+        onClick: () => onToggleTimelineSnap(),
+      },
+      {
         key: 'snap',
         icon: <Magnet size={14} />,
         label: canvasAttachSnap ? 'Disable attach snap' : 'Enable attach snap',
@@ -91,6 +102,8 @@ export function TimelineViewTools({
       onToggleAttachSnap,
       onTogglePreviewAxis,
       onToggleSyncPlayback,
+      onToggleTimelineSnap,
+      timelineSnappingEnabled,
     ],
   );
 
@@ -130,6 +143,13 @@ export function TimelineViewTools({
             title={`${canvasPreviewAxis ? 'Turn off' : 'Turn on'} frame guides (${formatMenuShortcut(['S'])})`}
           >
             <AlignCenter size={15} />
+          </TimelineToolButton>
+          <TimelineToolButton
+            active={timelineSnappingEnabled}
+            onClick={onToggleTimelineSnap}
+            title={`${timelineSnappingEnabled ? 'Turn off' : 'Turn on'} timeline clip snap`}
+          >
+            <Ruler size={15} />
           </TimelineToolButton>
           <TimelineToolButton
             active={canvasAttachSnap}

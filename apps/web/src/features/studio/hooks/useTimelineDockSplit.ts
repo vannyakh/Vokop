@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from 'react';
+import { STUDIO_LAYOUT_RESET_EVENT } from '@/features/studio/lib/studioLayout';
 
 const STORAGE_KEY = 'vokop-timeline-dock-height';
 const DEFAULT_HEIGHT = 300;
@@ -130,6 +131,12 @@ export function useTimelineDockSplit() {
       /* ignore */
     }
   }, [height]);
+
+  useEffect(() => {
+    const onReset = () => setHeight(DEFAULT_HEIGHT);
+    window.addEventListener(STUDIO_LAYOUT_RESET_EVENT, onReset);
+    return () => window.removeEventListener(STUDIO_LAYOUT_RESET_EVENT, onReset);
+  }, []);
 
   return {
     containerRef,

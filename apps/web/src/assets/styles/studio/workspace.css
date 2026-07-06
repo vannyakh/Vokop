@@ -1479,6 +1479,37 @@
   background: rgba(232, 163, 61, 0.08);
 }
 
+/* Degraded renderer notice (WASM GPU compositor unavailable) */
+.studio-renderer-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(126, 182, 255, 0.08);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.studio-renderer-banner-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.studio-renderer-banner-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
 .studio-template-slot-banner-copy {
   display: flex;
   flex-direction: column;

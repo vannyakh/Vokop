@@ -1,7 +1,8 @@
-import { Loader2, Sparkles, Subtitles } from 'lucide-react';
+import { Loader2, Sparkles, Subtitles, Upload } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { useAutoCaptions } from '@/features/studio/hooks/useAutoCaptions';
+import { useSubtitleImport } from '@/features/studio/hooks/useSubtitleImport';
 import { CaptionWordEditor } from '@/features/studio/components/CaptionWordEditor';
 
 export function AutoCaptionsPanel() {
@@ -10,6 +11,13 @@ export function AutoCaptionsPanel() {
   const promoteCaptionTrackToCanvas = useAppStore((s) => s.promoteCaptionTrackToCanvas);
   const { generateCaptions, generateCaptionsAndTranslate, progress, error, isBusy } =
     useAutoCaptions();
+  const {
+    inputRef,
+    importSubtitleFile,
+    openFilePicker,
+    error: importError,
+    warnings: importWarnings,
+  } = useSubtitleImport();
 
   const hasCaptions =
     captionTracks.transcript.length > 0 || captionTracks.translation.length > 0;
@@ -47,6 +55,28 @@ export function AutoCaptionsPanel() {
           {isBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           Captions + translate
         </button>
+        <button
+          type="button"
+          className={cn('studio-tools-action-btn w-full', 'studio-tools-action-btn--secondary')}
+          disabled={isBusy}
+          onClick={openFilePicker}
+        >
+          <Upload size={14} />
+          Import SRT / ASS
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".srt,.ass,.ssa,text/plain"
+          className="sr-only"
+          aria-hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            void importSubtitleFile(file, 'transcript');
+          }}
+        />
       </div>
 
       {progress && (
@@ -55,6 +85,14 @@ export function AutoCaptionsPanel() {
         </p>
       )}
       {error && <p className="studio-auto-captions-error">{error}</p>}
+      {importError && <p className="studio-auto-captions-error">{importError}</p>}
+      {importWarnings.length > 0 && (
+        <ul className="studio-auto-captions-hint">
+          {importWarnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      )}
 
       {hasCaptions && (
         <div className="studio-auto-captions-stats">

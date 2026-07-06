@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Info,
   LayoutDashboard,
+  LayoutPanelLeft,
   Loader2,
   MonitorDown,
   MousePointer2,
@@ -37,6 +38,7 @@ import {
 } from '@/features/studio/components/StudioMenubar';
 import { shortcutMenuLabel } from '@/features/studio/constants/keyboardShortcuts';
 import { subscribeStudioChromeModal } from '@/features/studio/lib/studioChrome';
+import { resetStudioPanelLayout } from '@/features/studio/lib/studioLayout';
 import { Tooltip } from '@vokop/ui/antd';
 
 interface AppHeaderProps {
@@ -249,6 +251,13 @@ export function AppHeader({ onExport }: AppHeaderProps) {
             label: t('menuFullscreen' as any),
             shortcut: shortcutMenuLabel('shortcutFullscreen'),
             onSelect: togglePreviewFullscreen,
+          },
+          { id: 'view-sep-2', label: '', separator: true },
+          {
+            id: 'reset-layout',
+            label: 'Reset panel layout',
+            icon: menuIcon(<LayoutPanelLeft size={13} />),
+            onSelect: resetStudioPanelLayout,
           },
         ] satisfies StudioMenuItem[],
       },

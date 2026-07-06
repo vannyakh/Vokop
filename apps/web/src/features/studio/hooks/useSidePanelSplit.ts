@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { STUDIO_LAYOUT_RESET_EVENT } from '@/features/studio/lib/studioLayout';
 
 export type SidePanelEdge = 'left' | 'right';
 
@@ -87,6 +88,12 @@ export function useSidePanelSplit({
       /* ignore */
     }
   }, [storageKey, width]);
+
+  useEffect(() => {
+    const onReset = () => setWidth(defaultWidth);
+    window.addEventListener(STUDIO_LAYOUT_RESET_EVENT, onReset);
+    return () => window.removeEventListener(STUDIO_LAYOUT_RESET_EVENT, onReset);
+  }, [defaultWidth]);
 
   return {
     width,

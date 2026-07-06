@@ -3,11 +3,13 @@ import { useAppStore } from '@/features/project';
 import { clampClip } from '@/features/studio/lib/timelineClipUtils';
 import { resolveTimelineClipSnap, snapClipTimingToFrame } from '@/features/studio/lib/timelineSnap';
 import { timeToPx } from '@/features/studio/lib/timelineUtils';
+import { roundSecondsToFrame } from '@vokop/editor';
 import type {
   TimelineClipModel,
   TimelineTrackId,
   TimelineTrackModel,
 } from '@/features/studio/lib/timelineTypes';
+import { TIMELINE_MIN_CLIP_SEC } from '@/features/studio/lib/timelineTypes';
 import { clipCanMoveToTrack } from '@/features/studio/lib/timelineTrackUtils';
 import { studioEdit } from '@/features/studio/services/studioEdit';
 
@@ -105,7 +107,7 @@ export function useTimelineClipDrag(
       const timelineDuration =
         duration > 0 ? duration : Math.max(start + clipDuration + 60, 60);
 
-      if (mode === 'move' || mode === 'right') {
+      if (snappingEnabled && (mode === 'move' || mode === 'right')) {
         const framed = snapClipTimingToFrame({
           startSec: start,
           durationSec: clipDuration,
@@ -113,7 +115,7 @@ export function useTimelineClipDrag(
         });
         start = framed.startSec;
         clipDuration = framed.durationSec;
-      } else if (mode === 'left') {
+      } else if (snappingEnabled && mode === 'left') {
         const end = roundSecondsToFrame(start + clipDuration);
         start = roundSecondsToFrame(start);
         clipDuration = Math.max(TIMELINE_MIN_CLIP_SEC, end - start);
@@ -156,6 +158,8 @@ export function useTimelineClipDrag(
       }
     },
     [
+      duration,
+      snappingEnabled,
       moveTimelineClipToTrack,
       updateSegmentTime,
       updateSegmentDuration,
@@ -201,6 +205,7 @@ export function useTimelineClipDrag(
           timelineDurationSec: timelineDuration,
           playheadSec,
           pxPerSec,
+          enabled: snappingEnabled,
         });
         snapX = snapped.snapXPx;
         const clamped = clampClip(snapped.startSec, d.origDuration, timelineDuration);
@@ -234,7 +239,7 @@ export function useTimelineClipDrag(
         filmstripBaseWidth: d.filmstripBaseWidth,
       });
     },
-    [pxPerSec, duration, playheadSec, resolveTrackAtY, schedulePreview],
+    [pxPerSec, duration, playheadSec, snappingEnabled, resolveTrackAtY, schedulePreview],
   );
 
   const onDragEnd = useCallback(() => {

@@ -84,6 +84,7 @@ import { studioEdit } from '@/features/studio/services/studioEdit';
 import { TimelineEmptyState } from '@/features/studio/components/TimelineEmptyState';
 import { ProjectCoverModal } from '@/features/studio/components/ProjectCoverModal';
 import { ProjectCoverChip } from '@/features/studio/components/ProjectCoverChip';
+import { useTimelineUiStore } from '@/features/studio/store/useTimelineUiStore';
 import {
   emptyTimelineDurationSec,
   isTimelineEmpty,
@@ -260,8 +261,17 @@ export function StudioTimeline({
   const timelineContentWidth = Math.max(640, timeToPx(displayDuration, pxPerSec) + 80);
   const playheadX = timeToPx(currentTime, pxPerSec);
 
+  const snappingEnabled = useTimelineUiStore((s) => s.snappingEnabled);
   const { beginClipDrag, dragPreview, snapIndicator, hoverTrackId, getDragClientX } =
-    useTimelineClipDrag(pxPerSec, duration, tracks, trackHeights, tracksContainerRef, currentTime);
+    useTimelineClipDrag(
+      pxPerSec,
+      duration,
+      tracks,
+      trackHeights,
+      tracksContainerRef,
+      currentTime,
+      snappingEnabled,
+    );
 
   const { rulerMajorTicks, rulerMinorTicks, rulerFrameLabels } = useMemo(() => {
     const { majorTicks, minorTicks, frameLabels } = buildTimelineRulerTicks(

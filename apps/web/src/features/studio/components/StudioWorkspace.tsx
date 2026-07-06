@@ -13,7 +13,9 @@ import { CinemaPreviewOverlay } from '@/features/studio/components/CinemaPreview
 import { ExportVideoModal } from '@/features/studio/components/ExportVideoModal';
 import { useVideoSession } from '@/features/studio/hooks/useVideoSession';
 import { useCanvasKeyboardShortcuts } from '@/features/studio/hooks/useCanvasKeyboardShortcuts';
+import { usePasteMedia } from '@/features/studio/hooks/usePasteMedia';
 import { useTimelineDockSplit } from '@/features/studio/hooks/useTimelineDockSplit';
+import { StudioRendererBanner } from '@/features/studio/components/StudioRendererBanner';
 import { useTimelinePlayback } from '@/features/studio/hooks/useTimelinePlayback';
 import { useLinkedVideoAudioPlayback } from '@/features/studio/hooks/useLinkedVideoAudioPlayback';
 import { TemplateSlotBanner } from '@/features/studio/components/TemplateSlotBanner';
@@ -29,6 +31,7 @@ export function StudioWorkspace() {
 
   const { containerRef, dockShellRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
   useCanvasKeyboardShortcuts(videoRef);
+  usePasteMedia();
   useTimelinePlayback(videoRef);
   const { timelineAudioRef } = useLinkedVideoAudioPlayback(videoRef);
   useVideoSession();
@@ -75,6 +78,7 @@ export function StudioWorkspace() {
   return (
     <div className="studio-shell h-full min-h-screen flex flex-col overflow-hidden relative">
       <AppHeader onExport={() => setExportModalOpen(true)} />
+      <StudioRendererBanner />
       <TemplateSlotBanner />
 
       <div className="flex-1 flex overflow-hidden relative z-10">

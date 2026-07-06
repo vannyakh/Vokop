@@ -9,6 +9,7 @@ import { TimelinePlaybackControls } from '@/features/studio/components/TimelineP
 import { TimelineViewTools } from '@/features/studio/components/TimelineViewTools';
 import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
 import { useTimelineZoomPreview } from '@/features/studio/hooks/useTimelineZoomPreview';
+import { useTimelineUiStore } from '@/features/studio/store/useTimelineUiStore';
 
 interface TimelineBarProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -42,6 +43,8 @@ export function TimelineBar({
   const canvasAttachSnap = useAppStore((s) => s.canvasAttachSnap);
   const toggleCanvasPreviewAxis = useAppStore((s) => s.toggleCanvasPreviewAxis);
   const toggleCanvasAttachSnap = useAppStore((s) => s.toggleCanvasAttachSnap);
+  const timelineSnappingEnabled = useTimelineUiStore((s) => s.snappingEnabled);
+  const toggleTimelineSnapping = useTimelineUiStore((s) => s.toggleSnapping);
   const isTimelinePlaying = useAppStore((s) => s.isTimelinePlaying);
   const toggleTimelinePlaying = useAppStore((s) => s.toggleTimelinePlaying);
   const seekTimeline = useAppStore((s) => s.seekTimeline);
@@ -119,11 +122,13 @@ export function TimelineBar({
           isSyncPlaying={isSyncPlaying}
           canvasPreviewAxis={canvasPreviewAxis}
           canvasAttachSnap={canvasAttachSnap}
+          timelineSnappingEnabled={timelineSnappingEnabled}
           timelineZoom={displayZoom}
           previewFullscreenOpen={previewFullscreenOpen}
           onToggleSyncPlayback={onToggleSyncPlayback}
           onTogglePreviewAxis={toggleCanvasPreviewAxis}
           onToggleAttachSnap={toggleCanvasAttachSnap}
+          onToggleTimelineSnap={toggleTimelineSnapping}
           onZoomChange={setZoom}
           zoomSliderProps={zoomSliderProps}
           onToggleFullscreen={togglePreviewFullscreen}
