@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react';
 
 const STORAGE_KEY = 'vokop-timeline-dock-height';
 const DEFAULT_HEIGHT = 300;
@@ -17,7 +24,10 @@ function readStoredHeight(): number {
 
 export function useTimelineDockSplit() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const dockShellRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const pendingHeightRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
   const [height, setHeight] = useState(readStoredHeight);
   const [dragging, setDragging] = useState(false);
 
@@ -27,39 +37,91 @@ export function useTimelineDockSplit() {
     return Math.max(MIN_HEIGHT + 80, base * MAX_HEIGHT_RATIO);
   }, []);
 
+  const clampHeight = useCallback(
+    (value: number) => Math.min(maxHeight(), Math.max(MIN_HEIGHT, value)),
+    [maxHeight],
+  );
+
+  const applyPreviewHeight = useCallback((next: number) => {
+    const shell = dockShellRef.current;
+    if (!shell) return;
+    shell.style.height = `${next}px`;
+    shell.classList.add('is-resizing');
+  }, []);
+
+  const clearPreviewStyles = useCallback(() => {
+    const shell = dockShellRef.current;
+    if (!shell) return;
+    shell.style.height = '';
+    shell.classList.remove('is-resizing');
+  }, []);
+
+  const flushPreview = useCallback(() => {
+    rafRef.current = null;
+    const next = pendingHeightRef.current;
+    if (next == null) return;
+    applyPreviewHeight(next);
+  }, [applyPreviewHeight]);
+
+  const schedulePreview = useCallback(
+    (next: number) => {
+      pendingHeightRef.current = next;
+      if (rafRef.current != null) return;
+      rafRef.current = requestAnimationFrame(flushPreview);
+    },
+    [flushPreview],
+  );
+
+  const endDrag = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+
+      const d = dragRef.current;
+      if (d) {
+        const delta = d.startY - e.clientY;
+        const finalHeight = clampHeight(
+          pendingHeightRef.current ?? d.startH + delta,
+        );
+        clearPreviewStyles();
+        setHeight(finalHeight);
+      }
+
+      dragRef.current = null;
+      pendingHeightRef.current = null;
+      setDragging(false);
+      document.body.classList.remove('studio-panel-split-dragging');
+    },
+    [clampHeight, clearPreviewStyles],
+  );
+
   const onSplitterPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
+    (e: ReactPointerEvent<HTMLDivElement>) => {
       e.preventDefault();
       dragRef.current = { startY: e.clientY, startH: height };
+      pendingHeightRef.current = height;
       setDragging(true);
+      document.body.classList.add('studio-panel-split-dragging');
       e.currentTarget.setPointerCapture(e.pointerId);
     },
     [height],
   );
 
   const onSplitterPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragging || !dragRef.current) return;
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return;
       const delta = dragRef.current.startY - e.clientY;
-      const next = Math.min(maxHeight(), Math.max(MIN_HEIGHT, dragRef.current.startH + delta));
-      setHeight(next);
+      const next = clampHeight(dragRef.current.startH + delta);
+      schedulePreview(next);
     },
-    [dragging, maxHeight],
+    [clampHeight, schedulePreview],
   );
-
-  const onSplitterPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    dragRef.current = null;
-    setDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (!dragging) return;
-    document.body.classList.add('studio-panel-split-dragging');
-    return () => document.body.classList.remove('studio-panel-split-dragging');
-  }, [dragging]);
 
   useEffect(() => {
     try {
@@ -71,13 +133,14 @@ export function useTimelineDockSplit() {
 
   return {
     containerRef,
+    dockShellRef: dockShellRef as RefObject<HTMLDivElement>,
     dockHeight: height,
     dragging,
     splitterProps: {
       onPointerDown: onSplitterPointerDown,
       onPointerMove: onSplitterPointerMove,
-      onPointerUp: onSplitterPointerUp,
-      onPointerCancel: onSplitterPointerUp,
+      onPointerUp: endDrag,
+      onPointerCancel: endDrag,
     },
   };
-}
+};

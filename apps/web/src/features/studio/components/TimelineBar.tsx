@@ -1,5 +1,6 @@
 import { useRef, useState, type RefObject } from 'react';
 import { useAppStore } from '@/features/project';
+import { useTimelinePlaybackMonitor } from '@/features/studio/hooks/useTimelinePlaybackMonitor';
 import type { VideoAudioGraph } from '@/features/audio/hooks/useAudioEngine';
 import { StudioTimeline } from '@/features/studio/components/StudioTimeline';
 import { TimelineContextMenu } from '@/features/studio/components/TimelineContextMenu';
@@ -7,29 +8,30 @@ import { TimelineEditingTools } from '@/features/studio/components/TimelineEditi
 import { TimelinePlaybackControls } from '@/features/studio/components/TimelinePlaybackControls';
 import { TimelineViewTools } from '@/features/studio/components/TimelineViewTools';
 import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
+import { useTimelineZoomPreview } from '@/features/studio/hooks/useTimelineZoomPreview';
 
 interface TimelineBarProps {
   videoRef: RefObject<HTMLVideoElement | null>;
+  timelineAudioRef: RefObject<HTMLMediaElement | null>;
   connectVideoAudioGraph: (video: HTMLVideoElement) => Promise<VideoAudioGraph>;
-  onProcessAll: () => void;
+  connectTimelineAudioGraph: (media: HTMLMediaElement) => Promise<AnalyserNode | null>;
   onToggleSyncPlayback: () => void;
 }
 
 export function TimelineBar({
   videoRef,
+  timelineAudioRef,
   connectVideoAudioGraph,
-  onProcessAll,
+  connectTimelineAudioGraph,
   onToggleSyncPlayback,
 }: TimelineBarProps) {
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
   const currentTime = useAppStore((s) => s.currentTime);
   const duration = useAppStore((s) => s.duration);
-  const status = useAppStore((s) => s.status);
   const audioBase64 = useAppStore((s) => s.audioBase64);
   const isSyncPlaying = useAppStore((s) => s.isSyncPlaying);
-  const timelineZoom = useAppStore((s) => s.timelineZoom);
-  const setTimelineZoom = useAppStore((s) => s.setTimelineZoom);
+  const { displayZoom, isZooming, setZoom, zoomSliderProps } = useTimelineZoomPreview();
   const selectCanvasElement = useAppStore((s) => s.selectCanvasElement);
   const addTimelineClip = useAppStore((s) => s.addTimelineClip);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
@@ -64,6 +66,13 @@ export function TimelineBar({
   const dockRef = useRef<HTMLDivElement>(null);
 
   const isPaused = !isTimelinePlaying;
+  const audioReadout = useTimelinePlaybackMonitor(
+    videoRef,
+    timelineAudioRef,
+    connectVideoAudioGraph,
+    connectTimelineAudioGraph,
+    !isPaused,
+  );
 
   const openInspector = () => {
     setActiveTab('inspector');
@@ -89,11 +98,9 @@ export function TimelineBar({
           canSplit={canSplit}
           canDelete={canDelete}
           canDuplicate={hasSelection}
-          processBusy={status !== 'idle'}
           onSplit={splitAtPlayhead}
           onDelete={deleteSelection}
           onDuplicate={duplicateSelection}
-          onProcessAll={onProcessAll}
         />
 
         <TimelinePlaybackControls
@@ -103,6 +110,7 @@ export function TimelineBar({
           currentTime={currentTime}
           duration={duration}
           onTogglePlay={toggleTimelinePlaying}
+          audioReadout={audioReadout}
         />
 
         <TimelineViewTools
@@ -110,12 +118,13 @@ export function TimelineBar({
           isSyncPlaying={isSyncPlaying}
           canvasPreviewAxis={canvasPreviewAxis}
           canvasAttachSnap={canvasAttachSnap}
-          timelineZoom={timelineZoom}
+          timelineZoom={displayZoom}
           previewFullscreenOpen={previewFullscreenOpen}
           onToggleSyncPlayback={onToggleSyncPlayback}
           onTogglePreviewAxis={toggleCanvasPreviewAxis}
           onToggleAttachSnap={toggleCanvasAttachSnap}
-          onZoomChange={setTimelineZoom}
+          onZoomChange={setZoom}
+          zoomSliderProps={zoomSliderProps}
           onToggleFullscreen={togglePreviewFullscreen}
           onOpenVoiceTools={() => {
             setActiveStudioTool('audio');
@@ -124,7 +133,16 @@ export function TimelineBar({
         />
       </div>
 
-      <StudioTimeline videoRef={videoRef} isPlaying={!isPaused} />
+      <StudioTimeline
+        videoRef={videoRef}
+        isPlaying={!isPaused}
+        timelineZoom={displayZoom}
+        isZooming={isZooming}
+        onZoomChange={setZoom}
+        playbackAudioHot={audioReadout.isHighVolume}
+        playbackAudioClipping={audioReadout.isClipping}
+        playbackPeakLevel={audioReadout.peakLevel}
+      />
 
       <TimelineContextMenu
         target={barMenu ? { x: barMenu.x, y: barMenu.y, time: currentTime } : null}

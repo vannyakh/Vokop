@@ -1,32 +1,25 @@
-import { Sparkles, Loader2, Copy } from 'lucide-react';
-import { Button, StudioIcon } from '@vokop/ui';
-import { useTranslation } from '@/features/settings';
+import { Copy } from 'lucide-react';
+import { StudioIcon } from '@vokop/ui';
 import { TimelineToolButton } from '@/features/studio/components/TimelineToolButton';
 
 interface TimelineEditingToolsProps {
   canSplit: boolean;
   canDelete: boolean;
   canDuplicate?: boolean;
-  processBusy: boolean;
   onSplit: () => void;
   onDelete: () => void;
   onDuplicate?: () => void;
-  onProcessAll: () => void;
 }
 
-/** Left toolbar cluster: razor / delete / duplicate + Process All. */
+/** Left toolbar cluster: razor / delete / duplicate. */
 export function TimelineEditingTools({
   canSplit,
   canDelete,
   canDuplicate = false,
-  processBusy,
   onSplit,
   onDelete,
   onDuplicate,
-  onProcessAll,
 }: TimelineEditingToolsProps) {
-  const { t } = useTranslation();
-
   return (
     <div className="studio-playback-cluster studio-playback-cluster--edit" aria-label="Editing tools">
       <div className="studio-playback-tool-group">
@@ -60,21 +53,6 @@ export function TimelineEditingTools({
           </TimelineToolButton>
         )}
       </div>
-
-      <Button
-        size="md"
-        onClick={onProcessAll}
-        disabled={processBusy}
-        className="studio-playback-process"
-        title={t('processAllTooltip')}
-      >
-        {processBusy ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <Sparkles size={14} />
-        )}
-        <span className="studio-playback-process-label">{t('processAll')}</span>
-      </Button>
     </div>
   );
 }

@@ -17,6 +17,9 @@ export function useAudioEngine() {
   const videoSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const videoGainRef = useRef<GainNode | null>(null);
   const videoAnalyserRef = useRef<AnalyserNode | null>(null);
+  const timelineAudioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const timelineAudioGainRef = useRef<GainNode | null>(null);
+  const timelineAudioAnalyserRef = useRef<AnalyserNode | null>(null);
 
   const voiceVolume = useAppStore((s) => s.voiceVolume);
   const setIsAudioPlaying = useAppStore((s) => s.setIsAudioPlaying);
@@ -72,6 +75,32 @@ export function useAudioEngine() {
     [],
   );
 
+  /** Hidden timeline audio element (voice / sound clips) for level metering. */
+  const connectTimelineAudioGraph = useCallback(
+    async (media: HTMLMediaElement): Promise<AnalyserNode | null> => {
+      audioContextRef.current = await ensureAudioContext(audioContextRef.current);
+      const ctx = audioContextRef.current;
+
+      if (!timelineAudioSourceRef.current) {
+        timelineAudioSourceRef.current = ctx.createMediaElementSource(media);
+        const gain = ctx.createGain();
+        gain.gain.value = 1;
+        timelineAudioSourceRef.current.connect(gain);
+        gain.connect(ctx.destination);
+        timelineAudioGainRef.current = gain;
+
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.35;
+        gain.connect(analyser);
+        timelineAudioAnalyserRef.current = analyser;
+      }
+
+      return timelineAudioAnalyserRef.current;
+    },
+    [],
+  );
+
   const playSegment = useCallback(
     async (base64: string, onPlayingChange: (playing: boolean) => void) => {
       try {
@@ -108,6 +137,7 @@ export function useAudioEngine() {
     audioSourceRef,
     videoSourceRef,
     connectVideoAudioGraph,
+    connectTimelineAudioGraph,
     stopAudio,
     playSegment,
   };

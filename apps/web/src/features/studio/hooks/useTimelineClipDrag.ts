@@ -7,7 +7,6 @@ import type {
   TimelineTrackId,
   TimelineTrackModel,
 } from '@/features/studio/lib/timelineTypes';
-import { TRACK_HEIGHT } from '@/features/studio/lib/timelineTypes';
 import { clipCanMoveToTrack } from '@/features/studio/lib/timelineTrackUtils';
 import { studioEdit } from '@/features/studio/services/studioEdit';
 
@@ -51,6 +50,7 @@ export function useTimelineClipDrag(
   pxPerSec: number,
   duration: number,
   tracks: TimelineTrackModel[],
+  trackHeights: number[],
   tracksContainerRef: React.RefObject<HTMLDivElement | null>,
 ) {
   const dragRef = useRef<DragState | null>(null);
@@ -87,14 +87,14 @@ export function useTimelineClipDrag(
       const rect = el.getBoundingClientRect();
       let y = clientY - rect.top;
       if (y < 0) return tracks[0] ?? null;
-      for (const track of tracks) {
-        const h = TRACK_HEIGHT[track.type];
-        if (y <= h) return track;
+      for (let i = 0; i < tracks.length; i++) {
+        const h = trackHeights[i] ?? 40;
+        if (y <= h) return tracks[i] ?? null;
         y -= h;
       }
       return tracks[tracks.length - 1] ?? null;
     },
-    [tracks, tracksContainerRef],
+    [tracks, trackHeights, tracksContainerRef],
   );
 
   const computeSnap = useCallback(

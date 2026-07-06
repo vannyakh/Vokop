@@ -411,12 +411,8 @@
 }
 
 body.studio-panel-split-dragging {
-  cursor: ns-resize !important;
+  cursor: ns-resize;
   user-select: none;
-}
-
-body.studio-panel-split-dragging * {
-  cursor: ns-resize !important;
 }
 
 /* Vertical splitters — left tools / right inspector */
@@ -496,6 +492,11 @@ body.studio-side-split-dragging * {
   min-height: 200px;
   min-width: 0;
   overflow: hidden;
+}
+
+.studio-editor-dock-shell.is-resizing {
+  transition: none;
+  contain: layout style;
 }
 
 .studio-editor-dock {

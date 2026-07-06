@@ -26,7 +26,7 @@ import { Dropdown, Input, Modal, type MenuProps } from '@vokop/ui/antd';
 import { cn } from '@/lib/cn';
 import { useTranslation } from '@/features/settings';
 import type { TimelineTrackModel, TimelineTrackType } from '@/features/studio/lib/timelineTypes';
-import { TRACK_TYPE_PREFIX } from '@/features/studio/lib/timelineTypes';
+import { isCompactTrackHeight, TRACK_TYPE_PREFIX } from '@/features/studio/lib/timelineTypes';
 
 function confirmRemoveTrack(track: TimelineTrackModel, onDelete: () => void) {
   Modal.confirm({
@@ -68,6 +68,13 @@ interface TimelineTrackHeaderProps {
   onDragOver: (trackId: string) => void;
   onDragEnd: () => void;
   onDrop: (trackId: string) => void;
+  resizeHandleProps?: {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerCancel: (e: React.PointerEvent<HTMLDivElement>) => void;
+  };
+  resizing?: boolean;
 }
 
 const TRACK_ICONS: Record<TimelineTrackType, typeof Film> = {
@@ -121,8 +128,13 @@ export function TimelineTrackHeader({
   onDragOver,
   onDragEnd,
   onDrop,
+  resizeHandleProps,
+  resizing = false,
 }: TimelineTrackHeaderProps) {
   const { t } = useTranslation();
+  const compact = isCompactTrackHeight(height);
+  const iconSize = compact ? 10 : 12;
+  const actionIconSize = compact ? 11 : 12;
   const Icon = TRACK_ICONS[track.type];
   const canAdd = ADDABLE_TYPES.includes(track.type);
   const canMute = MUTABLE_TYPES.includes(track.type);
@@ -288,6 +300,8 @@ export function TimelineTrackHeader({
         previewHidden && 'is-preview-hidden',
         dragging && 'is-dragging',
         dropTarget && 'is-drop-target',
+        compact && 'is-compact',
+        resizing && 'is-resizing',
       )}
       style={{ height }}
       data-track={track.type}
@@ -312,7 +326,7 @@ export function TimelineTrackHeader({
     >
       <div className="studio-track-header-main">
         <span className="studio-track-header-grip" title="Drag to reorder" aria-hidden>
-          <GripVertical size={12} />
+          <GripVertical size={iconSize} />
         </span>
         <span
           className={cn(
@@ -321,7 +335,7 @@ export function TimelineTrackHeader({
           )}
           aria-hidden
         >
-          <Icon size={12} strokeWidth={2} />
+          <Icon size={iconSize} strokeWidth={2} />
         </span>
         <div className="studio-track-header-meta" title={`${trackCode} · ${localizedLabel}`}>
           <span className="studio-track-header-code font-mono">{trackCode}</span>
@@ -340,7 +354,7 @@ export function TimelineTrackHeader({
               onTogglePreview();
             }}
           >
-            {previewHidden ? <EyeOff size={12} /> : <Eye size={12} />}
+            {previewHidden ? <EyeOff size={actionIconSize} /> : <Eye size={actionIconSize} />}
           </button>
         )}
         {canMute && (
@@ -353,7 +367,7 @@ export function TimelineTrackHeader({
               onToggleMute();
             }}
           >
-            {muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+            {muted ? <VolumeX size={actionIconSize} /> : <Volume2 size={actionIconSize} />}
           </button>
         )}
 
@@ -370,10 +384,21 @@ export function TimelineTrackHeader({
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <MoreHorizontal size={14} />
+            <MoreHorizontal size={compact ? 12 : 14} />
           </button>
         </Dropdown>
       </div>
+
+      {resizeHandleProps && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize track height"
+          className="studio-track-header-resize"
+          onDragStart={(e) => e.preventDefault()}
+          {...resizeHandleProps}
+        />
+      )}
 
       <Modal
         title="Rename track"

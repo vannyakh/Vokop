@@ -138,4 +138,6 @@ export function useLinkedVideoAudioPlayback(
       audioRef.current?.pause();
     };
   }, [videoRef, videoUrl]);
+
+  return { timelineAudioRef: audioRef };
 }

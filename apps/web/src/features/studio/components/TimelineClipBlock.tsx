@@ -22,6 +22,12 @@ interface TimelineClipBlockProps {
   muted?: boolean;
   /** Live drag/resize preview — skips expensive child redraw churn. */
   interacting?: boolean;
+  /** Playhead is inside this clip (sound/audio highlight). */
+  underPlayhead?: boolean;
+  /** Real-time high volume at playhead. */
+  loud?: boolean;
+  /** Real-time clipping at playhead. */
+  clipping?: boolean;
 }
 
 /** Determine the CapCut-style variant for coloring */
@@ -54,6 +60,9 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
   canDrag = true,
   muted = false,
   interacting = false,
+  underPlayhead = false,
+  loud = false,
+  clipping = false,
 }: TimelineClipBlockProps) {
   const isEditableTrack =
     track.type === 'text' ||
@@ -93,6 +102,9 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
         isFootage && 'studio-timeline-clip-block--footage',
         canEdit && 'studio-timeline-clip-block--editable',
         interacting && 'studio-timeline-clip-block--interacting',
+        underPlayhead && 'is-under-playhead',
+        loud && 'is-loud',
+        clipping && 'is-clipping',
       )}
       style={{ left, width, height }}
       onPointerDown={handlePointerDown}

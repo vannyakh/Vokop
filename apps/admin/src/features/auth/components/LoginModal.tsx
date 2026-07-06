@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
-import { ChevronLeft, Loader2, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Loader2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { VokopLogo } from '@/components/brand/VokopLogo';
 import { useAuthStore, userHasPermission } from '@/features/auth';
 import { api } from '@/lib/api';
+import {
+  AdminAuthHeader,
+  AdminAuthShell,
+  type AdminAuthVariant,
+} from '@/features/auth/components/AdminAuthShell';
 
 interface LoginModalProps {
-  open: boolean;
-  onClose: () => void;
+  open?: boolean;
+  onClose?: () => void;
   onSuccess?: () => void;
+  variant?: AdminAuthVariant;
 }
 
 type AuthStep = 'email' | 'login' | 'register';
@@ -18,7 +24,12 @@ function nameFromEmail(email: string): string {
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'User';
 }
 
-export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
+export function LoginModal({
+  open = true,
+  onClose,
+  onSuccess,
+  variant = 'modal',
+}: LoginModalProps) {
   const setSession = useAuthStore((s) => s.setSession);
 
   const [step, setStep] = useState<AuthStep>('email');
@@ -40,8 +51,15 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
   };
 
   useEffect(() => {
-    if (!open) resetForm();
-  }, [open]);
+    if (variant === 'modal') {
+      document.body.style.overflow = open ? 'hidden' : '';
+      if (!open) resetForm();
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+    return undefined;
+  }, [open, variant]);
 
   const finish = (session: Awaited<ReturnType<typeof api.login>>) => {
     if (!userHasPermission(session.user, 'admin.access')) {
@@ -51,7 +69,7 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
 
     setSession(session);
     onSuccess?.();
-    onClose();
+    onClose?.();
     resetForm();
   };
 
@@ -125,58 +143,43 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
   };
 
   const title =
-    step === 'email' ? 'Admin sign in' : step === 'login' ? 'Welcome back' : 'Create admin account';
+    step === 'email' ? 'Sign in' : step === 'login' ? 'Welcome back' : 'Create admin account';
 
   const subtitle =
     step === 'email'
-      ? 'Use your Vokop account with admin access.'
+      ? 'Use your Vokop account for access.'
       : step === 'login'
-        ? email
-        : email;
+        ? 'Enter your password to continue.'
+        : 'Set up your admin profile.';
 
-  if (!open) return null;
+  if (variant === 'modal' && !open) return null;
 
-  return (
-    <AnimatePresence>
-      <div className="admin-login-overlay fixed inset-0 z-[100] flex items-center justify-center p-5">
+  const content = (
+    <>
+      <div className="admin-auth-brand">
+        <VokopLogo className="h-30" alt="Vokop Admin" />
+      </div>
+
+      <AdminAuthHeader
+        title={title}
+        subtitle={step === 'email' ? subtitle : email}
+        subtitleVariant={step === 'email' ? 'default' : 'email'}
+      />
+
+      <AnimatePresence mode="wait">
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/55 backdrop-blur-md"
-          aria-hidden="true"
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 12 }}
-          className="admin-login-panel relative w-full max-w-md rounded-3xl border border-[var(--border)] bg-[var(--panel-solid)] p-8 shadow-2xl"
-          role="dialog"
-          aria-modal="true"
+          key={step}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18 }}
+          className="admin-auth-step"
         >
-          {step !== 'email' && (
-            <button type="button" onClick={goBack} className="admin-login-icon-btn absolute left-4 top-4">
-              <ChevronLeft size={18} />
-            </button>
-          )}
-          <button type="button" onClick={onClose} className="admin-login-icon-btn absolute right-4 top-4">
-            <X size={18} />
-          </button>
-
-          <div className="mx-auto mb-5 flex items-center justify-center">
-            <VokopLogo className="h-12" alt="Vokop Admin" />
-          </div>
-
-          <div className="mb-6 text-center">
-            <h1 className="text-2xl font-semibold text-[var(--text)]">{title}</h1>
-            <p className="mt-2 text-sm text-[var(--text-mid)]">{subtitle}</p>
-          </div>
-
           {step === 'email' && (
-            <form className="space-y-3" onSubmit={handleEmailContinue}>
+            <form className="admin-auth-form" onSubmit={handleEmailContinue}>
               <input
                 type="email"
-                className="admin-login-input"
+                className="admin-auth-field"
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -184,18 +187,18 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
                 autoFocus
                 required
               />
-              {error && <p className="admin-login-error">{error}</p>}
-              <button type="submit" disabled={loading || !email.trim()} className="admin-login-btn">
+              {error ? <p className="admin-auth-error">{error}</p> : null}
+              <button type="submit" disabled={loading || !email.trim()} className="admin-auth-submit">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : 'Continue'}
               </button>
             </form>
           )}
 
           {step === 'login' && (
-            <form className="space-y-3" onSubmit={handleLogin}>
+            <form className="admin-auth-form" onSubmit={handleLogin}>
               <input
                 type="password"
-                className="admin-login-input"
+                className="admin-auth-field"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -203,18 +206,18 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
                 autoFocus
                 required
               />
-              {error && <p className="admin-login-error">{error}</p>}
-              <button type="submit" disabled={loading || !password} className="admin-login-btn">
+              {error ? <p className="admin-auth-error">{error}</p> : null}
+              <button type="submit" disabled={loading || !password} className="admin-auth-submit">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : 'Sign in'}
               </button>
             </form>
           )}
 
           {step === 'register' && (
-            <form className="space-y-3" onSubmit={handleRegister}>
+            <form className="admin-auth-form" onSubmit={handleRegister}>
               <input
                 type="text"
-                className="admin-login-input"
+                className="admin-auth-field"
                 placeholder="Your name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -225,7 +228,7 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
               />
               <input
                 type="password"
-                className="admin-login-input"
+                className="admin-auth-field"
                 placeholder="Create password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -235,7 +238,7 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
               />
               <input
                 type="password"
-                className="admin-login-input"
+                className="admin-auth-field"
                 placeholder="Confirm password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -243,18 +246,43 @@ export function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
                 minLength={8}
                 required
               />
-              {error && <p className="admin-login-error">{error}</p>}
+              {error ? <p className="admin-auth-error">{error}</p> : null}
               <button
                 type="submit"
                 disabled={loading || !name.trim() || !password || !confirmPassword}
-                className="admin-login-btn"
+                className="admin-auth-submit"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : 'Create account'}
               </button>
             </form>
           )}
         </motion.div>
-      </div>
+      </AnimatePresence>
+
+    </>
+  );
+
+  if (variant === 'page') {
+    return (
+      <AdminAuthShell variant="page" showBack={step !== 'email'} onBack={goBack}>
+        {content}
+      </AdminAuthShell>
+    );
+  }
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <AdminAuthShell
+          variant="modal"
+          open={open}
+          showBack={step !== 'email'}
+          onBack={goBack}
+          onClose={onClose}
+        >
+          {content}
+        </AdminAuthShell>
+      ) : null}
     </AnimatePresence>
   );
 }

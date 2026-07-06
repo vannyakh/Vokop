@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import type { TimelineClipModel, TimelineTrackType } from '@/features/studio/lib/timelineTypes';
 import { resolveClipAudioSource } from '@/features/studio/lib/resolveClipAudioSource';
 import {
+  computeWaveformBarCount,
   drawTimelineWaveform,
   getAudioPeaks,
+  getCachedAudioPeaks,
   peaksForClipRegion,
+  type PeakEntry,
 } from '@/features/studio/lib/timelineAudioPeaks';
+import {
+  PLAYBACK_CLIP_VOLUME,
+  PLAYBACK_HIGH_VOLUME,
+} from '@/features/audio/hooks/useAudioVisualizer';
 
 interface TimelineClipWaveformProps {
   clip: TimelineClipModel;
@@ -16,22 +23,65 @@ interface TimelineClipWaveformProps {
   trackType: TimelineTrackType;
   /** Stretch existing waveform bitmap while trimming — avoids async peak rebuild every frame. */
   stretchOnly?: boolean;
+  /** Playhead is inside this clip during playback. */
+  underPlayhead?: boolean;
+  /** 0–1 position of playhead within the clip. */
+  playheadRatio?: number;
+  /** Live output peak from the playback monitor (0–1). */
+  livePeakLevel?: number;
 }
 
-const WAVE_COLORS: Record<string, { fill: string; bg: string }> = {
+const WAVE_COLORS: Record<string, { fill: string; bg: string; glow?: string; hot: string; clip: string }> = {
   audio: {
-    fill: 'rgba(45, 230, 212, 0.96)',   // CapCut-style bright teal
-    bg:   'rgba(0, 0, 0, 0.0)',
+    fill: 'rgba(45, 230, 212, 0.96)',
+    bg: 'rgba(45, 230, 212, 0.04)',
+    hot: 'rgba(251, 191, 36, 0.98)',
+    clip: 'rgba(239, 68, 68, 0.98)',
   },
   sound: {
-    fill: 'rgba(72, 240, 170, 0.96)',   // bright mint green
-    bg:   'rgba(0, 0, 0, 0.0)',
+    fill: 'rgba(251, 191, 36, 0.98)',
+    glow: 'rgba(251, 191, 36, 0.08)',
+    bg: 'rgba(251, 191, 36, 0.05)',
+    hot: 'rgba(251, 146, 60, 0.98)',
+    clip: 'rgba(239, 68, 68, 0.98)',
   },
   video: {
-    fill: 'rgba(255, 255, 255, 0.92)',  // embedded footage audio, dark-strip style
-    bg:   'rgba(0, 0, 0, 0.0)',
+    fill: 'rgba(255, 255, 255, 0.92)',
+    bg: 'rgba(0, 0, 0, 0.0)',
+    hot: 'rgba(251, 191, 36, 0.92)',
+    clip: 'rgba(239, 68, 68, 0.92)',
   },
 };
+
+function paintWaveform(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  entry: PeakEntry,
+  clip: TimelineClipModel,
+  sourceMediaDuration: number,
+  colors: (typeof WAVE_COLORS)[string],
+  waveStyle: 'audio' | 'sound' | 'video',
+) {
+  const dpr = window.devicePixelRatio || 1;
+  const canvasPx = Math.floor(width * dpr);
+  const barCount = computeWaveformBarCount(canvasPx, waveStyle);
+
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  const mediaDur = entry.duration || sourceMediaDuration || clip.duration;
+  const region = peaksForClipRegion(
+    entry.peaks,
+    mediaDur,
+    clip.sourceStart ?? 0,
+    clip.duration,
+    barCount,
+  );
+  drawTimelineWaveform(canvas, region, colors, waveStyle);
+}
 
 export function TimelineClipWaveform({
   clip,
@@ -39,9 +89,14 @@ export function TimelineClipWaveform({
   height,
   trackType,
   stretchOnly = false,
+  underPlayhead = false,
+  playheadRatio,
+  livePeakLevel = 0,
 }: TimelineClipWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [peakEntry, setPeakEntry] = useState<PeakEntry | null>(null);
   const [ready, setReady] = useState(false);
+  const sourceKeyRef = useRef<string | null>(null);
 
   const videoUrl = useAppStore((s) => s.videoUrl);
   const audioBase64 = useAppStore((s) => s.audioBase64);
@@ -65,12 +120,56 @@ export function TimelineClipWaveform({
     [clip, videoUrl, audioBase64, mediaAssets, videoClips, audioClips, mediaDuration, duration],
   );
 
-  const colors = WAVE_COLORS[trackType === 'sound' ? 'sound' : trackType === 'video' ? 'video' : 'audio'];
+  const waveStyle = trackType === 'sound' ? 'sound' : trackType === 'video' ? 'video' : 'audio';
+  const colors = WAVE_COLORS[waveStyle];
+  const liveHot = livePeakLevel >= PLAYBACK_HIGH_VOLUME;
+  const liveClipping = livePeakLevel >= PLAYBACK_CLIP_VOLUME;
+  const liveBarPct = Math.round(Math.max(18, Math.min(100, livePeakLevel * 100)));
 
   useEffect(() => {
+    if (stretchOnly || !source) {
+      if (!source) {
+        sourceKeyRef.current = null;
+        setPeakEntry(null);
+        setReady(false);
+      }
+      return;
+    }
+
+    if (sourceKeyRef.current === source.key) return;
+    sourceKeyRef.current = source.key;
+
+    const cached = getCachedAudioPeaks(source.key);
+    if (cached) {
+      setPeakEntry(cached);
+      return;
+    }
+
+    setPeakEntry(null);
+    setReady(false);
+
+    let cancelled = false;
+    void getAudioPeaks(source.key, source.url)
+      .then((entry) => {
+        if (cancelled) return;
+        setPeakEntry(entry);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPeakEntry(null);
+          setReady(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [source, stretchOnly]);
+
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || width < 4 || height < 4) {
-      setReady(false);
+      if (!peakEntry) setReady(false);
       return;
     }
 
@@ -80,54 +179,77 @@ export function TimelineClipWaveform({
       return;
     }
 
-    if (!source) {
+    if (!peakEntry || !source) {
       setReady(false);
       return;
     }
 
-    let cancelled = false;
-    const dpr = window.devicePixelRatio || 1;
-    // 1 bar per 2 physical pixels = maximum DAW signal density
-    const canvasPx = Math.floor(width * dpr);
-    const barCount = Math.max(32, Math.floor(canvasPx / 2));
-
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-
-    setReady(false);
-
-    void getAudioPeaks(source.key, source.url)
-      .then((entry) => {
-        if (cancelled) return;
-        const mediaDur = entry.duration || source.mediaDuration || clip.duration;
-        const region = peaksForClipRegion(
-          entry.peaks,
-          mediaDur,
-          clip.sourceStart ?? 0,
-          clip.duration,
-          barCount,
-        );
-        drawTimelineWaveform(canvas, region, colors);
-        setReady(true);
-      })
-      .catch(() => {
-        if (!cancelled) setReady(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [source, width, height, clip.sourceStart, clip.duration, colors, stretchOnly]);
+    paintWaveform(
+      canvas,
+      width,
+      height,
+      peakEntry,
+      clip,
+      source.mediaDuration,
+      colors,
+      waveStyle,
+    );
+    setReady(true);
+  }, [
+    peakEntry,
+    source,
+    width,
+    height,
+    clip.sourceStart,
+    clip.duration,
+    colors,
+    waveStyle,
+    stretchOnly,
+  ]);
 
   if (!source) return null;
 
+  const showLive = underPlayhead && playheadRatio != null && playheadRatio >= 0 && playheadRatio <= 1;
+
   return (
-    <canvas
-      ref={canvasRef}
-      className={cn('studio-timeline-clip-waveform', ready && 'is-ready')}
-      aria-hidden
-    />
+    <div
+      className={cn(
+        'studio-timeline-clip-waveform-wrap',
+        `studio-timeline-clip-waveform-wrap--${waveStyle}`,
+        showLive && liveHot && 'is-live-hot',
+        showLive && liveClipping && 'is-live-clipping',
+      )}
+    >
+      <canvas
+        ref={canvasRef}
+        className={cn(
+          'studio-timeline-clip-waveform',
+          `studio-timeline-clip-waveform--${waveStyle}`,
+          ready && 'is-ready',
+        )}
+        aria-hidden
+      />
+      {showLive && (
+        <>
+          <div
+            className="studio-timeline-clip-waveform-live-line"
+            style={{ left: `${playheadRatio * 100}%` }}
+            aria-hidden
+          />
+          <div
+            className={cn(
+              'studio-timeline-clip-waveform-live-bar',
+              liveClipping && 'is-clipping',
+              liveHot && !liveClipping && 'is-hot',
+            )}
+            style={{
+              left: `${playheadRatio * 100}%`,
+              height: `${liveBarPct}%`,
+            }}
+            aria-hidden
+          />
+        </>
+      )}
+    </div>
   );
 }

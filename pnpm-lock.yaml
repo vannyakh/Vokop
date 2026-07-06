@@ -8,6 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@vokop/devtools':
+        specifier: workspace:*
+        version: link:internal/devtools
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.4(jiti@2.7.0)
+      prettier:
+        specifier: ^3.6.2
+        version: 3.9.4
       turbo:
         specifier: ^2.5.4
         version: 2.10.2

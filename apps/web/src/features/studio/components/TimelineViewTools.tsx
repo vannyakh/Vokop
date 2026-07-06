@@ -10,6 +10,12 @@ import { StudioIcon } from '@vokop/ui';
 import { Dropdown, type MenuProps } from '@vokop/ui/antd';
 import { TimelineToolButton } from '@/features/studio/components/TimelineToolButton';
 import { formatMenuShortcut } from '@/features/studio/lib/shortcutKeys';
+import {
+  TIMELINE_ZOOM_BUTTON_STEP,
+  TIMELINE_ZOOM_MAX,
+  TIMELINE_ZOOM_MIN,
+  TIMELINE_ZOOM_STEP,
+} from '@/features/studio/lib/timelineTypes';
 
 interface TimelineViewToolsProps {
   hasVoiceover: boolean;
@@ -24,6 +30,11 @@ interface TimelineViewToolsProps {
   onZoomChange: (zoom: number) => void;
   onToggleFullscreen: () => void;
   onOpenVoiceTools?: () => void;
+  zoomSliderProps?: {
+    onPointerDown: () => void;
+    onPointerUp: () => void;
+    onPointerCancel: () => void;
+  };
 }
 
 /** Right toolbar cluster: voice, snap, zoom, fullscreen (+ overflow menu). */
@@ -40,6 +51,7 @@ export function TimelineViewTools({
   onZoomChange,
   onToggleFullscreen,
   onOpenVoiceTools,
+  zoomSliderProps,
 }: TimelineViewToolsProps) {
   const moreItems = useMemo<MenuProps['items']>(
     () => [
@@ -149,27 +161,28 @@ export function TimelineViewTools({
 
       <div className="studio-playback-tool-group studio-playback-zoom">
         <TimelineToolButton
-          onClick={() => onZoomChange(Math.max(25, timelineZoom - 25))}
+          onClick={() => onZoomChange(Math.max(TIMELINE_ZOOM_MIN, timelineZoom - TIMELINE_ZOOM_BUTTON_STEP))}
           title={`Zoom out (${formatMenuShortcut(['mod', '-'])})`}
-          disabled={timelineZoom <= 25}
+          disabled={timelineZoom <= TIMELINE_ZOOM_MIN}
         >
           <StudioIcon name="zoomOut" size={15} />
         </TimelineToolButton>
         <input
           type="range"
-          min={25}
-          max={400}
-          step={25}
+          min={TIMELINE_ZOOM_MIN}
+          max={TIMELINE_ZOOM_MAX}
+          step={TIMELINE_ZOOM_STEP}
           value={timelineZoom}
           onChange={(e) => onZoomChange(Number(e.target.value))}
           className="studio-playback-zoom-slider"
           aria-label="Timeline zoom"
+          {...zoomSliderProps}
         />
         <span className="studio-playback-zoom-label font-mono">{timelineZoom}%</span>
         <TimelineToolButton
-          onClick={() => onZoomChange(Math.min(400, timelineZoom + 25))}
+          onClick={() => onZoomChange(Math.min(TIMELINE_ZOOM_MAX, timelineZoom + TIMELINE_ZOOM_BUTTON_STEP))}
           title={`Zoom in (${formatMenuShortcut(['mod', '+'])})`}
-          disabled={timelineZoom >= 400}
+          disabled={timelineZoom >= TIMELINE_ZOOM_MAX}
         >
           <StudioIcon name="zoomIn" size={15} />
         </TimelineToolButton>

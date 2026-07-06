@@ -27,6 +27,7 @@ interface CompositionBackgroundPanelProps {
   onChange: (patch: Partial<CompositionBackground>) => void;
   showApplyToAll?: boolean;
   onApplyToAll?: () => void;
+  compact?: boolean;
 }
 
 export function CompositionBackgroundPanel({
@@ -34,6 +35,7 @@ export function CompositionBackgroundPanel({
   onChange,
   showApplyToAll = false,
   onApplyToAll,
+  compact = false,
 }: CompositionBackgroundPanelProps) {
   const mediaAssets = useAppStore((s) => s.mediaAssets);
   const imageAssets = mediaAssets.filter((asset) => asset.kind === 'image' && asset.url);
@@ -76,27 +78,33 @@ export function CompositionBackgroundPanel({
       title="Background"
       summary={backgroundSummary(background)}
       defaultOpen
+      className={compact ? 'composition-panel-section' : undefined}
     >
-      <div className="composition-bg-mode-tabs" role="tablist" aria-label="Background mode">
+      <div
+        className={cn('composition-bg-mode-tabs', compact && 'composition-bg-mode-tabs--compact')}
+        role="tablist"
+        aria-label="Background mode"
+      >
         {MODE_TABS.map(({ mode, label, icon: Icon }) => (
           <button
             key={mode}
             type="button"
             role="tab"
             aria-selected={activeMode === mode}
+            aria-label={label}
             title={label}
             className={cn('composition-bg-mode-tab', activeMode === mode && 'is-active')}
             onClick={() => setMode(mode)}
           >
-            <Icon size={16} />
-            <span>{label}</span>
+            <Icon size={compact ? 14 : 16} />
+            {!compact ? <span>{label}</span> : null}
           </button>
         ))}
       </div>
 
       {activeMode === 'color' && (
-        <div className="composition-bg-section">
-          <div className="composition-bg-color-grid">
+        <div className={cn('composition-bg-section', compact && 'composition-bg-section--compact')}>
+          <div className={cn('composition-bg-color-grid', compact && 'composition-bg-color-grid--compact')}>
             {BACKGROUND_COLOR_PRESETS.map((color) => (
               <button
                 key={color}
@@ -110,22 +118,21 @@ export function CompositionBackgroundPanel({
                 onClick={() => onChange({ mode: 'color', color })}
               />
             ))}
+            <label className="composition-bg-color-swatch composition-bg-color-swatch--custom" title="Custom color">
+              <input
+                type="color"
+                value={background.color ?? '#000000'}
+                onChange={(e) => onChange({ mode: 'color', color: e.target.value })}
+                className="composition-bg-color-input"
+              />
+            </label>
           </div>
-          <label className="composition-bg-color-picker">
-            <span className="composition-bg-color-picker-label">Custom</span>
-            <input
-              type="color"
-              value={background.color ?? '#000000'}
-              onChange={(e) => onChange({ mode: 'color', color: e.target.value })}
-              className="composition-bg-color-input"
-            />
-          </label>
         </div>
       )}
 
       {activeMode === 'blur' && (
-        <div className="composition-bg-section">
-          <div className="composition-bg-blur-grid">
+        <div className={cn('composition-bg-section', compact && 'composition-bg-section--compact')}>
+          <div className={cn('composition-bg-blur-grid', compact && 'composition-bg-blur-grid--compact')}>
             {BACKGROUND_BLUR_LEVELS.map((level) => {
               const blurPx = blurLevelToPx(level.level);
               const isActive = (background.blurLevel ?? 0) === level.level;
@@ -140,7 +147,7 @@ export function CompositionBackgroundPanel({
                   <span className="composition-bg-blur-thumb-wrap">
                     {level.level === 0 ? (
                       <span className="composition-bg-blur-none">
-                        <Ban size={18} />
+                        <Ban size={compact ? 14 : 18} />
                       </span>
                     ) : (
                       <img
@@ -160,8 +167,8 @@ export function CompositionBackgroundPanel({
       )}
 
       {activeMode === 'image' && (
-        <div className="composition-bg-section">
-          <div className="composition-bg-image-grid">
+        <div className={cn('composition-bg-section', compact && 'composition-bg-section--compact')}>
+          <div className={cn('composition-bg-image-grid', compact && 'composition-bg-image-grid--compact')}>
             {BACKGROUND_IMAGE_PRESETS.map((preset) => (
               <button
                 key={preset.id}

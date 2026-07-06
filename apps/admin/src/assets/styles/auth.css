@@ -1,0 +1,223 @@
+/* ── Admin auth (login) ── */
+
+.admin-auth-page {
+  isolation: isolate;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 85% 55% at 50% -15%, rgba(99, 102, 241, 0.18), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(99, 102, 241, 0.1), transparent 50%),
+    radial-gradient(ellipse 40% 35% at 0% 80%, rgba(99, 102, 241, 0.06), transparent 45%);
+}
+
+.admin-auth-overlay {
+  isolation: isolate;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.admin-auth-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 4, 8, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.admin-auth-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 28rem;
+  padding: 2.5rem 2rem 2rem;
+  border-radius: 1.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, rgba(99, 102, 241, 0.25));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--panel-solid) 96%, rgba(99, 102, 241, 0.08)) 0%,
+    var(--panel-solid) 48%,
+    color-mix(in srgb, var(--panel-solid-even) 92%, transparent) 100%
+  );
+  color: var(--text);
+  box-shadow:
+    0 32px 64px -24px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+@media (min-width: 640px) {
+  .admin-auth-panel {
+    max-width: 30rem;
+    padding: 3rem 2.5rem 2.5rem;
+    border-radius: 2rem;
+  }
+}
+
+.admin-auth-icon-btn {
+  position: absolute;
+  top: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-hi) 90%, transparent);
+  color: var(--text-mid);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.admin-auth-icon-btn:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--indigo) 40%, var(--border));
+  background: color-mix(in srgb, var(--surface-hi) 80%, var(--indigo-dim));
+}
+
+.admin-auth-icon-btn--back {
+  left: 1rem;
+}
+
+.admin-auth-icon-btn--close {
+  right: 1rem;
+}
+
+.admin-auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+}
+
+.admin-auth-head {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.admin-auth-title {
+  font-size: clamp(1.5rem, 4vw, 1.875rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.admin-auth-subtitle {
+  margin-top: 0.625rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-mid);
+  max-width: 28ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-auth-subtitle--email {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.admin-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.admin-auth-field {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0 1.125rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, rgba(255, 255, 255, 0.06));
+  background: color-mix(in srgb, var(--surface-hi) 88%, transparent);
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.admin-auth-field::placeholder {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.admin-auth-field:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--indigo) 55%, var(--border));
+  background: color-mix(in srgb, var(--surface-hi) 96%, var(--indigo-dim));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--indigo) 18%, transparent);
+}
+
+.admin-auth-submit {
+  width: 100%;
+  min-height: 3.25rem;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: 9999px;
+  background: var(--indigo);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: 0 10px 28px -10px var(--indigo-glow);
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.admin-auth-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: 0 14px 32px -10px var(--indigo-glow);
+}
+
+.admin-auth-submit:disabled {
+  background: color-mix(in srgb, var(--indigo) 35%, var(--surface-hi));
+  color: var(--text-dim);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.admin-auth-error {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #e8746a;
+  text-align: center;
+}
+
+.admin-auth-footnote {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.admin-auth-step {
+  display: flex;
+  flex-direction: column;
+}

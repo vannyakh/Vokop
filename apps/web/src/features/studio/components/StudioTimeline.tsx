@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
   type MouseEvent as ReactMouseEvent,
   type DragEvent as ReactDragEvent,
+  type WheelEvent as ReactWheelEvent,
   type RefObject,
 } from 'react';
 import type {
@@ -25,10 +27,11 @@ import {
   ADDABLE_TRACK_TYPES,
   TIMELINE_BASE_PX_PER_SEC,
   TIMELINE_RULER_HEIGHT,
-  TRACK_HEIGHT,
+  TIMELINE_ZOOM_STEP,
 } from '@/features/studio/lib/timelineTypes';
 import { useTranslation } from '@/features/settings';
 import { useSidePanelSplit } from '@/features/studio/hooks/useSidePanelSplit';
+import { useTimelineTrackHeights } from '@/features/studio/hooks/useTimelineTrackHeights';
 import { useVideoFilmstrip } from '@/features/studio/hooks/useVideoFilmstrip';
 import { useTimelineTracks } from '@/features/studio/hooks/useTimelineTracks';
 import { useTimelineClipDrag } from '@/features/studio/hooks/useTimelineClipDrag';
@@ -77,6 +80,12 @@ import {
 interface StudioTimelineProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   isPlaying?: boolean;
+  timelineZoom?: number;
+  isZooming?: boolean;
+  onZoomChange?: (zoom: number) => void;
+  playbackAudioHot?: boolean;
+  playbackAudioClipping?: boolean;
+  playbackPeakLevel?: number;
 }
 
 const ADD_TRACK_ICONS = {
@@ -89,18 +98,28 @@ const ADD_TRACK_ICONS = {
   audio: Mic2,
 } as const;
 
-function formatRulerTick(seconds: number, compact = false): string {
-  if (seconds < 3600) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    if (compact) {
-      // Skip leading zero minute: "0:05" → "0:05", "1:00" → "1:00"
-      return `${m}:${s.toString().padStart(2, '0')}`;
+function formatRulerTick(seconds: number, compact = false, subSecond = false): string {
+  const safe = Math.max(0, seconds);
+  if (safe < 3600) {
+    const m = Math.floor(safe / 60);
+    const s = safe % 60;
+    if (subSecond || (compact && safe < 60 && Math.abs(s - Math.round(s)) > 0.01)) {
+      if (m > 0) {
+        const whole = Math.floor(s);
+        const frac = Math.round((s - whole) * 10);
+        return frac > 0
+          ? `${m}:${whole.toString().padStart(2, '0')}.${frac}`
+          : `${m}:${whole.toString().padStart(2, '0')}`;
+      }
+      return `${s.toFixed(1).replace(/\.0$/, '')}s`;
     }
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if (compact) {
+      return `${m}:${Math.floor(s).toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${Math.floor(s).toString().padStart(2, '0')}`;
   }
-  const h = Math.floor(seconds / 3600);
-  const rem = seconds % 3600;
+  const h = Math.floor(safe / 3600);
+  const rem = safe % 3600;
   const m = Math.floor(rem / 60);
   const s = Math.floor(rem % 60);
   return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -108,29 +127,73 @@ function formatRulerTick(seconds: number, compact = false): string {
 
 /**
  * Choose adaptive major/minor tick intervals based on zoom level.
- * Returns { majorInterval, minorDivisions } where minorDivisions is how many
- * minor ticks fit between each pair of major ticks.
+ * Target ~72–140px between major ticks; finer frames when zoomed in.
  */
-function getRulerIntervals(pxPerSec: number): { majorInterval: number; minorDivisions: number } {
-  // Target: major tick every ~80-160px
+function getRulerIntervals(pxPerSec: number): {
+  majorInterval: number;
+  minorDivisions: number;
+  subSecondLabels: boolean;
+} {
   const candidates: [number, number][] = [
-    [1,    5],   // 1s major, 5 minor (0.2s each)
-    [5,    5],   // 5s major, 5 minor (1s each)
-    [10,   5],   // 10s major
-    [15,   3],   // 15s major
-    [30,   5],   // 30s
-    [60,   4],   // 1 min
-    [120,  4],   // 2 min
-    [300,  5],   // 5 min
-    [600,  5],   // 10 min
+    [0.1, 5],
+    [0.2, 4],
+    [0.25, 5],
+    [0.5, 5],
+    [1, 5],
+    [2, 4],
+    [5, 5],
+    [10, 5],
+    [15, 3],
+    [30, 5],
+    [60, 4],
+    [120, 4],
+    [300, 5],
+    [600, 5],
   ];
   for (const [interval, divisions] of candidates) {
-    if (pxPerSec * interval >= 90) return { majorInterval: interval, minorDivisions: divisions };
+    if (pxPerSec * interval >= 72) {
+      return {
+        majorInterval: interval,
+        minorDivisions: divisions,
+        subSecondLabels: interval < 1,
+      };
+    }
   }
-  return { majorInterval: 600, minorDivisions: 5 };
+  return { majorInterval: 600, minorDivisions: 5, subSecondLabels: false };
 }
 
-export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelineProps) {
+function buildRulerTicks(span: number, pxPerSec: number) {
+  if (!span) return { majorTicks: [0], minorTicks: [] as number[], subSecondLabels: false };
+  const { majorInterval, minorDivisions, subSecondLabels } = getRulerIntervals(pxPerSec);
+  const majorMs = Math.max(1, Math.round(majorInterval * 1000));
+  const minorMs = Math.max(1, Math.round((majorInterval / minorDivisions) * 1000));
+  const spanMs = Math.ceil(span * 1000);
+
+  const majorTicks: number[] = [];
+  for (let ms = 0; ms <= spanMs + majorMs; ms += majorMs) {
+    majorTicks.push(ms / 1000);
+  }
+
+  const majorSet = new Set(majorTicks.map((t) => Math.round(t * 1000)));
+  const minorTicks: number[] = [];
+  for (let ms = 0; ms <= spanMs + minorMs; ms += minorMs) {
+    if (majorSet.has(ms)) continue;
+    minorTicks.push(ms / 1000);
+  }
+
+  return { majorTicks, minorTicks, subSecondLabels };
+}
+
+export function StudioTimeline({
+  videoRef,
+  isPlaying = false,
+  timelineZoom: timelineZoomProp,
+  isZooming = false,
+  onZoomChange,
+  playbackAudioHot = false,
+  playbackAudioClipping = false,
+  playbackPeakLevel = 0,
+}: StudioTimelineProps) {
   const { t } = useTranslation();
   const {
     width: headerWidth,
@@ -151,7 +214,8 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const duration = useAppStore((s) => s.duration);
   const mediaDuration = useAppStore((s) => s.mediaDuration);
   const currentTime = useAppStore((s) => s.currentTime);
-  const timelineZoom = useAppStore((s) => s.timelineZoom);
+  const storeTimelineZoom = useAppStore((s) => s.timelineZoom);
+  const timelineZoom = timelineZoomProp ?? storeTimelineZoom;
   const videoClips = useAppStore((s) => s.videoClips);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
   const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
@@ -205,6 +269,13 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     hint: string;
   } | null>(null);
   const tracks = useTimelineTracks();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headerColRef = useRef<HTMLDivElement>(null);
+  const rulerRef = useRef<HTMLDivElement>(null);
+  const tracksContainerRef = useRef<HTMLDivElement>(null);
+  const marqueeRef = useRef<{ rect: DOMRect; x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const { getHeight, trackHeights, trackTops, getResizeHandleProps } =
+    useTimelineTrackHeights(tracks, { headerColRef, tracksContainerRef });
   const timelineIsEmpty = isTimelineEmpty(tracks);
   const displayDuration = timelineIsEmpty ? emptyTimelineDurationSec(duration) : duration || 1;
   const { thumbnails, loading: filmstripLoading, progress: filmstripProgress } =
@@ -214,11 +285,6 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<TimelineContextMenuTarget | null>(null);
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const headerColRef = useRef<HTMLDivElement>(null);
-  const rulerRef = useRef<HTMLDivElement>(null);
-  const tracksContainerRef = useRef<HTMLDivElement>(null);
-  const marqueeRef = useRef<{ rect: DOMRect; x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   const pxPerSec = TIMELINE_BASE_PX_PER_SEC * (timelineZoom / 100);
   const timelineContentWidth = Math.max(640, timeToPx(displayDuration, pxPerSec) + 80);
@@ -228,31 +294,17 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     pxPerSec,
     duration,
     tracks,
+    trackHeights,
     tracksContainerRef,
   );
 
-  const { rulerMajorTicks, rulerMinorTicks } = useMemo(() => {
-    const span = displayDuration;
-    if (!span) return { rulerMajorTicks: [0], rulerMinorTicks: [] as number[] };
-    const { majorInterval, minorDivisions } = getRulerIntervals(pxPerSec);
-    const minorInterval = majorInterval / minorDivisions;
-    const majorTicks: number[] = [];
-    const minorTicks: number[] = [];
-    // Major ticks
-    for (let t = 0; t <= span + majorInterval; t += majorInterval) {
-      const snapped = Math.round(t / majorInterval) * majorInterval;
-      if (snapped <= span + majorInterval) majorTicks.push(snapped);
-    }
-    // Minor ticks (exclude positions that coincide with major)
-    const majorSet = new Set(majorTicks.map((t) => Math.round(t * 1000)));
-    for (let t = 0; t <= span + majorInterval; t += minorInterval) {
-      const snapped = Math.round(t * 1000);
-      if (!majorSet.has(snapped)) {
-        const secs = snapped / 1000;
-        if (secs <= span + minorInterval) minorTicks.push(secs);
-      }
-    }
-    return { rulerMajorTicks: majorTicks, rulerMinorTicks: minorTicks };
+  const { rulerMajorTicks, rulerMinorTicks, rulerSubSecondLabels } = useMemo(() => {
+    const { majorTicks, minorTicks, subSecondLabels } = buildRulerTicks(displayDuration, pxPerSec);
+    return {
+      rulerMajorTicks: majorTicks,
+      rulerMinorTicks: minorTicks,
+      rulerSubSecondLabels: subSecondLabels,
+    };
   }, [displayDuration, pxPerSec]);
 
   const seekTimeline = useAppStore((s) => s.seekTimeline);
@@ -309,14 +361,24 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
     }
   }, [playheadX, draggingPlayhead, isPlaying]);
 
-  const trackTops = useMemo(() => {
-    let acc = 0;
-    return tracks.map((t) => {
-      const top = acc;
-      acc += TRACK_HEIGHT[t.type];
-      return top;
-    });
-  }, [tracks]);
+  const prevPxPerSecRef = useRef(pxPerSec);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || prevPxPerSecRef.current === pxPerSec) return;
+    prevPxPerSecRef.current = pxPerSec;
+    const anchor = playheadX - el.clientWidth * 0.38;
+    el.scrollLeft = Math.max(0, anchor);
+  }, [pxPerSec, playheadX]);
+
+  const handleTimelineWheel = useCallback(
+    (e: ReactWheelEvent<HTMLDivElement>) => {
+      if (!onZoomChange || (!e.ctrlKey && !e.metaKey)) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -TIMELINE_ZOOM_STEP : TIMELINE_ZOOM_STEP;
+      onZoomChange(timelineZoom + delta);
+    },
+    [onZoomChange, timelineZoom],
+  );
 
   /* marquee select handlers */
   const beginMarquee = useCallback(
@@ -351,7 +413,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
             const hits: TimelineSelectionItem[] = [];
             tracks.forEach((t, i) => {
               const top = trackTops[i] + 4;
-              const bottom = top + TRACK_HEIGHT[t.type] - 8;
+              const bottom = top + trackHeights[i] - 8;
               if (bottom < my1 || top > my2) return;
               t.clips.forEach((c: TimelineClipModel) => {
                 const cl = timeToPx(c.start, pxPerSec);
@@ -371,7 +433,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     },
-    [tracks, trackTops, pxPerSec, clearSelection, selectItems],
+    [tracks, trackTops, trackHeights, pxPerSec, clearSelection, selectItems],
   );
 
   useEffect(() => {
@@ -542,16 +604,19 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           className="studio-timeline-header-spacer"
           style={{ height: TIMELINE_RULER_HEIGHT }}
         />
-        {tracks.map((track, index) => (
+        {tracks.map((track, index) => {
+          const laneHeight = getHeight(track);
+          return (
           <TimelineTrackHeader
             key={track.id}
             track={track}
             index={index}
-            height={TRACK_HEIGHT[track.type]}
+            height={laneHeight}
             muted={timelineTrackMuted[track.id] ?? false}
             previewHidden={timelineTrackPreviewHidden[track.id] ?? false}
             dragging={dragTrackId === track.id}
             dropTarget={dropHeaderTrackId === track.id && dragTrackId !== track.id}
+            resizeHandleProps={getResizeHandleProps(track, laneHeight)}
             onToggleMute={() => toggleTimelineTrackMuted(track.id)}
             onTogglePreview={() => toggleTimelineTrackPreviewHidden(track.id)}
             onAddClip={() => addTimelineClip(track.id as TimelineTrackId, currentTime)}
@@ -607,7 +672,8 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               setDropHeaderTrackId(null);
             }}
           />
-        ))}
+          );
+        })}
         <Dropdown
           trigger={['click']}
           placement="topLeft"
@@ -655,8 +721,10 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           'studio-timeline-scroll',
           externalDrop && 'studio-timeline-scroll--drop-active',
           timelineIsEmpty && 'studio-timeline-scroll--empty',
+          isZooming && 'is-zooming',
         )}
         ref={scrollRef}
+        onWheel={handleTimelineWheel}
         onScroll={syncHeaderScroll}
         onContextMenu={(e) => openContextMenu(e)}
         onMouseMove={(e) => {
@@ -673,7 +741,10 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
         }}
         style={{ ['--timeline-grid' as string]: `${pxPerSec}px` }}
       >
-        <div className="studio-timeline-content" style={{ width: timelineContentWidth }}>
+        <div
+          className={cn('studio-timeline-content', isZooming && 'is-zooming')}
+          style={{ width: timelineContentWidth }}
+        >
           {/* Ruler */}
           <div
             ref={rulerRef}
@@ -704,7 +775,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
               >
                 <span className="studio-timeline-ruler-tick-line" />
                 <span className="studio-timeline-ruler-tick-label font-mono">
-                  {formatRulerTick(tick, true)}
+                  {formatRulerTick(tick, true, rulerSubSecondLabels)}
                 </span>
               </div>
             ))}
@@ -716,7 +787,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                 style={{ left: hoverX ?? 0 }}
                 aria-hidden
               >
-                {formatRulerTick(hoverTime, true)}
+                {formatRulerTick(hoverTime, true, rulerSubSecondLabels)}
               </div>
             )}
           </div>
@@ -765,7 +836,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
           ) : (
           <>
           {tracks.map((track, trackIndex) => {
-            const laneHeight = TRACK_HEIGHT[track.type];
+            const laneHeight = trackHeights[trackIndex] ?? getHeight(track);
             const muted = timelineTrackMuted[track.id] ?? false;
             const previewHidden = timelineTrackPreviewHidden[track.id] ?? false;
             const clipHeight =
@@ -795,6 +866,7 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                   opacity: muted && track.type !== 'video' ? 0.45 : previewHidden ? 0.72 : 1,
                 }}
                 data-track-index={trackIndex}
+                data-track-id={track.id}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.studio-timeline-clip-block')) return;
                   seekFromLaneClick(e.clientX);
@@ -875,6 +947,14 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       ? { ...clip, start: clipStart, duration: clipDuration, sourceStart: clipSourceStart }
                       : clip;
                   const isInteracting = preview != null;
+                  const isUnderPlayhead =
+                    (track.type === 'sound' || track.type === 'audio') &&
+                    currentTime >= clipStart &&
+                    currentTime < clipStart + clipDuration;
+                  const isLoud = isUnderPlayhead && playbackAudioHot;
+                  const playheadRatio = isUnderPlayhead
+                    ? (currentTime - clipStart) / Math.max(clipDuration, 0.01)
+                    : undefined;
 
                   return (
                     <TimelineClipBlock
@@ -887,6 +967,9 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                       selected={selected}
                       canDrag={canDragClip}
                       interacting={isInteracting}
+                      underPlayhead={isUnderPlayhead}
+                      loud={isLoud}
+                      clipping={isUnderPlayhead && playbackAudioClipping}
                       muted={
                         muted ||
                         (track.type === 'video' &&
@@ -911,6 +994,9 @@ export function StudioTimeline({ videoRef, isPlaying = false }: StudioTimelinePr
                           height={clipHeight}
                           trackType={track.type}
                           stretchOnly={isInteracting}
+                          underPlayhead={isUnderPlayhead}
+                          playheadRatio={playheadRatio}
+                          livePeakLevel={isUnderPlayhead ? playbackPeakLevel : 0}
                         />
                       )}
                       {track.type === 'video' && width > 8 && (

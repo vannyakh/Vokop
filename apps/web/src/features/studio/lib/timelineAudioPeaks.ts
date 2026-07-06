@@ -1,4 +1,4 @@
-interface PeakEntry {
+export interface PeakEntry {
   peaks: Float32Array;
   duration: number;
 }
@@ -6,8 +6,20 @@ interface PeakEntry {
 const peakCache = new Map<string, PeakEntry>();
 const inflight = new Map<string, Promise<PeakEntry>>();
 
-// High-resolution peak buffer: 16k samples gives crisp waveforms at any zoom/clip width
-const DEFAULT_SAMPLES = 16384;
+// High-resolution peak buffer: 32k samples for fine detail when zoomed in
+const DEFAULT_SAMPLES = 32768;
+
+/** Soft cap — bar slots expand to fill width when clip is wider than this. */
+export const MAX_WAVEFORM_DRAW_BARS = 12288;
+
+/** Bar buckets for a clip canvas width (more bars when zoomed in). */
+export function computeWaveformBarCount(canvasPx: number, style: WaveformDrawStyle = 'audio'): number {
+  const min = 48;
+  const max = style === 'video' ? MAX_WAVEFORM_DRAW_BARS : 16384;
+  const pxPerBar = style === 'video' ? 1 : 1.15;
+  const target = Math.ceil(canvasPx / pxPerBar);
+  return Math.min(max, Math.max(min, target));
+}
 
 async function decodePeaksFromUrl(url: string, samples = DEFAULT_SAMPLES): Promise<PeakEntry> {
   const response = await fetch(url);
@@ -58,6 +70,10 @@ export async function getAudioPeaks(key: string, url: string): Promise<PeakEntry
   return task;
 }
 
+export function getCachedAudioPeaks(key: string): PeakEntry | undefined {
+  return peakCache.get(key);
+}
+
 /** Resample peak slice for clip trim + pixel width. */
 export function peaksForClipRegion(
   peaks: Float32Array,
@@ -80,17 +96,51 @@ export function peaksForClipRegion(
 
   const out = new Float32Array(barCount);
   for (let i = 0; i < barCount; i++) {
-    const t = i / barCount;
-    const srcIdx = Math.min(slice.length - 1, Math.floor(t * slice.length));
-    out[i] = slice[srcIdx] ?? 0;
+    const t0 = i / barCount;
+    const t1 = (i + 1) / barCount;
+    const i0 = Math.min(slice.length - 1, Math.floor(t0 * slice.length));
+    const i1 = Math.max(i0 + 1, Math.min(slice.length, Math.ceil(t1 * slice.length)));
+    let max = 0;
+    for (let j = i0; j < i1; j++) {
+      max = Math.max(max, slice[j] ?? 0);
+    }
+    out[i] = max;
   }
   return out;
+}
+
+/** Scale peaks to 0–1 relative to the loudest sample in this clip region. */
+export function normalizeWaveformPeaks(peaks: Float32Array): Float32Array {
+  let max = 0;
+  for (let i = 0; i < peaks.length; i++) {
+    max = Math.max(max, peaks[i] ?? 0);
+  }
+  if (max <= 1e-6) return peaks;
+  const out = new Float32Array(peaks.length);
+  for (let i = 0; i < peaks.length; i++) {
+    out[i] = (peaks[i] ?? 0) / max;
+  }
+  return out;
+}
+
+export const WAVEFORM_HIGH_PEAK = 0.62;
+export const WAVEFORM_CLIP_PEAK = 0.82;
+
+export type WaveformDrawStyle = 'audio' | 'sound' | 'video';
+
+export interface WaveformColors {
+  fill: string;
+  bg?: string;
+  glow?: string;
+  hot?: string;
+  clip?: string;
 }
 
 export function drawTimelineWaveform(
   canvas: HTMLCanvasElement,
   peaks: Float32Array,
-  colors: { fill: string; bg?: string },
+  colors: WaveformColors,
+  style: WaveformDrawStyle = 'audio',
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -104,46 +154,155 @@ export function drawTimelineWaveform(
 
   if (peaks.length === 0) return;
 
-  // ── Global horizontal gradient across full waveform width ──
-  // Mimics CapCut / Logic Pro waveform coloring: uniform bright teal from left to right
-  const grad = ctx.createLinearGradient(0, 0, w, 0);
-  grad.addColorStop(0,   colorWithAlpha(colors.fill, 0.72));
-  grad.addColorStop(0.5, colorWithAlpha(colors.fill, 1.0));
-  grad.addColorStop(1,   colorWithAlpha(colors.fill, 0.80));
+  const displayPeaks = normalizeWaveformPeaks(peaks);
 
-  // ── Ultra-thin bars: 1.5 canvas-px wide, 0.5 canvas-px gap ──
-  // This produces the dense "audio signal" look regardless of bar count
-  const BAR_PX  = 1.5;   // canvas pixels per bar
-  const GAP_PX  = 0.5;   // gap between bars
-  const STEP_PX = BAR_PX + GAP_PX;
-
-  const totalBars = peaks.length;
-
-  // Map each bar to its canvas x position
-  const xStep = w / totalBars;
-
-  // Minimum height so silent areas still show a hairline
-  const MIN_AMP = Math.max(1.5, h * 0.03);
-
-  ctx.fillStyle = grad;
-
-  // Batch all bars into a single path for maximum performance
-  ctx.beginPath();
-  for (let i = 0; i < totalBars; i++) {
-    const raw = peaks[i] ?? 0;
-    const amp = Math.max(MIN_AMP, raw * (mid - 1) * 0.95);
-    const x   = i * xStep;
-    const top = mid - amp;
-    const ht  = amp * 2;
-
-    // Use rect() inside path — renders as one batched GPU draw call
-    ctx.rect(x, top, BAR_PX, ht);
+  if (colors.bg) {
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(0, 0, w, h);
   }
-  ctx.fill();
 
-  // ── Center baseline ──
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle   = colors.fill;
+  const hScale = Math.max(0.85, Math.min(1.75, h / 72));
+  const isSound = style === 'sound';
+  const isVideo = style === 'video';
+  const pillBarPx = (isSound ? 2.25 : isVideo ? 1.25 : 1.5) * hScale;
+  const totalBars = displayPeaks.length;
+  const slotW = totalBars > 0 ? w / totalBars : w;
+  const useContinuous = slotW <= 2.2;
+  const MIN_AMP = Math.max(isSound ? 2 : 1.5, h * (isSound ? 0.045 : 0.03));
+  const ampScale = isSound ? 0.98 : 0.95;
+  const hotFill = colors.hot ?? 'rgba(251, 146, 60, 0.98)';
+  const clipFill = colors.clip ?? 'rgba(239, 68, 68, 0.98)';
+
+  const grad = ctx.createLinearGradient(0, 0, w, 0);
+  if (isSound) {
+    grad.addColorStop(0, colorWithAlpha(colors.fill, 0.68));
+    grad.addColorStop(0.35, colorWithAlpha(colors.fill, 0.92));
+    grad.addColorStop(0.65, colorWithAlpha(colors.fill, 1));
+    grad.addColorStop(1, colorWithAlpha(colors.fill, 0.72));
+  } else {
+    grad.addColorStop(0, colorWithAlpha(colors.fill, 0.72));
+    grad.addColorStop(0.5, colorWithAlpha(colors.fill, 1));
+    grad.addColorStop(1, colorWithAlpha(colors.fill, 0.8));
+  }
+
+  const resolveBarWidth = () => {
+    if (useContinuous) return Math.max(1, slotW);
+    if (slotW <= pillBarPx * 1.35) return Math.max(1, slotW * 0.94);
+    return Math.min(pillBarPx, slotW * 0.82);
+  };
+  const defaultBarW = resolveBarWidth();
+
+  const barGeometry: { x: number; top: number; ht: number; barW: number; raw: number }[] = [];
+  for (let i = 0; i < totalBars; i++) {
+    const raw = displayPeaks[i] ?? 0;
+    const amp = Math.max(MIN_AMP, raw * (mid - 1) * ampScale);
+    const bw = defaultBarW;
+    barGeometry.push({
+      x: i * slotW + (slotW - bw) * 0.5,
+      top: mid - amp,
+      ht: amp * 2,
+      barW: bw,
+      raw,
+    });
+  }
+
+  const drawContinuousEnvelope = (
+    filter: (raw: number) => boolean,
+    fill: CanvasGradient | string,
+    alpha: number,
+  ) => {
+    if (totalBars < 2) return;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    for (let i = 0; i < totalBars; i++) {
+      const raw = displayPeaks[i] ?? 0;
+      const amp = filter(raw) ? Math.max(MIN_AMP, raw * (mid - 1) * ampScale) : 0;
+      ctx.lineTo(i * slotW + slotW * 0.5, mid - amp);
+    }
+    for (let i = totalBars - 1; i >= 0; i--) {
+      const raw = displayPeaks[i] ?? 0;
+      const amp = filter(raw) ? Math.max(MIN_AMP, raw * (mid - 1) * ampScale) : 0;
+      ctx.lineTo(i * slotW + slotW * 0.5, mid + amp);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const drawBarBatch = (
+    filter: (raw: number) => boolean,
+    fill: CanvasGradient | string,
+    alpha: number,
+    widthMul: number,
+    ampMul: number,
+    useRound: boolean,
+  ) => {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    for (const bar of barGeometry) {
+      if (!filter(bar.raw)) continue;
+      const amp = Math.max(MIN_AMP * ampMul, bar.raw * (mid - 1) * ampScale * ampMul);
+      const top = mid - amp;
+      const ht = amp * 2;
+      const barW = bar.barW * widthMul;
+      if (useRound && typeof ctx.roundRect === 'function') {
+        ctx.roundRect(bar.x, top, barW, ht, barW * 0.45);
+      } else {
+        ctx.rect(bar.x, top, barW, ht);
+      }
+    }
+    ctx.fill();
+  };
+
+  if (isSound && colors.glow) {
+    ctx.fillStyle = colors.glow;
+    ctx.fillRect(0, 0, w, h);
+    if (useContinuous) {
+      drawContinuousEnvelope(() => true, grad, 0.42);
+    } else {
+      drawBarBatch(() => true, grad, 0.42, 2.4, 1.12, true);
+    }
+  }
+
+  if (useContinuous) {
+    drawContinuousEnvelope((raw) => raw < WAVEFORM_HIGH_PEAK, grad, 1);
+    drawContinuousEnvelope(
+      (raw) => raw >= WAVEFORM_HIGH_PEAK && raw < WAVEFORM_CLIP_PEAK,
+      hotFill,
+      1,
+    );
+    drawContinuousEnvelope((raw) => raw >= WAVEFORM_CLIP_PEAK, clipFill, 1);
+  } else {
+    drawBarBatch(
+      (raw) => raw < WAVEFORM_HIGH_PEAK,
+      grad,
+      1,
+      1,
+      1,
+      isSound,
+    );
+    drawBarBatch(
+      (raw) => raw >= WAVEFORM_HIGH_PEAK && raw < WAVEFORM_CLIP_PEAK,
+      hotFill,
+      1,
+      1,
+      1.04,
+      isSound,
+    );
+    drawBarBatch(
+      (raw) => raw >= WAVEFORM_CLIP_PEAK,
+      clipFill,
+      1,
+      1.08,
+      1.08,
+      isSound,
+    );
+  }
+
+  ctx.globalAlpha = isSound ? 0.12 : 0.18;
+  ctx.fillStyle = colors.fill;
   ctx.fillRect(0, mid - 0.5, w, 1);
   ctx.globalAlpha = 1;
 }

@@ -27,19 +27,19 @@ export function StudioWorkspace() {
   const isExporting = useAppStore((s) => s.isExporting);
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
-  const { containerRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
+  const { containerRef, dockShellRef, dockHeight, dragging, splitterProps } = useTimelineDockSplit();
   useCanvasKeyboardShortcuts(videoRef);
   useTimelinePlayback(videoRef);
-  useLinkedVideoAudioPlayback(videoRef);
+  const { timelineAudioRef } = useLinkedVideoAudioPlayback(videoRef);
   useVideoSession();
 
   useEffect(() => {
     preloadLocalFonts();
   }, []);
 
-  const { audioContextRef, audioSourceRef, videoSourceRef, connectVideoAudioGraph, stopAudio, playSegment } =
+  const { audioContextRef, audioSourceRef, videoSourceRef, connectVideoAudioGraph, connectTimelineAudioGraph, stopAudio, playSegment } =
     useAudioEngine();
-  const { processAll, previewVoice, regenerateVoiceover } = useVideoProcessing();
+  const { previewVoice, regenerateVoiceover } = useVideoProcessing();
 
   const syncRefs = {
     videoRef,
@@ -99,11 +99,16 @@ export function StudioWorkspace() {
                 className={cn('studio-panel-splitter', dragging && 'is-dragging')}
                 {...splitterProps}
               />
-              <div className="studio-editor-dock-shell" style={{ height: dockHeight }}>
+              <div
+                ref={dockShellRef}
+                className={cn('studio-editor-dock-shell', dragging && 'is-resizing')}
+                style={{ height: dockHeight }}
+              >
                 <TimelineBar
                   videoRef={videoRef}
+                  timelineAudioRef={timelineAudioRef}
                   connectVideoAudioGraph={connectVideoAudioGraph}
-                  onProcessAll={processAll}
+                  connectTimelineAudioGraph={connectTimelineAudioGraph}
                   onToggleSyncPlayback={toggleSyncPlayback}
                 />
               </div>

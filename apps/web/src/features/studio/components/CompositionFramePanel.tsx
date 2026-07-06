@@ -18,7 +18,6 @@ function formatRatio(value: number): string {
   return (Math.round(value * 1000) / 1000).toFixed(3).replace(/\.?0+$/, '');
 }
 
-/** Composition frame size at 1080p reference height (matches export compositor logic). */
 function compositionExportSize(
   aspectRatio: AspectRatioId,
   videoWidth: number,
@@ -47,74 +46,85 @@ export function CompositionFramePanel() {
   const refSize = frameReferenceSize(videoWidth, videoHeight);
   const displayRatio =
     getDisplayRatio(aspectRatio, videoWidth, videoHeight) ??
-    (refSize.width / refSize.height);
+    refSize.width / refSize.height;
   const exportSize = compositionExportSize(aspectRatio, videoWidth, videoHeight);
+  const outputSummary = `${exportSize.width}×${exportSize.height} · ${formatStudioTimecode(duration)}`;
 
   return (
-    <InspectorDock title="Composition" icon={<Frame size={12} className="text-accent" />}>
+    <InspectorDock
+      title="Composition"
+      icon={<Frame size={12} className="text-accent" />}
+      className="composition-panel"
+    >
       <InspectorSection
-        id="composition-frame"
-        title="Frame"
+        id="composition-aspect"
+        title="Aspect"
         summary={ratioOption.label}
         defaultOpen
+        className="composition-panel-section"
       >
-        <PropertyRow label="Aspect">
-          <span className="property-row-value-readonly">{ratioOption.label}</span>
-        </PropertyRow>
-        <PropertyRow label="Ratio">
-          <span className="property-row-value-readonly font-mono">{formatRatio(displayRatio)}</span>
-        </PropertyRow>
-        <PropertyRow label="Source">
-          <span className="property-row-value-readonly font-mono">
-            {videoWidth > 0 && videoHeight > 0
-              ? `${videoWidth} × ${videoHeight}`
-              : '—'}
-          </span>
-        </PropertyRow>
-        <PropertyRow label="Export ref">
-          <span className="property-row-value-readonly font-mono">
-            {exportSize.width} × {exportSize.height}
-          </span>
-        </PropertyRow>
-        <PropertyRow label="Duration">
-          <span className="property-row-value-readonly font-mono">
-            {formatStudioTimecode(duration)}
-          </span>
-        </PropertyRow>
-        {mediaDuration > 0 && mediaDuration !== duration && (
-          <PropertyRow label="Media">
-            <span className="property-row-value-readonly font-mono">
-              {formatStudioTimecode(mediaDuration)}
-            </span>
-          </PropertyRow>
-        )}
+        <div className="composition-aspect-grid">
+          {ASPECT_RATIOS.map((option) => {
+            const active = aspectRatio === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                title={option.hint}
+                onClick={() => setAspectRatio(option.id)}
+                className={cn('composition-aspect-chip', active && 'is-active')}
+              >
+                <span className="composition-aspect-chip-icon" data-ratio={option.id} />
+                <span className="composition-aspect-chip-copy">
+                  <span className="composition-aspect-chip-label">{option.label}</span>
+                  <span className="composition-aspect-chip-hint">{option.hint}</span>
+                </span>
+                {active ? <Check size={12} className="composition-aspect-chip-check" /> : null}
+              </button>
+            );
+          })}
+        </div>
       </InspectorSection>
 
       <CompositionBackgroundPanel
         background={compositionBackground}
         onChange={(patch) => setCompositionBackground(patch)}
+        compact
       />
 
-      <InspectorSection id="composition-aspect" title="Aspect ratio" defaultOpen>
-        <div className="composition-frame-ratio-list">
-          {ASPECT_RATIOS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setAspectRatio(option.id)}
-              className={cn(
-                'studio-header-ratio-item composition-frame-ratio-item',
-                aspectRatio === option.id && 'active',
-              )}
-            >
-              <span className="studio-header-ratio-icon" data-ratio={option.id} />
-              <span className="studio-header-ratio-copy">
-                <span className="studio-header-ratio-label">{option.label}</span>
-                <span className="studio-header-ratio-hint">{option.hint}</span>
+      <InspectorSection
+        id="composition-output"
+        title="Output"
+        summary={outputSummary}
+        defaultOpen={false}
+        className="composition-panel-section composition-panel-section--dense"
+      >
+        <div className="composition-output-grid">
+          <PropertyRow label="Ratio">
+            <span className="property-row-value-readonly font-mono">{formatRatio(displayRatio)}</span>
+          </PropertyRow>
+          <PropertyRow label="Export">
+            <span className="property-row-value-readonly font-mono">
+              {exportSize.width} × {exportSize.height}
+            </span>
+          </PropertyRow>
+          <PropertyRow label="Source">
+            <span className="property-row-value-readonly font-mono">
+              {videoWidth > 0 && videoHeight > 0 ? `${videoWidth}×${videoHeight}` : '—'}
+            </span>
+          </PropertyRow>
+          <PropertyRow label="Duration">
+            <span className="property-row-value-readonly font-mono">
+              {formatStudioTimecode(duration)}
+            </span>
+          </PropertyRow>
+          {mediaDuration > 0 && mediaDuration !== duration ? (
+            <PropertyRow label="Media">
+              <span className="property-row-value-readonly font-mono">
+                {formatStudioTimecode(mediaDuration)}
               </span>
-              {aspectRatio === option.id && <Check size={14} className="text-accent shrink-0" />}
-            </button>
-          ))}
+            </PropertyRow>
+          ) : null}
         </div>
       </InspectorSection>
     </InspectorDock>

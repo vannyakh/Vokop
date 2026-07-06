@@ -184,6 +184,10 @@ export const DEFAULT_HIDDEN_CORE_TRACKS: string[] = [
 export const TRACK_HEADER_WIDTH = 220;
 export const TIMELINE_RULER_HEIGHT = 34;
 export const TIMELINE_BASE_PX_PER_SEC = 80;
+export const TIMELINE_ZOOM_MIN = 25;
+export const TIMELINE_ZOOM_MAX = 800;
+export const TIMELINE_ZOOM_STEP = 5;
+export const TIMELINE_ZOOM_BUTTON_STEP = 25;
 export const TIMELINE_MIN_CLIP_SEC = 0.4;
 
 /**
@@ -200,6 +204,54 @@ export const TRACK_HEIGHT: Record<TimelineTrackType, number> = {
   audio: 50,
   overlay: 50,
 };
+
+/** Compact row height when a track is resized smaller than its default. */
+export const TRACK_HEIGHT_COMPACT = 24;
+
+export const TRACK_HEIGHT_MIN: Record<TimelineTrackType, number> = {
+  video: TRACK_HEIGHT_COMPACT,
+  text: 22,
+  image: TRACK_HEIGHT_COMPACT,
+  sticker: TRACK_HEIGHT_COMPACT,
+  effect: TRACK_HEIGHT_COMPACT,
+  sound: TRACK_HEIGHT_COMPACT,
+  audio: TRACK_HEIGHT_COMPACT,
+  overlay: TRACK_HEIGHT_COMPACT,
+};
+
+export const TRACK_HEIGHT_MAX: Record<TimelineTrackType, number> = {
+  video: 120,
+  text: 80,
+  image: 120,
+  sticker: 120,
+  effect: 120,
+  sound: 120,
+  audio: 120,
+  overlay: 120,
+};
+
+export function clampTrackHeight(type: TimelineTrackType, height: number): number {
+  const min = TRACK_HEIGHT_MIN[type];
+  const max = TRACK_HEIGHT_MAX[type];
+  return Math.min(max, Math.max(min, Math.round(height)));
+}
+
+export function resolveTrackHeight(
+  type: TimelineTrackType,
+  overrides: Record<string, number>,
+  trackId: string,
+): number {
+  const override = overrides[String(trackId)];
+  if (override != null && Number.isFinite(override)) {
+    return clampTrackHeight(type, override);
+  }
+  return TRACK_HEIGHT[type];
+}
+
+/** Tracks at or below this height use compact header styling. */
+export function isCompactTrackHeight(height: number): boolean {
+  return height <= 32;
+}
 
 export const TRACK_ORDER: TimelineTrackId[] = [
   'video',

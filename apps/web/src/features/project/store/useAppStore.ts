@@ -43,6 +43,8 @@ import {
   isCoreTimelineTrack,
   isDeletableTimelineTrack,
   TRACK_TYPE_LABELS,
+  TIMELINE_ZOOM_MAX,
+  TIMELINE_ZOOM_MIN,
 } from '@/features/studio/lib/timelineTypes';
 import {
   coreTrackIdForMediaKind,
@@ -1461,7 +1463,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getVideoCssFilter: () => getFilterCss(get().projectEditor.videoFilterId),
 
-  setTimelineZoom: (zoom) => set({ timelineZoom: Math.min(400, Math.max(25, zoom)) }),
+  setTimelineZoom: (zoom) =>
+    set({
+      timelineZoom: Math.min(TIMELINE_ZOOM_MAX, Math.max(TIMELINE_ZOOM_MIN, zoom)),
+    }),
   toggleTimelineTrackMuted: (trackId) =>
     set((s) => ({
       timelineTrackMuted: { ...s.timelineTrackMuted, [trackId]: !s.timelineTrackMuted[trackId] },

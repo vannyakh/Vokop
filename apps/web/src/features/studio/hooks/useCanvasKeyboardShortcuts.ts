@@ -1,5 +1,10 @@
 import { useEffect, type RefObject } from 'react';
 import { useAppStore } from '@/features/project';
+import {
+  TIMELINE_ZOOM_BUTTON_STEP,
+  TIMELINE_ZOOM_MAX,
+  TIMELINE_ZOOM_MIN,
+} from '@/features/studio/lib/timelineTypes';
 import { FRAME_STEP_SEC, isModKey } from '@/features/studio/lib/shortcutKeys';
 import { openStudioChromeModal } from '@/features/studio/lib/studioChrome';
 
@@ -67,13 +72,13 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
       if (mod && (e.key === '+' || e.key === '=')) {
         e.preventDefault();
         const zoom = useAppStore.getState().timelineZoom;
-        setTimelineZoom(Math.min(400, zoom + 25));
+        setTimelineZoom(Math.min(TIMELINE_ZOOM_MAX, zoom + TIMELINE_ZOOM_BUTTON_STEP));
         return;
       }
       if (mod && e.key === '-') {
         e.preventDefault();
         const zoom = useAppStore.getState().timelineZoom;
-        setTimelineZoom(Math.max(25, zoom - 25));
+        setTimelineZoom(Math.max(TIMELINE_ZOOM_MIN, zoom - TIMELINE_ZOOM_BUTTON_STEP));
         return;
       }
 

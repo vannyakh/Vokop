@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import '@/admin-shell.css';
+import '@/assets/styles/auth.css';
 import '@vokop/ui/styles.css';
 import './index.css';
 import { AuthHydrationGate } from '@/components/AuthHydrationGate';
