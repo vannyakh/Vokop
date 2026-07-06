@@ -12,6 +12,10 @@ interface TimelineClipBlockProps {
   selected: boolean;
   filmstripThumbs?: string[];
   thumbWidth?: number;
+  /** When set, caps filmstrip frame band height (master-track density on overlay tracks). */
+  filmstripBandHeight?: number;
+  /** Static image/sticker preview strip (repeated thumbnail tiles). */
+  imagePreview?: boolean;
   children?: React.ReactNode;
   onSelect: (e?: React.MouseEvent) => void;
   onDragStart: (e: React.PointerEvent, mode: 'move' | 'left' | 'right') => void;
@@ -53,6 +57,8 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
   selected,
   filmstripThumbs,
   thumbWidth,
+  filmstripBandHeight,
+  imagePreview = false,
   children,
   onSelect,
   onDragStart,
@@ -76,6 +82,8 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
   const canEdit = canDrag && isEditableTrack;
   const isFootage = track.type === 'video';
   const isAudio = track.type === 'audio' || track.type === 'sound';
+  const showFilmstrip =
+    Boolean(filmstripThumbs?.length) && (isFootage || imagePreview);
   const variant = getClipVariant(clip, track.type);
 
   const displayLabel = useMemo(() => {
@@ -100,6 +108,8 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
         `studio-timeline-clip-variant--${variant}`,
         selected && 'is-selected',
         isFootage && 'studio-timeline-clip-block--footage',
+        showFilmstrip && 'studio-timeline-clip-block--has-preview',
+        imagePreview && 'studio-timeline-clip-block--image-preview',
         canEdit && 'studio-timeline-clip-block--editable',
         interacting && 'studio-timeline-clip-block--interacting',
         underPlayhead && 'is-under-playhead',
@@ -116,10 +126,23 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
         onContextMenu?.(e);
       }}
     >
-      {/* Filmstrip for video */}
-      {isFootage && filmstripThumbs && filmstripThumbs.length > 0 && (
-        <div className="studio-timeline-clip-filmstrip">
-          {filmstripThumbs.map((src, i) => (
+      {/* Filmstrip for video / tiled previews for image & sticker clips */}
+      {showFilmstrip && (
+        <div
+          className="studio-timeline-clip-filmstrip"
+          style={
+            isFootage && filmstripBandHeight != null
+              ? {
+                  height: filmstripBandHeight,
+                  maxHeight: filmstripBandHeight,
+                  ['--filmstrip-thumb-width' as string]: `${thumbWidth ?? 72}px`,
+                }
+              : thumbWidth != null
+                ? { ['--filmstrip-thumb-width' as string]: `${thumbWidth}px` }
+                : undefined
+          }
+        >
+          {filmstripThumbs!.map((src, i) => (
             <img
               key={i}
               src={src}
@@ -162,12 +185,13 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
         );
       })}
 
-      {/* Clip label — overlay on audio/sound so waveform stays visible */}
+      {/* Clip label — overlay on audio/sound; bottom gradient on image previews */}
       {isEditableTrack && (
         <div
           className={cn(
             'studio-timeline-clip-inner',
             isAudio && 'studio-timeline-clip-inner--audio',
+            imagePreview && showFilmstrip && 'studio-timeline-clip-inner--image-preview',
           )}
         >
           {width > 50 && (

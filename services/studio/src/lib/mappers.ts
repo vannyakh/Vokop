@@ -11,6 +11,7 @@ export interface ProjectDoc {
   status: 'done' | 'processing' | 'failed';
   progress?: number;
   durationSec?: number;
+  thumbnailUrl?: string;
   editorState?: Project['editorState'];
   deletedAt?: Date | null;
   createdAt: Date;
@@ -31,6 +32,7 @@ export function mapProject(doc: ProjectDoc): Project {
     status: doc.status,
     progress: doc.progress ?? undefined,
     durationSec: doc.durationSec ?? undefined,
+    thumbnailUrl: doc.thumbnailUrl ?? undefined,
     editorState: doc.editorState ?? undefined,
     deletedAt: doc.deletedAt ? toIso(doc.deletedAt) : null,
     createdAt: toIso(doc.createdAt),

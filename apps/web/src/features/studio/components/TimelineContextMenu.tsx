@@ -1,19 +1,24 @@
-import { useEffect, useRef } from 'react';
 import {
   Scissors,
   Trash2,
   Type,
   Layers,
-  Film,
   Crosshair,
   Plus,
-  ImageIcon,
   Copy,
   ClipboardPaste,
-  Clipboard,
+  CopyPlus,
   Diamond,
+  ImageIcon,
 } from 'lucide-react';
-import { cn } from '@/lib/cn';
+import {
+  EditorContextMenu,
+  type EditorMenuItem,
+} from '@/features/studio/components/EditorContextMenu';
+import {
+  buildFootageContextMenuItems,
+  type FootageContextMenuActions,
+} from '@/features/studio/lib/timelineFootageContextMenuItems';
 import type { TimelineTrackId } from '@/features/studio/lib/timelineTypes';
 
 export interface TimelineContextMenuTarget {
@@ -35,25 +40,14 @@ interface TimelineContextMenuProps {
   onPaste: (atTime: number) => void;
   onDuplicate: () => void;
   onAddClip: (trackId: TimelineTrackId) => void;
-  onSelectFootage: () => void;
-  onOpenMedia: () => void;
   onEditCanvas: () => void;
   onAddKeyframe?: () => void;
+  footageActions?: FootageContextMenuActions;
   canSplit: boolean;
   canDelete: boolean;
   canEditCanvas: boolean;
   canAddKeyframe?: boolean;
   hasClipboard: boolean;
-}
-
-interface MenuItem {
-  id: string;
-  label: string;
-  shortcut?: string;
-  icon: typeof Scissors;
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
 }
 
 export function TimelineContextMenu({
@@ -67,42 +61,18 @@ export function TimelineContextMenu({
   onPaste,
   onDuplicate,
   onAddClip,
-  onSelectFootage,
-  onOpenMedia,
   onEditCanvas,
   onAddKeyframe,
+  footageActions,
   canSplit,
   canDelete,
   canEditCanvas,
   canAddKeyframe,
   hasClipboard,
 }: TimelineContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!target) return;
-    const onPointer = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('mousedown', onPointer);
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onClose, true);
-    return () => {
-      window.removeEventListener('mousedown', onPointer);
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onClose, true);
-    };
-  }, [target, onClose]);
-
-  if (!target) return null;
-
-  const { trackId, clipId, time } = target;
+  const { trackId, clipId, time } = target ?? {};
   const isClip = Boolean(clipId && trackId);
-  const isVideo = trackId === 'video';
+  const isVideo = trackId === 'video' || String(trackId ?? '').startsWith('video-');
   const isText = trackId === 'text' || String(trackId ?? '').startsWith('text-');
   const isOverlay =
     trackId === 'overlay' ||
@@ -119,42 +89,56 @@ export function TimelineContextMenu({
     String(trackId ?? '').startsWith('audio-') ||
     String(trackId ?? '').startsWith('sound-');
 
-  const run = (fn: () => void) => {
-    fn();
-    onClose();
-  };
+  if (isClip && isVideo && footageActions) {
+    const items = buildFootageContextMenuItems({
+      ...footageActions,
+      hasClipSelection: true,
+    });
+    return (
+      <EditorContextMenu
+        target={target}
+        title=""
+        items={items}
+        onClose={onClose}
+        className="studio-timeline-context-menu studio-footage-context-menu"
+      />
+    );
+  }
 
-  const items: MenuItem[] = [];
+  const items: EditorMenuItem[] = [];
 
   items.push({
     id: 'seek',
     label: 'Seek to here',
     icon: Crosshair,
-    onClick: () => run(() => onSeek(time)),
+    onClick: () => onSeek(time ?? 0),
   });
 
   if (isClip && canEditCanvas) {
-    items.push({
-      id: 'copy',
-      label: 'Copy',
-      icon: Copy,
-      shortcut: '⌘C',
-      onClick: () => run(onCopy),
-    });
-    items.push({
-      id: 'cut',
-      label: 'Cut',
-      icon: Scissors,
-      shortcut: '⌘X',
-      onClick: () => run(onCut),
-    });
-    items.push({
-      id: 'duplicate',
-      label: 'Duplicate',
-      icon: Clipboard,
-      shortcut: '⌘D',
-      onClick: () => run(onDuplicate),
-    });
+    items.push(
+      {
+        id: 'copy',
+        label: 'Copy',
+        icon: Copy,
+        shortcutKey: 'shortcutCopy',
+        onClick: onCopy,
+        separatorBefore: true,
+      },
+      {
+        id: 'cut',
+        label: 'Cut',
+        icon: Scissors,
+        shortcutKey: 'shortcutCut',
+        onClick: onCut,
+      },
+      {
+        id: 'duplicate',
+        label: 'Duplicate',
+        icon: CopyPlus,
+        shortcutKey: 'shortcutDuplicate',
+        onClick: onDuplicate,
+      },
+    );
   }
 
   if (hasClipboard) {
@@ -162,23 +146,9 @@ export function TimelineContextMenu({
       id: 'paste',
       label: 'Paste here',
       icon: ClipboardPaste,
-      shortcut: '⌘V',
-      onClick: () => run(() => onPaste(time)),
-    });
-  }
-
-  if (isClip && isVideo) {
-    items.push({
-      id: 'select-footage',
-      label: 'Select footage',
-      icon: Film,
-      onClick: () => run(onSelectFootage),
-    });
-    items.push({
-      id: 'open-media',
-      label: 'Open media panel',
-      icon: ImageIcon,
-      onClick: () => run(onOpenMedia),
+      shortcutKey: 'shortcutPaste',
+      onClick: () => onPaste(time ?? 0),
+      separatorBefore: !isClip || !canEditCanvas,
     });
   }
 
@@ -187,7 +157,8 @@ export function TimelineContextMenu({
       id: 'edit-canvas',
       label: 'Edit on canvas',
       icon: isOverlay ? Layers : Type,
-      onClick: () => run(onEditCanvas),
+      onClick: onEditCanvas,
+      separatorBefore: true,
     });
   }
 
@@ -196,7 +167,7 @@ export function TimelineContextMenu({
       id: 'keyframe',
       label: 'Add keyframe (EA)',
       icon: Diamond,
-      onClick: () => run(onAddKeyframe),
+      onClick: onAddKeyframe,
     });
   }
 
@@ -205,7 +176,9 @@ export function TimelineContextMenu({
       id: 'split',
       label: 'Split at playhead',
       icon: Scissors,
-      onClick: () => run(onSplit),
+      shortcutKey: 'shortcutSplit',
+      onClick: onSplit,
+      separatorBefore: true,
     });
   }
 
@@ -228,8 +201,9 @@ export function TimelineContextMenu({
       id: 'add',
       label: addLabel,
       icon: Plus,
-      onClick: () => run(() => onAddClip(trackId)),
+      onClick: () => onAddClip(trackId),
       disabled: trackId === 'video',
+      separatorBefore: true,
     });
   }
 
@@ -238,8 +212,9 @@ export function TimelineContextMenu({
       id: 'delete',
       label: 'Delete clip',
       icon: Trash2,
-      onClick: () => run(onDelete),
-      danger: true,
+      onClick: onDelete,
+      destructive: true,
+      separatorBefore: true,
     });
   }
 
@@ -249,19 +224,20 @@ export function TimelineContextMenu({
         id: 'add-text',
         label: 'Add caption',
         icon: Type,
-        onClick: () => run(() => onAddClip('text')),
+        onClick: () => onAddClip('text'),
+        separatorBefore: true,
       },
       {
         id: 'add-image',
         label: 'Add image',
-        icon: Layers,
-        onClick: () => run(() => onAddClip('image')),
+        icon: ImageIcon,
+        onClick: () => onAddClip('image'),
       },
       {
         id: 'add-sticker',
         label: 'Add sticker',
         icon: Layers,
-        onClick: () => run(() => onAddClip('sticker')),
+        onClick: () => onAddClip('sticker'),
       },
     );
   }
@@ -277,36 +253,12 @@ export function TimelineContextMenu({
           : 'Timeline';
 
   return (
-    <div
-      ref={menuRef}
+    <EditorContextMenu
+      target={target}
+      title={trackLabel}
+      items={items}
+      onClose={onClose}
       className="studio-timeline-context-menu"
-      style={{ left: target.x, top: target.y }}
-      role="menu"
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <p className="studio-timeline-context-menu-label">{trackLabel}</p>
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            role="menuitem"
-            disabled={item.disabled}
-            className={cn(
-              'studio-timeline-context-menu-item',
-              item.danger && 'studio-timeline-context-menu-item--danger',
-            )}
-            onClick={item.onClick}
-          >
-            <Icon size={14} strokeWidth={2} />
-            <span>{item.label}</span>
-            {item.shortcut && (
-              <span className="studio-timeline-context-menu-shortcut">{item.shortcut}</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
+    />
   );
 }

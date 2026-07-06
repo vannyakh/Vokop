@@ -12,11 +12,22 @@ const DEFAULT_SAMPLES = 32768;
 /** Soft cap — bar slots expand to fill width when clip is wider than this. */
 export const MAX_WAVEFORM_DRAW_BARS = 12288;
 
+/** Browser canvas dimension safety (avoid blank/white bitmap when zoomed in). */
+export const MAX_WAVEFORM_CANVAS_PX = 8192;
+
+export type WaveformDrawStyle = 'audio' | 'sound' | 'video';
+
+export const WAVEFORM_TRACK_BG: Record<WaveformDrawStyle, string> = {
+  audio: '#030e0c',
+  sound: '#0a0f0c',
+  video: '#0a0a0a',
+};
+
 /** Bar buckets for a clip canvas width (more bars when zoomed in). */
 export function computeWaveformBarCount(canvasPx: number, style: WaveformDrawStyle = 'audio'): number {
   const min = 48;
   const max = style === 'video' ? MAX_WAVEFORM_DRAW_BARS : 16384;
-  const pxPerBar = style === 'video' ? 1 : 1.15;
+  const pxPerBar = style === 'video' ? 1 : 1;
   const target = Math.ceil(canvasPx / pxPerBar);
   return Math.min(max, Math.max(min, target));
 }
@@ -109,7 +120,31 @@ export function peaksForClipRegion(
   return out;
 }
 
-/** Scale peaks to 0–1 relative to the loudest sample in this clip region. */
+/** Visible slice of a wide clip — keeps canvas under browser size limits when zoomed in. */
+export function resolveWaveformViewport(
+  clipWidthPx: number,
+  clipLeftPx: number,
+  timelineScrollLeft: number,
+  timelineClientWidth: number,
+  devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+): { startPx: number; widthPx: number } | null {
+  const fullCanvasPx = Math.floor(clipWidthPx * devicePixelRatio);
+  if (fullCanvasPx <= MAX_WAVEFORM_CANVAS_PX || clipWidthPx <= 0) return null;
+
+  const viewLeft = timelineScrollLeft;
+  const viewRight = timelineScrollLeft + Math.max(timelineClientWidth, 320);
+  const visStart = Math.max(0, viewLeft - clipLeftPx);
+  const visEnd = Math.min(clipWidthPx, viewRight - clipLeftPx);
+  const pad = Math.min(240, timelineClientWidth * 0.35);
+
+  if (visEnd <= visStart + 2) {
+    return { startPx: 0, widthPx: Math.min(clipWidthPx, 1200) };
+  }
+
+  const startPx = Math.max(0, visStart - pad);
+  const endPx = Math.min(clipWidthPx, visEnd + pad);
+  return { startPx, widthPx: Math.max(48, endPx - startPx) };
+}
 export function normalizeWaveformPeaks(peaks: Float32Array): Float32Array {
   let max = 0;
   for (let i = 0; i < peaks.length; i++) {
@@ -126,8 +161,6 @@ export function normalizeWaveformPeaks(peaks: Float32Array): Float32Array {
 export const WAVEFORM_HIGH_PEAK = 0.62;
 export const WAVEFORM_CLIP_PEAK = 0.82;
 
-export type WaveformDrawStyle = 'audio' | 'sound' | 'video';
-
 export interface WaveformColors {
   fill: string;
   bg?: string;
@@ -141,33 +174,28 @@ export function drawTimelineWaveform(
   peaks: Float32Array,
   colors: WaveformColors,
   style: WaveformDrawStyle = 'audio',
-) {
+): boolean {
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return false;
 
   const w = canvas.width;
   const h = canvas.height;
   const mid = Math.round(h / 2);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = colors.bg ?? WAVEFORM_TRACK_BG[style];
+  ctx.fillRect(0, 0, w, h);
 
-  if (peaks.length === 0) return;
+  if (peaks.length === 0) return false;
 
   const displayPeaks = normalizeWaveformPeaks(peaks);
 
-  if (colors.bg) {
-    ctx.fillStyle = colors.bg;
-    ctx.fillRect(0, 0, w, h);
-  }
-
   const hScale = Math.max(0.85, Math.min(1.75, h / 72));
   const isSound = style === 'sound';
-  const isVideo = style === 'video';
-  const pillBarPx = (isSound ? 2.25 : isVideo ? 1.25 : 1.5) * hScale;
+  const pillBarPx = (isSound ? 2.25 : style === 'video' ? 1.25 : 1.5) * hScale;
   const totalBars = displayPeaks.length;
   const slotW = totalBars > 0 ? w / totalBars : w;
-  const useContinuous = slotW <= 2.2;
+  const useContinuous = slotW <= 1.8 && totalBars >= 64;
   const MIN_AMP = Math.max(isSound ? 2 : 1.5, h * (isSound ? 0.045 : 0.03));
   const ampScale = isSound ? 0.98 : 0.95;
   const hotFill = colors.hot ?? 'rgba(251, 146, 60, 0.98)';
@@ -185,12 +213,11 @@ export function drawTimelineWaveform(
     grad.addColorStop(1, colorWithAlpha(colors.fill, 0.8));
   }
 
-  const resolveBarWidth = () => {
-    if (useContinuous) return Math.max(1, slotW);
-    if (slotW <= pillBarPx * 1.35) return Math.max(1, slotW * 0.94);
-    return Math.min(pillBarPx, slotW * 0.82);
-  };
-  const defaultBarW = resolveBarWidth();
+  const defaultBarW = useContinuous
+    ? Math.max(1, slotW)
+    : isSound && slotW > pillBarPx * 2
+      ? Math.min(pillBarPx, slotW * 0.78)
+      : Math.max(1, slotW * 0.92);
 
   const barGeometry: { x: number; top: number; ht: number; barW: number; raw: number }[] = [];
   for (let i = 0; i < totalBars; i++) {
@@ -305,6 +332,7 @@ export function drawTimelineWaveform(
   ctx.fillStyle = colors.fill;
   ctx.fillRect(0, mid - 0.5, w, 1);
   ctx.globalAlpha = 1;
+  return true;
 }
 
 /**

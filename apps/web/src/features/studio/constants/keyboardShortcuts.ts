@@ -39,6 +39,7 @@ export const STUDIO_KEYBOARD_SHORTCUTS: StudioShortcutGroup[] = [
     titleKey: 'shortcutsGroupTimeline',
     items: [
       { labelKey: 'shortcutSplit', keys: ['mod', 'B'] },
+      { labelKey: 'shortcutSeparateAudio', keys: ['shift', 'mod', 'S'] },
       { labelKey: 'shortcutZoomIn', keys: ['mod', '+'] },
       { labelKey: 'shortcutZoomOut', keys: ['mod', '-'] },
       { labelKey: 'shortcutPrevFrame', keys: ['mod', '←'] },
@@ -57,6 +58,15 @@ export const STUDIO_KEYBOARD_SHORTCUTS: StudioShortcutGroup[] = [
     ],
   },
 ];
+
+/** Lookup shortcut tokens for menu Kbd badges. */
+export function shortcutTokens(labelKey: string): ShortcutToken[] | undefined {
+  for (const group of STUDIO_KEYBOARD_SHORTCUTS) {
+    const item = group.items.find((i) => i.labelKey === labelKey);
+    if (item) return item.keys;
+  }
+  return undefined;
+}
 
 /** Lookup a formatted menu shortcut, e.g. `shortcutCopy` → `⌘C`. */
 export function shortcutMenuLabel(labelKey: string): string | undefined {

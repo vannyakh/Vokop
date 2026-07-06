@@ -53,6 +53,7 @@ import {
   isVideoTimelineTrack,
   isVisualTimelineTrack,
   moveTrackInOrder,
+  pruneEmptyExtraFootageTracks,
   trackTypeFromId,
 } from '@/features/studio/lib/timelineTrackUtils';
 import {
@@ -276,18 +277,44 @@ function withTimelineDuration<T extends {
   videoClips: MediaClip[];
   audioClips: MediaClip[];
   duration: number;
+  extraTimelineTracks?: ExtraTimelineTrack[];
+  timelineTrackOrder?: string[];
+  timelineTrackMuted?: Record<string, boolean>;
+  timelineTrackPreviewHidden?: Record<string, boolean>;
+  timelineTrackLabels?: Record<string, string>;
 }>(state: T, patch: Partial<Pick<T, 'videoClips' | 'audioClips' | 'mediaDuration' | 'duration'>>) {
   const mediaDuration = patch.mediaDuration ?? state.mediaDuration;
   const videoClips = patch.videoClips ?? state.videoClips;
   const audioClips = patch.audioClips ?? state.audioClips;
   const fallback = patch.duration ?? state.duration;
-  return {
+  let result = {
     ...patch,
     mediaDuration,
     videoClips,
     audioClips,
     duration: computeTimelineDuration(mediaDuration, [...videoClips, ...audioClips], fallback),
   };
+
+  if (
+    patch.videoClips !== undefined &&
+    state.extraTimelineTracks &&
+    state.timelineTrackOrder &&
+    state.timelineTrackMuted &&
+    state.timelineTrackPreviewHidden &&
+    state.timelineTrackLabels
+  ) {
+    const pruned = pruneEmptyExtraFootageTracks({
+      extraTimelineTracks: state.extraTimelineTracks,
+      videoClips,
+      timelineTrackOrder: state.timelineTrackOrder,
+      timelineTrackMuted: state.timelineTrackMuted,
+      timelineTrackPreviewHidden: state.timelineTrackPreviewHidden,
+      timelineTrackLabels: state.timelineTrackLabels,
+    });
+    if (pruned) result = { ...result, ...pruned };
+  }
+
+  return result;
 }
 
 function syncVideoToTimeline(
@@ -365,6 +392,10 @@ interface AppState {
   projectName: string;
   projectStatus: 'done' | 'processing' | 'failed' | null;
   projectProgress: number;
+  /** JPEG data URL (or remote URL) for recent-projects thumbnail. */
+  projectThumbnailUrl: string | null;
+  projectCoverTimeSec: number;
+  projectCoverSource: 'video' | 'upload';
   aspectRatio: AspectRatioId;
   videoWidth: number;
   videoHeight: number;
@@ -457,8 +488,11 @@ interface AppState {
       timelineTrackOrder?: string[];
       extraTimelineTracks?: ExtraTimelineTrack[];
       compositionSpace?: 'legacy-px' | 'fraction-v2';
+      projectCover?: { url: string; source: 'video' | 'upload'; timeSec?: number };
     };
+    thumbnailUrl?: string;
   }) => void;
+  setProjectCover: (cover: { url: string; source: 'video' | 'upload'; timeSec?: number } | null) => void;
   setProjectStatus: (status: 'done' | 'processing' | 'failed' | null, progress?: number) => void;
   setTranscript: (text: string) => void;
   setTranslatedText: (text: string) => void;
@@ -662,6 +696,9 @@ const initialState = {
   projectName: '',
   projectStatus: null as 'done' | 'processing' | 'failed' | null,
   projectProgress: 0,
+  projectThumbnailUrl: null as string | null,
+  projectCoverTimeSec: 0,
+  projectCoverSource: 'video' as 'video' | 'upload',
   aspectRatio: 'original' as AspectRatioId,
   videoWidth: 0,
   videoHeight: 0,
@@ -1140,12 +1177,26 @@ export const useAppStore = create<AppState>((set, get) => ({
         (editor?.videoClips?.some((c) => c.x != null) || editor?.canvasElements?.length
           ? 'legacy-px'
           : 'fraction-v2'),
+      projectThumbnailUrl:
+        input.thumbnailUrl ??
+        editor?.projectCover?.url ??
+        (switching ? null : state.projectThumbnailUrl),
+      projectCoverTimeSec: editor?.projectCover?.timeSec ?? (switching ? 0 : state.projectCoverTimeSec),
+      projectCoverSource:
+        editor?.projectCover?.source ?? (switching ? 'video' : state.projectCoverSource),
       projectUndoStack: [],
       projectRedoStack: [],
       isTimelinePlaying: false,
     });
     void flushPendingMediaOpfsSync(input.id, get().mediaAssets);
   },
+
+  setProjectCover: (cover) =>
+    set({
+      projectThumbnailUrl: cover?.url ?? null,
+      projectCoverTimeSec: cover?.timeSec ?? 0,
+      projectCoverSource: cover?.source ?? 'video',
+    }),
 
   setProjectStatus: (status, progress) =>
     set({

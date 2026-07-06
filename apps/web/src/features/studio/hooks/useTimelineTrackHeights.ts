@@ -12,6 +12,7 @@ import {
   clampTrackHeight,
   isCompactTrackHeight,
   resolveTrackHeight,
+  TRACK_HEIGHT,
 } from '@/features/studio/lib/timelineTypes';
 
 const STORAGE_KEY = 'vokop-timeline-track-heights';
@@ -61,7 +62,10 @@ export function useTimelineTrackHeights(
   const resizingTrackIdRef = useRef<string | null>(null);
 
   const getHeight = useCallback(
-    (track: TimelineTrackModel) => resolveTrackHeight(track.type, overrides, String(track.id)),
+    (track: TimelineTrackModel | undefined) => {
+      if (!track?.type) return TRACK_HEIGHT.video;
+      return resolveTrackHeight(track.type, overrides, String(track.id));
+    },
     [overrides],
   );
 

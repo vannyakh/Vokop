@@ -100,6 +100,6 @@ export function mapProjectToRecentItem(project: Project): RecentProjectItem {
     thumb: thumbForProjectId(project.id),
     updatedAt: project.updatedAt,
     progress: project.progress,
-    thumbnailUrl: (project as any).thumbnailUrl || undefined,
+    thumbnailUrl: project.thumbnailUrl || undefined,
   };
 }

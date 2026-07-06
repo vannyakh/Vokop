@@ -27,7 +27,10 @@ import {
   ADDABLE_TRACK_TYPES,
   TIMELINE_BASE_PX_PER_SEC,
   TIMELINE_RULER_HEIGHT,
+  TIMELINE_RULER_HEIGHT_COMPACT,
+  TIMELINE_ZOOM_COMPACT_RULER,
   TIMELINE_ZOOM_STEP,
+  TRACK_HEIGHT,
 } from '@/features/studio/lib/timelineTypes';
 import { useTranslation } from '@/features/settings';
 import { useSidePanelSplit } from '@/features/studio/hooks/useSidePanelSplit';
@@ -36,6 +39,7 @@ import { useVideoFilmstrip } from '@/features/studio/hooks/useVideoFilmstrip';
 import { useTimelineTracks } from '@/features/studio/hooks/useTimelineTracks';
 import { useTimelineClipDrag } from '@/features/studio/hooks/useTimelineClipDrag';
 import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
+import { useFootageContextMenuActions } from '@/features/studio/hooks/useFootageContextMenuActions';
 import type { TimelineSelectionItem } from '@/features/studio/lib/timelineTypes';
 import { TimelineTrackHeader } from '@/features/studio/components/TimelineTrackHeader';
 import { TimelineClipBlock } from '@/features/studio/components/TimelineClipBlock';
@@ -69,9 +73,16 @@ import {
 } from '@/features/studio/lib/timelineDrop';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 import { processTimelineMediaDrop } from '@/features/studio/lib/timelineMediaDrop';
-import { filmstripThumbsForClip } from '@/features/studio/lib/timelineFilmstrip';
+import { filmstripThumbsForClip, resolveFilmstripBandHeight } from '@/features/studio/lib/timelineFilmstrip';
+import {
+  imagePreviewThumbsForClip,
+  isImagePreviewClip,
+  resolveTimelineImagePreviewSrc,
+} from '@/features/studio/lib/timelineImagePreview';
 import { studioEdit } from '@/features/studio/services/studioEdit';
 import { TimelineEmptyState } from '@/features/studio/components/TimelineEmptyState';
+import { ProjectCoverModal } from '@/features/studio/components/ProjectCoverModal';
+import { ProjectCoverChip } from '@/features/studio/components/ProjectCoverChip';
 import {
   emptyTimelineDurationSec,
   isTimelineEmpty,
@@ -127,13 +138,14 @@ function formatRulerTick(seconds: number, compact = false, subSecond = false): s
 
 /**
  * Choose adaptive major/minor tick intervals based on zoom level.
- * Target ~72–140px between major ticks; finer frames when zoomed in.
+ * Target ~48–120px between major ticks when zoomed out; finer when zoomed in.
  */
 function getRulerIntervals(pxPerSec: number): {
   majorInterval: number;
   minorDivisions: number;
   subSecondLabels: boolean;
 } {
+  const minMajorPx = pxPerSec < 24 ? 48 : 72;
   const candidates: [number, number][] = [
     [0.1, 5],
     [0.2, 4],
@@ -149,9 +161,12 @@ function getRulerIntervals(pxPerSec: number): {
     [120, 4],
     [300, 5],
     [600, 5],
+    [900, 5],
+    [1800, 6],
+    [3600, 4],
   ];
   for (const [interval, divisions] of candidates) {
-    if (pxPerSec * interval >= 72) {
+    if (pxPerSec * interval >= minMajorPx) {
       return {
         majorInterval: interval,
         minorDivisions: divisions,
@@ -159,7 +174,7 @@ function getRulerIntervals(pxPerSec: number): {
       };
     }
   }
-  return { majorInterval: 600, minorDivisions: 5, subSecondLabels: false };
+  return { majorInterval: 3600, minorDivisions: 4, subSecondLabels: false };
 }
 
 function buildRulerTicks(span: number, pxPerSec: number) {
@@ -210,6 +225,7 @@ export function StudioTimeline({
   });
   const videoUrl = useAppStore((s) => s.videoUrl);
   const projectId = useAppStore((s) => s.projectId);
+  const projectThumbnailUrl = useAppStore((s) => s.projectThumbnailUrl);
   const videoFile = useAppStore((s) => s.videoFile);
   const duration = useAppStore((s) => s.duration);
   const mediaDuration = useAppStore((s) => s.mediaDuration);
@@ -217,6 +233,7 @@ export function StudioTimeline({
   const storeTimelineZoom = useAppStore((s) => s.timelineZoom);
   const timelineZoom = timelineZoomProp ?? storeTimelineZoom;
   const videoClips = useAppStore((s) => s.videoClips);
+  const canvasElements = useAppStore((s) => s.canvasElements);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
   const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
   const toggleTimelineTrackMuted = useAppStore((s) => s.toggleTimelineTrackMuted);
@@ -261,6 +278,7 @@ export function StudioTimeline({
   const videoSessionId = useAppStore((s) => s.videoSessionId);
   const [dragTrackId, setDragTrackId] = useState<string | null>(null);
   const [dropHeaderTrackId, setDropHeaderTrackId] = useState<string | null>(null);
+  const [coverModalOpen, setCoverModalOpen] = useState(false);
   const [externalDrop, setExternalDrop] = useState<{
     trackId: string;
     allowed: boolean;
@@ -277,16 +295,41 @@ export function StudioTimeline({
   const { getHeight, trackHeights, trackTops, getResizeHandleProps } =
     useTimelineTrackHeights(tracks, { headerColRef, tracksContainerRef });
   const timelineIsEmpty = isTimelineEmpty(tracks);
+  const showCoverRow = Boolean(projectId);
   const displayDuration = timelineIsEmpty ? emptyTimelineDurationSec(duration) : duration || 1;
-  const { thumbnails, loading: filmstripLoading, progress: filmstripProgress } =
+  const { thumbnails, loading: filmstripLoading, progress: filmstripProgress, thumbWidth: filmstripThumbWidth } =
     useVideoFilmstrip(videoFile, mediaDuration || duration, videoSessionId);
+
+  const masterFilmstripBandHeight = useMemo(() => {
+    const masterIndex = tracks.findIndex((t) => t.id === 'video');
+    if (masterIndex >= 0) {
+      const masterTrack = tracks[masterIndex]!;
+      return resolveFilmstripBandHeight(
+        trackHeights[masterIndex] ?? getHeight(masterTrack),
+      );
+    }
+    const fallbackVideo = tracks.find((t) => t.type === 'video');
+    if (fallbackVideo) {
+      const idx = tracks.indexOf(fallbackVideo);
+      return resolveFilmstripBandHeight(trackHeights[idx] ?? getHeight(fallbackVideo));
+    }
+    return resolveFilmstripBandHeight(TRACK_HEIGHT.video);
+  }, [tracks, trackHeights, getHeight]);
 
   const [draggingPlayhead, setDraggingPlayhead] = useState(false);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<TimelineContextMenuTarget | null>(null);
+  const footageMenuActions = useFootageContextMenuActions(
+    contextMenu?.clipId,
+    contextMenu?.time,
+  );
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [timelineViewport, setTimelineViewport] = useState({ left: 0, width: 0 });
+  const scrollRafRef = useRef<number | null>(null);
 
   const pxPerSec = TIMELINE_BASE_PX_PER_SEC * (timelineZoom / 100);
+  const compactRuler = timelineZoom <= TIMELINE_ZOOM_COMPACT_RULER;
+  const rulerHeight = compactRuler ? TIMELINE_RULER_HEIGHT_COMPACT : TIMELINE_RULER_HEIGHT;
   const timelineContentWidth = Math.max(640, timeToPx(displayDuration, pxPerSec) + 80);
   const playheadX = timeToPx(currentTime, pxPerSec);
 
@@ -454,11 +497,36 @@ export function StudioTimeline({
     return () => window.removeEventListener('keydown', onKey);
   }, [clearSelection]);
 
-  const syncHeaderScroll = () => {
+  const syncHeaderScroll = useCallback(() => {
     if (headerColRef.current && scrollRef.current) {
       headerColRef.current.scrollTop = scrollRef.current.scrollTop;
     }
-  };
+    if (scrollRafRef.current != null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = scrollRef.current;
+      if (!el) return;
+      setTimelineViewport({ left: el.scrollLeft, width: el.clientWidth });
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setTimelineViewport({ left: el.scrollLeft, width: el.clientWidth });
+    const ro = new ResizeObserver(() => {
+      setTimelineViewport({ left: el.scrollLeft, width: el.clientWidth });
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      if (scrollRafRef.current != null) cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    syncHeaderScroll();
+  }, [pxPerSec, timelineContentWidth, syncHeaderScroll]);
 
   const timeAtClientX = useCallback(
     (clientX: number) => {
@@ -475,6 +543,9 @@ export function StudioTimeline({
     (e: ReactMouseEvent, opts?: { trackId?: TimelineTrackId; clipId?: string }) => {
       e.preventDefault();
       e.stopPropagation();
+      if (opts?.clipId && opts.trackId) {
+        selectClip(opts.trackId, opts.clipId);
+      }
       setContextMenu({
         x: e.clientX,
         y: e.clientY,
@@ -483,7 +554,7 @@ export function StudioTimeline({
         time: timeAtClientX(e.clientX),
       });
     },
-    [timeAtClientX],
+    [timeAtClientX, selectClip],
   );
 
   const updateExternalDrop = useCallback(
@@ -581,7 +652,9 @@ export function StudioTimeline({
         if (
           target.closest('.studio-timeline-clip-block') ||
           target.closest('.studio-track-header') ||
+          target.closest('.studio-cover-chip') ||
           target.closest('.studio-track-menu') ||
+          target.closest('[data-slot="context-menu-content"]') ||
           target.closest('.studio-timeline-context-menu') ||
           target.closest('.ant-dropdown') ||
           target.closest('.ant-modal-root')
@@ -593,7 +666,7 @@ export function StudioTimeline({
       }}
     >
       {/* Pinned track header column */}
-      {!timelineIsEmpty && (
+      {(!timelineIsEmpty || showCoverRow) && (
         <>
           <div
             className="studio-timeline-header-col"
@@ -602,9 +675,10 @@ export function StudioTimeline({
           >
         <div
           className="studio-timeline-header-spacer"
-          style={{ height: TIMELINE_RULER_HEIGHT }}
+          style={{ height: rulerHeight }}
         />
-        {tracks.map((track, index) => {
+        {!timelineIsEmpty &&
+        tracks.map((track, index) => {
           const laneHeight = getHeight(track);
           return (
           <TimelineTrackHeader
@@ -674,6 +748,7 @@ export function StudioTimeline({
           />
           );
         })}
+        {!timelineIsEmpty && (
         <Dropdown
           trigger={['click']}
           placement="topLeft"
@@ -695,6 +770,13 @@ export function StudioTimeline({
             <span>{t('addTrack')}</span>
           </button>
         </Dropdown>
+        )}
+        {showCoverRow && (
+          <ProjectCoverChip
+            coverUrl={projectThumbnailUrl}
+            onEdit={() => setCoverModalOpen(true)}
+          />
+        )}
       </div>
       <div
         role="separator"
@@ -722,6 +804,7 @@ export function StudioTimeline({
           externalDrop && 'studio-timeline-scroll--drop-active',
           timelineIsEmpty && 'studio-timeline-scroll--empty',
           isZooming && 'is-zooming',
+          compactRuler && 'studio-timeline-scroll--compact-ruler',
         )}
         ref={scrollRef}
         onWheel={handleTimelineWheel}
@@ -748,8 +831,8 @@ export function StudioTimeline({
           {/* Ruler */}
           <div
             ref={rulerRef}
-            className="studio-timeline-ruler"
-            style={{ height: TIMELINE_RULER_HEIGHT }}
+            className={cn('studio-timeline-ruler', compactRuler && 'is-compact')}
+            style={{ height: rulerHeight }}
             onClick={(e) => {
               e.stopPropagation();
               seekFromClientX(e.clientX);
@@ -757,7 +840,9 @@ export function StudioTimeline({
             onContextMenu={(e) => openContextMenu(e)}
           >
             {/* Minor ticks — no label, shorter line */}
-            {rulerMinorTicks.map((tick) => (
+            {compactRuler && pxPerSec < 18
+              ? null
+              : rulerMinorTicks.map((tick) => (
               <span
                 key={`m-${tick}`}
                 className="studio-timeline-ruler-minor-tick"
@@ -841,6 +926,10 @@ export function StudioTimeline({
             const previewHidden = timelineTrackPreviewHidden[track.id] ?? false;
             const clipHeight =
               track.type === 'text' ? Math.max(22, laneHeight - 4) : laneHeight - 4;
+            const filmstripBandHeight =
+              track.type === 'video'
+                ? Math.min(masterFilmstripBandHeight, resolveFilmstripBandHeight(laneHeight))
+                : undefined;
 
             return (
               <div
@@ -928,6 +1017,10 @@ export function StudioTimeline({
                     Boolean(clip.mediaKind || clip.canvasKind) ||
                     (Boolean(clip.segmentType) && transcriptReady);
                   const filmstripWidth = preview?.filmstripBaseWidth ?? width;
+                  const imagePreview = isImagePreviewClip(clip, track);
+                  const imagePreviewSrc = imagePreview
+                    ? resolveTimelineImagePreviewSrc(clip.id, canvasElements)
+                    : null;
 
                   const clipThumbs =
                     track.type === 'video' && thumbnails.length > 0 && mediaDuration > 0
@@ -939,8 +1032,15 @@ export function StudioTimeline({
                             duration: clipDuration,
                           },
                           filmstripWidth,
+                          filmstripThumbWidth,
                         )
-                      : undefined;
+                      : imagePreviewSrc
+                        ? imagePreviewThumbsForClip(
+                            imagePreviewSrc,
+                            filmstripWidth,
+                            filmstripThumbWidth,
+                          )
+                        : undefined;
 
                   const waveformClip =
                     preview != null
@@ -976,6 +1076,9 @@ export function StudioTimeline({
                           Boolean(videoClips.find((v) => v.id === clip.id)?.muted))
                       }
                       filmstripThumbs={clipThumbs}
+                      thumbWidth={filmstripThumbWidth}
+                      filmstripBandHeight={filmstripBandHeight}
+                      imagePreview={imagePreview && Boolean(imagePreviewSrc)}
                       onSelect={(e) => selectClip(track.id as TimelineTrackId, clip.id, e)}
                       onContextMenu={(e) =>
                         openContextMenu(e, {
@@ -993,6 +1096,9 @@ export function StudioTimeline({
                           width={width}
                           height={clipHeight}
                           trackType={track.type}
+                          clipLeftPx={left}
+                          timelineScrollLeft={timelineViewport.left}
+                          timelineViewportWidth={timelineViewport.width}
                           stretchOnly={isInteracting}
                           underPlayhead={isUnderPlayhead}
                           playheadRatio={playheadRatio}
@@ -1005,6 +1111,9 @@ export function StudioTimeline({
                           width={width}
                           height={Math.max(13, Math.round(clipHeight * 0.42))}
                           trackType={track.type}
+                          clipLeftPx={left}
+                          timelineScrollLeft={timelineViewport.left}
+                          timelineViewportWidth={timelineViewport.width}
                           stretchOnly={isInteracting}
                         />
                       )}
@@ -1013,7 +1122,7 @@ export function StudioTimeline({
                 });
                 })()}
 
-                {track.type === 'video' && filmstripLoading && (
+                {track.type === 'video' && track.clips.length > 0 && filmstripLoading && (
                   <div className="studio-timeline-filmstrip-loading">
                     <span>Generating footage…</span>
                     {filmstripProgress > 0 && (
@@ -1024,8 +1133,6 @@ export function StudioTimeline({
               </div>
             );
           })}
-
-
 
           {marquee && (
             <div
@@ -1150,15 +1257,6 @@ export function StudioTimeline({
         onPaste={(atTime) => pasteSelection(atTime)}
         onDuplicate={duplicateSelection}
         onAddClip={(trackId) => addTimelineClip(trackId, contextMenu?.time ?? currentTime)}
-        onSelectFootage={() => {
-          const clipId =
-            contextMenu?.clipId ?? tracks.find((t) => t.id === 'video')?.clips[0]?.id;
-          if (clipId) selectClip('video', clipId);
-        }}
-        onOpenMedia={() => {
-          setActiveStudioTool('media');
-          setToolsDrawerOpen(true);
-        }}
         onEditCanvas={() => {
           if (selectedTimelineClip) selectCanvasElement(selectedTimelineClip.clipId);
         }}
@@ -1167,6 +1265,7 @@ export function StudioTimeline({
           if (!clipId) return;
           addClipKeyframe(clipId, contextMenu?.time ?? currentTime);
         }}
+        footageActions={footageMenuActions}
         canSplit={canSplit}
         canDelete={canDeleteSelection}
         canEditCanvas={canEditCanvas}
@@ -1181,6 +1280,8 @@ export function StudioTimeline({
         }
         hasClipboard={hasClipboard}
       />
+
+      <ProjectCoverModal open={coverModalOpen} onClose={() => setCoverModalOpen(false)} />
     </div>
   );
 }

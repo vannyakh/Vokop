@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
-import { Stage, Layer, Text, Group, Rect, Transformer, Image as KonvaImage, Line } from 'react-konva';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
+import { Stage, Layer, Text, Group, Rect, Image as KonvaImage, Line } from 'react-konva';
 import type Konva from 'konva';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
@@ -35,9 +35,22 @@ import {
   type VideoClipLayout,
 } from '@/features/studio/lib/videoClipLayout';
 import {
-  CanvasElementOverlay,
   CanvasInlineTextEditor,
 } from '@/features/studio/components/CanvasElementOverlay';
+import {
+  CanvasContextMenu,
+  type CanvasContextTarget,
+} from '@/features/studio/components/CanvasContextMenu';
+import { CanvasSelectionToolbar } from '@/features/studio/components/CanvasSelectionToolbar';
+import { CanvasRotationHandle } from '@/features/studio/components/CanvasRotationHandle';
+import { CanvasSelectionFrame } from '@/features/studio/components/CanvasSelectionFrame';
+import { StudioCanvasTransformer } from '@/features/studio/components/StudioCanvasTransformer';
+import { CANVAS_FRAME } from '@/features/studio/lib/canvasFrameTokens';
+import {
+  normalizeRotationDegrees,
+  type CanvasOrientedBox,
+} from '@/features/studio/lib/canvasTransformUtils';
+import { resolveCanvasContextHit } from '@/features/studio/lib/canvasContextHit';
 import type { CanvasElement } from '@/types/canvas';
 import type { MediaClip } from '@/features/studio/lib/timelineTypes';
 import { studioEdit } from '@/features/studio/services/studioEdit';
@@ -146,6 +159,7 @@ function CanvasElementNode({
   onEdit,
   onChange,
   onDragGuideChange,
+  onLiveLayoutChange,
 }: {
   element: CanvasElement;
   selected: boolean;
@@ -158,6 +172,7 @@ function CanvasElementNode({
   onEdit: () => void;
   onChange: (patch: Partial<CanvasElement>) => void;
   onDragGuideChange: (guides: CanvasGuideLine[] | null) => void;
+  onLiveLayoutChange?: (box: CanvasOrientedBox | null) => void;
 }) {
   const groupRef = useRef<Konva.Group>(null);
   const [dragging, setDragging] = useState(false);
@@ -217,6 +232,32 @@ function CanvasElementNode({
   }, [element.fontFamily]);
 
   const elementSize = { width: display.width, height: boxHeight };
+  const live = dragging || transforming;
+
+  const emitLiveLayout = () => {
+    const node = groupRef.current;
+    if (!node || !onLiveLayoutChange) return;
+    const scaleX = Math.abs(node.scaleX());
+    const scaleY = Math.abs(node.scaleY());
+    onLiveLayoutChange({
+      x: node.x(),
+      y: node.y(),
+      width: Math.max(isImage ? 40 : 80, display.width * scaleX),
+      height: Math.max(isImage ? 24 : boxHeight, boxHeight * scaleY),
+      rotation: node.rotation(),
+    });
+  };
+
+  useLayoutEffect(() => {
+    const node = groupRef.current;
+    if (!node || live) return;
+    node.x(display.x);
+    node.y(display.y);
+    node.rotation(display.rotation ?? 0);
+    node.scaleX(1);
+    node.scaleY(1);
+    node.getLayer()?.batchDraw();
+  }, [display.x, display.y, display.rotation, live]);
 
   const applySnap = (node: Konva.Group) => {
     if (!canvasPreviewAxis && !canvasAttachSnap) {
@@ -243,11 +284,8 @@ function CanvasElementNode({
       ref={groupRef}
       id={element.id}
       name={element.id}
-      x={display.x}
-      y={display.y}
       width={display.width}
       height={boxHeight}
-      rotation={display.rotation}
       opacity={display.opacity}
       draggable={interactive}
       listening={interactive}
@@ -294,6 +332,7 @@ function CanvasElementNode({
       }}
       onDragMove={(e) => {
         applySnap(e.target as Konva.Group);
+        emitLiveLayout();
       }}
       onDragEnd={(e) => {
         const node = e.target as Konva.Group;
@@ -302,11 +341,15 @@ function CanvasElementNode({
         onDragGuideChange(null);
         const frac = toFractionBox(box, contentRect);
         onChange({ x: frac.x, y: frac.y });
+        onLiveLayoutChange?.(null);
         setDragging(false);
       }}
       onTransformStart={() => {
         setTransforming(true);
         onSelect();
+      }}
+      onTransform={() => {
+        emitLiveLayout();
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
@@ -332,7 +375,7 @@ function CanvasElementNode({
           onChange({
             ...toFractionBox(box, contentRect),
             fontSize: toFractionFontSize(nextFontSizePx, contentRect),
-            rotation: node.rotation(),
+            rotation: normalizeRotationDegrees(node.rotation()),
           });
         } else if (isImage) {
           const scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
@@ -348,7 +391,7 @@ function CanvasElementNode({
           node.y(box.y);
           onChange({
             ...toFractionBox(box, contentRect),
-            rotation: node.rotation(),
+            rotation: normalizeRotationDegrees(node.rotation()),
           });
         } else {
           const nextWidth = Math.max(isImage ? 40 : 80, display.width * scaleX);
@@ -363,12 +406,19 @@ function CanvasElementNode({
           node.y(box.y);
           onChange({
             ...toFractionBox(box, contentRect),
-            rotation: node.rotation(),
+            rotation: normalizeRotationDegrees(node.rotation()),
           });
         }
+        onLiveLayoutChange?.(null);
         setTransforming(false);
       }}
     >
+      <Group
+        x={element.flipX ? display.width : 0}
+        y={element.flipY ? boxHeight : 0}
+        scaleX={element.flipX ? -1 : 1}
+        scaleY={element.flipY ? -1 : 1}
+      >
       {isImage ? (
         <>
           {image ? (
@@ -389,7 +439,7 @@ function CanvasElementNode({
               listening
             />
           )}
-          {selected && (
+          {selected && !interactive && (
             <Rect
               width={display.width}
               height={display.height}
@@ -455,6 +505,7 @@ function CanvasElementNode({
           />
         </>
       )}
+      </Group>
     </Group>
   );
 }
@@ -539,11 +590,8 @@ function VideoClipProxyNode({
       ref={groupRef}
       id={proxyId}
       name={proxyId}
-      x={layout.x}
-      y={layout.y}
       width={layout.width}
       height={layout.height}
-      rotation={layout.rotation}
       opacity={1}
       draggable={interactive}
       listening={interactive}
@@ -583,7 +631,7 @@ function VideoClipProxyNode({
           y: node.y(),
           width: layout.width,
           height: layout.height,
-          rotation: node.rotation(),
+          rotation: normalizeRotationDegrees(node.rotation()),
         });
         onDragGuideChange(null);
         clearLiveLayout();
@@ -641,8 +689,8 @@ function VideoClipProxyNode({
         node.x(box.x);
         node.y(box.y);
         onChange({
-          ...box,
-          rotation: node.rotation(),
+          ...toFractionBox(box, contentRect),
+          rotation: normalizeRotationDegrees(node.rotation()),
         });
         onDragGuideChange(null);
         clearLiveLayout();
@@ -653,8 +701,8 @@ function VideoClipProxyNode({
         width={layout.width}
         height={layout.height}
         fill="rgba(0,0,0,0.01)"
-        stroke={selected ? '#F4B942' : 'transparent'}
-        strokeWidth={selected ? 1.5 : 0}
+        stroke="transparent"
+        strokeWidth={0}
         listening
       />
     </Group>
@@ -691,6 +739,8 @@ export function CanvasEditorStage({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [dragGuides, setDragGuides] = useState<CanvasGuideLine[] | null>(null);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<CanvasContextTarget | null>(null);
+  const [liveToolbarBox, setLiveToolbarBox] = useState<CanvasOrientedBox | null>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const layerRef = useRef<Konva.Layer>(null);
@@ -752,6 +802,101 @@ export function CanvasEditorStage({
     : videoSelected && videoClipAtPlayhead
       ? videoProxyId(videoClipAtPlayhead.id)
       : null;
+
+  const selectedElement = useMemo(
+    () => canvasElements.find((el) => el.id === selectedCanvasElementId) ?? null,
+    [canvasElements, selectedCanvasElementId],
+  );
+
+  useEffect(() => {
+    setLiveToolbarBox(null);
+  }, [transformTargetId]);
+
+  const applyCanvasRotation = useCallback(
+    (rotation: number) => {
+      const layer = layerRef.current;
+      if (!layer || !transformTargetId) return;
+      const node = layer.findOne(
+        (n) => n.id() === transformTargetId || n.name() === transformTargetId,
+      ) as Konva.Group | undefined;
+      if (!node) return;
+
+      const normalized = normalizeRotationDegrees(rotation);
+      node.rotation(normalized);
+      node.getLayer()?.batchDraw();
+
+      if (videoSelected && videoClipAtPlayhead) {
+        const base = resolveVideoClipLayout(videoClipAtPlayhead, contentRect);
+        const live = layoutFromKonvaVideoNode(node, base);
+        onVideoLiveLayoutChange?.(live);
+        setLiveToolbarBox(live);
+        return;
+      }
+
+      if (selectedElement) {
+        const px = toPxBox(selectedElement, contentRect);
+        const height =
+          selectedElement.type === 'logo' || selectedElement.type === 'image'
+            ? px.height
+            : toPxFontSize(selectedElement.fontSize, contentRect) * 1.6;
+        setLiveToolbarBox({
+          x: node.x(),
+          y: node.y(),
+          width: px.width,
+          height,
+          rotation: normalized,
+        });
+      }
+    },
+    [
+      transformTargetId,
+      videoSelected,
+      videoClipAtPlayhead,
+      contentRect,
+      selectedElement,
+      onVideoLiveLayoutChange,
+    ],
+  );
+
+  const commitCanvasRotation = useCallback(() => {
+    const layer = layerRef.current;
+    if (!layer || !transformTargetId) return;
+    const node = layer.findOne(
+      (n) => n.id() === transformTargetId || n.name() === transformTargetId,
+    ) as Konva.Group | undefined;
+    if (!node) return;
+
+    const rotation = normalizeRotationDegrees(node.rotation());
+    if (videoSelected && videoClipAtPlayhead) {
+      studioEdit.updateVideoTransform(videoClipAtPlayhead.id, { rotation }, { history: true });
+      return;
+    }
+    if (selectedElement) {
+      studioEdit.updateCanvasElement(selectedElement.id, { rotation }, { history: true });
+    }
+  }, [transformTargetId, videoSelected, videoClipAtPlayhead, selectedElement]);
+
+  const orientedToolbarBox = useMemo((): CanvasOrientedBox | null => {
+    if (liveToolbarBox) return liveToolbarBox;
+    if (videoSelected && videoClipAtPlayhead) {
+      return resolveVideoClipLayout(videoClipAtPlayhead, contentRect);
+    }
+    if (selectedElement) {
+      const px = toPxBox(selectedElement, contentRect);
+      const height =
+        selectedElement.type === 'logo' || selectedElement.type === 'image'
+          ? px.height
+          : toPxFontSize(selectedElement.fontSize, contentRect) * 1.6;
+      return {
+        x: px.x,
+        y: px.y,
+        width: px.width,
+        height,
+        rotation: selectedElement.rotation ?? 0,
+      };
+    }
+    return null;
+  }, [liveToolbarBox, videoSelected, videoClipAtPlayhead, contentRect, selectedElement]);
 
   useEffect(() => {
     const tr = transformerRef.current;
@@ -826,12 +971,40 @@ export function CanvasEditorStage({
   }, [overlaySnapPeers, videoSnapPeer]);
   const videoSnapPeers = overlaySnapPeers;
 
+  const canvasElementIds = useMemo(
+    () => new Set(canvasElements.map((el) => el.id)),
+    [canvasElements],
+  );
+
+  const openContextMenu = useCallback(
+    (e: Konva.KonvaEventObject<PointerEvent>) => {
+      e.evt.preventDefault();
+      if (previewMode) return;
+
+      const stage = e.target.getStage();
+      if (!stage) return;
+
+      const hit = resolveCanvasContextHit(e.target, stage, canvasElementIds);
+      if (hit.kind === 'video') {
+        focusVideoClip(hit.clipId);
+      } else if (hit.kind === 'element') {
+        focusCanvasElement(hit.elementId);
+      }
+
+      setContextMenu({
+        x: e.evt.clientX,
+        y: e.evt.clientY,
+        ...hit,
+      });
+    },
+    [previewMode, canvasElementIds, focusVideoClip, focusCanvasElement],
+  );
+
   if (size.width <= 0 || size.height <= 0) return null;
 
-  const selectedElement = canvasElements.find((el) => el.id === selectedCanvasElementId) ?? null;
   const editingElement = canvasElements.find((el) => el.id === editingElementId) ?? null;
   const interactive = !previewMode;
-  const transformAccent = videoSelected ? '#F4B942' : '#54D6C9';
+  const transformAccent = videoSelected ? CANVAS_FRAME.videoAccent : CANVAS_FRAME.elementAccent;
   const transformKeepRatio = Boolean(
     selectedElement &&
       (selectedElement.type === 'text' ||
@@ -846,6 +1019,13 @@ export function CanvasEditorStage({
       ? getFrameGuideLines(contentRect)
       : null;
   const activeGuides = dragGuides ?? selectionGuides;
+
+  const toStagePoint = (clientX: number, clientY: number) => {
+    const stage = stageRef.current;
+    if (!stage) return { x: clientX, y: clientY };
+    const rect = stage.container().getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  };
 
   return (
     <>
@@ -874,6 +1054,7 @@ export function CanvasEditorStage({
             setEditingElementId(null);
           }
         }}
+        onContextMenu={openContextMenu}
       >
         <Layer ref={layerRef} listening={interactive}>
           <Rect
@@ -881,7 +1062,7 @@ export function CanvasEditorStage({
             y={contentRect.y}
             width={contentRect.width}
             height={contentRect.height}
-            stroke="rgba(255,255,255,0.18)"
+            stroke={transformTargetId ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.16)'}
             strokeWidth={1}
             listening={false}
           />
@@ -913,7 +1094,20 @@ export function CanvasEditorStage({
                 );
               }}
               onDragGuideChange={setDragGuides}
-              onLiveLayoutChange={onVideoLiveLayoutChange}
+              onLiveLayoutChange={(layout) => {
+                onVideoLiveLayoutChange?.(layout);
+                setLiveToolbarBox(
+                  layout
+                    ? {
+                        x: layout.x,
+                        y: layout.y,
+                        width: layout.width,
+                        height: layout.height,
+                        rotation: layout.rotation,
+                      }
+                    : null,
+                );
+              }}
             />
           )}
 
@@ -938,59 +1132,47 @@ export function CanvasEditorStage({
               }}
               onChange={(patch) => studioEdit.updateCanvasElement(element.id, patch)}
               onDragGuideChange={setDragGuides}
+              onLiveLayoutChange={
+                selectedCanvasElementId === element.id ? setLiveToolbarBox : undefined
+              }
             />
           ))}
 
           {interactive && transformTargetId && !editingElementId && (
-            <Transformer
-              ref={transformerRef}
-              rotateEnabled
-              rotateAnchorOffset={28}
+            <StudioCanvasTransformer
+              transformerRef={transformerRef}
+              accent={transformAccent}
               keepRatio={transformKeepRatio}
-              enabledAnchors={
-                transformKeepRatio
-                  ? [
-                      'top-left',
-                      'top-right',
-                      'bottom-left',
-                      'bottom-right',
-                    ]
-                  : [
-                      'top-left',
-                      'top-right',
-                      'bottom-left',
-                      'bottom-right',
-                      'middle-left',
-                      'middle-right',
-                      'top-center',
-                      'bottom-center',
-                    ]
-              }
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 40 || newBox.height < 24) return oldBox;
                 const clamped = clampBoxToContentRect(newBox, contentRect, PAD);
                 return { ...newBox, ...clamped };
               }}
-              anchorSize={8}
-              anchorCornerRadius={1}
-              borderStrokeWidth={1.5}
-              borderStroke={transformAccent}
-              anchorStroke="#ffffff"
-              anchorFill="#ffffff"
-              borderDash={[]}
-              ignoreStroke
             />
           )}
         </Layer>
       </Stage>
 
-      {interactive && selectedElement && !editingElementId && (
-        <CanvasElementOverlay
-          element={selectedElement}
-          contentRect={contentRect}
-          stageSize={size}
-          onEditText={() => setEditingElementId(selectedElement.id)}
-        />
+      {interactive && !editingElementId && orientedToolbarBox && transformTargetId && (
+        <div className="canvas-transform-chrome">
+          <CanvasSelectionFrame box={orientedToolbarBox} accent={transformAccent} />
+          <CanvasRotationHandle
+            box={orientedToolbarBox}
+            accent={transformAccent}
+            toStagePoint={toStagePoint}
+            onRotate={applyCanvasRotation}
+            onRotateEnd={commitCanvasRotation}
+          />
+          <CanvasSelectionToolbar
+            stageSize={size}
+            box={orientedToolbarBox}
+            videoClip={videoSelected ? videoClipAtPlayhead : null}
+            element={selectedElement}
+            onEditText={
+              selectedElement ? () => setEditingElementId(selectedElement.id) : undefined
+            }
+          />
+        </div>
       )}
 
       {interactive && editingElement && (
@@ -1002,6 +1184,17 @@ export function CanvasEditorStage({
             setEditingElementId(null);
           }}
           onCancel={() => setEditingElementId(null)}
+        />
+      )}
+
+      {interactive && (
+        <CanvasContextMenu
+          target={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onEditText={(elementId) => {
+            focusCanvasElement(elementId);
+            setEditingElementId(elementId);
+          }}
         />
       )}
     </>

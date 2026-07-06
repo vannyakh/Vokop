@@ -140,6 +140,10 @@ export interface CanvasElement {
   animationIn?: CanvasClipAnimationIn;
   /** Exit animation preset (Omniclip-style, sampled at playback). */
   animationOut?: CanvasClipAnimationOut;
+  /** Mirror horizontally in the composition preview. */
+  flipX?: boolean;
+  /** Mirror vertically in the composition preview. */
+  flipY?: boolean;
 }
 
 export type { CanvasTool as CanvasToolMode };

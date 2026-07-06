@@ -242,6 +242,7 @@ function drawClipFrame(
     ctx.filter = snapshot.videoFilterCss;
   }
   ctx.translate(layout.x + layout.width / 2, layout.y + layout.height / 2);
+  ctx.scale(clip.flipX ? -1 : 1, clip.flipY ? -1 : 1);
   ctx.rotate((layout.rotation * Math.PI) / 180);
   ctx.drawImage(frame, -layout.width / 2, -layout.height / 2, layout.width, layout.height);
   ctx.restore();
@@ -397,6 +398,7 @@ function drawCanvasElement(
   ctx.save();
   ctx.globalAlpha = display.opacity;
   ctx.translate(display.x + display.width / 2, display.y + boxHeight / 2);
+  ctx.scale(element.flipX ? -1 : 1, element.flipY ? -1 : 1);
   ctx.rotate((display.rotation * Math.PI) / 180);
   ctx.translate(-display.width / 2, -boxHeight / 2);
 

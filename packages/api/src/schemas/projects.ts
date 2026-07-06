@@ -140,6 +140,12 @@ export const extraTimelineTrackSchema = z.object({
   label: z.string(),
 });
 
+export const projectCoverSchema = z.object({
+  url: z.string(),
+  source: z.enum(['video', 'upload']),
+  timeSec: z.number().nonnegative().optional(),
+});
+
 export const projectEditorStateSchema = z.object({
   videoClips: z.array(mediaClipSchema).optional(),
   audioClips: z.array(mediaClipSchema).optional(),
@@ -150,6 +156,7 @@ export const projectEditorStateSchema = z.object({
   timelineTrackHidden: z.array(z.string()).optional(),
   timelineTrackOrder: z.array(z.string()).optional(),
   extraTimelineTracks: z.array(extraTimelineTrackSchema).optional(),
+  projectCover: projectCoverSchema.optional(),
   /**
    * Composition coordinate space for videoClips/canvasElements x/y/width/height/fontSize.
    * 'legacy-px' (or missing) = live on-screen pixels (old projects, needs one-time migration).
@@ -167,6 +174,7 @@ export const projectSchema = z.object({
   status: projectStatusSchema,
   progress: z.number().min(0).max(100).optional(),
   durationSec: z.number().nonnegative().optional(),
+  thumbnailUrl: z.string().optional(),
   editorState: projectEditorStateSchema.optional(),
   /** ISO timestamp when soft-deleted; omitted/null when active. */
   deletedAt: z.string().nullable().optional(),
@@ -196,6 +204,7 @@ export const updateProjectRequestSchema = z.object({
   durationSec: z.number().nonnegative().optional(),
   status: projectStatusSchema.optional(),
   progress: z.number().min(0).max(100).optional(),
+  thumbnailUrl: z.string().optional(),
   editorState: projectEditorStateSchema.optional(),
 });
 

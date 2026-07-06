@@ -28,20 +28,6 @@ import { useTranslation } from '@/features/settings';
 import type { TimelineTrackModel, TimelineTrackType } from '@/features/studio/lib/timelineTypes';
 import { isCompactTrackHeight, TRACK_TYPE_PREFIX } from '@/features/studio/lib/timelineTypes';
 
-function confirmRemoveTrack(track: TimelineTrackModel, onDelete: () => void) {
-  Modal.confirm({
-    title: track.isExtra ? 'Delete track?' : 'Remove track?',
-    content: track.isExtra
-      ? 'Clips on this track will be removed. This cannot be undone from the menu.'
-      : 'The track will be hidden from the timeline. You can restore it from Add track.',
-    okText: track.isExtra ? 'Delete' : 'Remove',
-    okButtonProps: { danger: true },
-    cancelText: 'Cancel',
-    centered: true,
-    onOk: onDelete,
-  });
-}
-
 interface TimelineTrackHeaderProps {
   track: TimelineTrackModel;
   /** 0-based track index (Omniclip-style placement). */
@@ -141,6 +127,7 @@ export function TimelineTrackHeader({
   const canDelete = Boolean(onDelete);
   const trackCode = `${TRACK_TYPE_PREFIX[track.type]}${index + 1}`;
   const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState(track.label);
 
   const localizedLabel = useMemo(() => {
@@ -268,7 +255,7 @@ export function TimelineTrackHeader({
         label: track.isExtra ? 'Delete track' : 'Remove track',
         onClick: ({ domEvent }) => {
           domEvent.stopPropagation();
-          confirmRemoveTrack(track, onDelete);
+          setDeleteOpen(true);
         },
       });
     }
@@ -417,6 +404,25 @@ export function TimelineTrackHeader({
           onPressEnter={commitRename}
           placeholder="Track name"
         />
+      </Modal>
+
+      <Modal
+        title={track.isExtra ? 'Delete track?' : 'Remove track?'}
+        open={deleteOpen}
+        onOk={() => {
+          onDelete?.();
+          setDeleteOpen(false);
+        }}
+        onCancel={() => setDeleteOpen(false)}
+        okText={track.isExtra ? 'Delete' : 'Remove'}
+        okButtonProps={{ danger: true }}
+        cancelText="Cancel"
+        centered
+        width={360}
+      >
+        {track.isExtra
+          ? 'Clips on this track will be removed. This cannot be undone from the menu.'
+          : 'The track will be hidden from the timeline. You can restore it from Add track.'}
       </Modal>
     </div>
   );

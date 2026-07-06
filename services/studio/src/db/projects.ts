@@ -97,6 +97,7 @@ export async function updateProjectRecord(
       | 'status'
       | 'progress'
       | 'editorState'
+      | 'thumbnailUrl'
     >
   >,
 ): Promise<ProjectDoc | null> {

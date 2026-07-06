@@ -87,6 +87,7 @@ export function TimelineBar({
       className="studio-editor-dock"
       onContextMenu={(e) => {
         if (!dockRef.current?.contains(e.target as Node)) return;
+        if ((e.target as HTMLElement).closest('[data-slot="context-menu-content"]')) return;
         if ((e.target as HTMLElement).closest('.studio-timeline-context-menu')) return;
         if ((e.target as HTMLElement).closest('.studio-timeline-scroll')) return;
         e.preventDefault();
@@ -155,11 +156,6 @@ export function TimelineBar({
         onPaste={(atTime) => pasteSelection(atTime)}
         onDuplicate={duplicateSelection}
         onAddClip={(trackId) => addTimelineClip(trackId, currentTime)}
-        onSelectFootage={() => {}}
-        onOpenMedia={() => {
-          setActiveStudioTool('media');
-          setToolsDrawerOpen(true);
-        }}
         onEditCanvas={() => {
           if (!selectedTimelineClip) return;
           const clipId = selectedTimelineClip.clipId;

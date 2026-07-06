@@ -142,7 +142,7 @@ export function StudioProjectStatusBar() {
               trigger={['click']}
               open={menuOpen}
               onOpenChange={setMenuOpen}
-              overlayClassName="studio-statusbar-dropdown"
+              classNames={{ root: 'studio-statusbar-dropdown' }}
             >
               <button
                 type="button"

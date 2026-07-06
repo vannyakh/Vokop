@@ -2,7 +2,7 @@ import { captionSegmentsToLegacySegments } from '@vokop/shared';
 import { getSegmentEnd } from '@/features/studio/lib/timelineClipUtils';
 import type { ExtraTimelineTrack, MediaClip, TimelineTrackModel } from '@/features/studio/lib/timelineTypes';
 import { TRACK_TYPE_LABELS } from '@/features/studio/lib/timelineTypes';
-import { orderTimelineTracks } from '@/features/studio/lib/timelineTrackUtils';
+import { orderTimelineTracks, footageTrackHasClips } from '@/features/studio/lib/timelineTrackUtils';
 import type { CanvasElement } from '@/types/canvas';
 import type { Segment } from '@/types';
 import { parseSegments } from '@/lib/utils/transcript';
@@ -263,6 +263,10 @@ export function buildTimelineTracks(input: BuildTimelineTracksInput): TimelineTr
     });
   }
 
-  const visible = tracks.filter((t) => !timelineTrackHidden.includes(String(t.id)));
+  const visible = tracks.filter((t) => {
+    if (timelineTrackHidden.includes(String(t.id))) return false;
+    if (t.type === 'video' && !footageTrackHasClips(String(t.id), videoClips)) return false;
+    return true;
+  });
   return orderTimelineTracks(visible, timelineTrackOrder);
 }

@@ -207,10 +207,17 @@ export function VokopModalTitle({
   );
 }
 
-function mergeModalMask(mask?: ModalProps['mask']): ModalProps['mask'] {
+function mergeModalMask(
+  mask?: ModalProps['mask'],
+  maskClosable?: boolean,
+): ModalProps['mask'] {
   if (mask === false) return false;
   const userMask = typeof mask === 'object' && mask !== null ? mask : {};
-  return { blur: false, ...userMask };
+  return {
+    blur: false,
+    ...userMask,
+    ...(maskClosable !== undefined ? { closable: maskClosable } : {}),
+  };
 }
 
 export function VokopModal({
@@ -227,6 +234,7 @@ export function VokopModal({
   styles,
   modalRender: userModalRender,
   mask,
+  maskClosable,
   open,
   closeIcon = <X size={16} strokeWidth={2} aria-hidden="true" />,
   ...props
@@ -283,7 +291,7 @@ export function VokopModal({
       footer={footer}
       width={width}
       open={open}
-      mask={mergeModalMask(mask)}
+      mask={mergeModalMask(mask, maskClosable)}
       className={cn('vokop-modal', draggable && 'vokop-modal--draggable', className)}
       classNames={mergeModalClassNames(classNames)}
       styles={mergeModalStyles(styles)}

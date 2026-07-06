@@ -14,8 +14,8 @@
   "rtl": false,
   "aliases": {
     "components": "@/components",
-    "utils": "@/lib/utils",
-    "ui": "@/components/ui",
+    "utils": "@vokop/ui/lib/utils",
+    "ui": "@vokop/ui/shadcn",
     "lib": "@/lib",
     "hooks": "@/hooks"
   },

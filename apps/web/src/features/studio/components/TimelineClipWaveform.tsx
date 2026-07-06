@@ -8,7 +8,9 @@ import {
   drawTimelineWaveform,
   getAudioPeaks,
   getCachedAudioPeaks,
+  MAX_WAVEFORM_CANVAS_PX,
   peaksForClipRegion,
+  resolveWaveformViewport,
   type PeakEntry,
 } from '@/features/studio/lib/timelineAudioPeaks';
 import {
@@ -21,6 +23,9 @@ interface TimelineClipWaveformProps {
   width: number;
   height: number;
   trackType: TimelineTrackType;
+  clipLeftPx?: number;
+  timelineScrollLeft?: number;
+  timelineViewportWidth?: number;
   /** Stretch existing waveform bitmap while trimming — avoids async peak rebuild every frame. */
   stretchOnly?: boolean;
   /** Playhead is inside this clip during playback. */
@@ -34,20 +39,20 @@ interface TimelineClipWaveformProps {
 const WAVE_COLORS: Record<string, { fill: string; bg: string; glow?: string; hot: string; clip: string }> = {
   audio: {
     fill: 'rgba(45, 230, 212, 0.96)',
-    bg: 'rgba(45, 230, 212, 0.04)',
+    bg: '#030e0c',
     hot: 'rgba(251, 191, 36, 0.98)',
     clip: 'rgba(239, 68, 68, 0.98)',
   },
   sound: {
     fill: 'rgba(251, 191, 36, 0.98)',
     glow: 'rgba(251, 191, 36, 0.08)',
-    bg: 'rgba(251, 191, 36, 0.05)',
+    bg: '#0a0f0c',
     hot: 'rgba(251, 146, 60, 0.98)',
     clip: 'rgba(239, 68, 68, 0.98)',
   },
   video: {
     fill: 'rgba(255, 255, 255, 0.92)',
-    bg: 'rgba(0, 0, 0, 0.0)',
+    bg: '#0a0a0a',
     hot: 'rgba(251, 191, 36, 0.92)',
     clip: 'rgba(239, 68, 68, 0.92)',
   },
@@ -62,25 +67,44 @@ function paintWaveform(
   sourceMediaDuration: number,
   colors: (typeof WAVE_COLORS)[string],
   waveStyle: 'audio' | 'sound' | 'video',
-) {
+  viewport: { startPx: number; widthPx: number } | null,
+): boolean {
   const dpr = window.devicePixelRatio || 1;
-  const canvasPx = Math.floor(width * dpr);
-  const barCount = computeWaveformBarCount(canvasPx, waveStyle);
+  let regionStart = clip.sourceStart ?? 0;
+  let regionDuration = clip.duration;
+  let layoutLeft = 0;
+  let layoutWidth = width;
 
-  canvas.width = Math.floor(width * dpr);
-  canvas.height = Math.floor(height * dpr);
-  canvas.style.width = `${width}px`;
+  if (viewport && width > 0) {
+    const t0 = viewport.startPx / width;
+    const t1 = (viewport.startPx + viewport.widthPx) / width;
+    regionStart += t0 * clip.duration;
+    regionDuration = Math.max(0.01, (t1 - t0) * clip.duration);
+    layoutLeft = viewport.startPx;
+    layoutWidth = viewport.widthPx;
+  }
+
+  const layoutCanvasPx = Math.floor(layoutWidth * dpr);
+  const bitmapPx = Math.min(layoutCanvasPx, MAX_WAVEFORM_CANVAS_PX);
+  const barCount = computeWaveformBarCount(bitmapPx, waveStyle);
+
+  canvas.width = bitmapPx;
+  canvas.height = Math.max(1, Math.floor(height * dpr));
+  canvas.style.width = `${layoutWidth}px`;
   canvas.style.height = `${height}px`;
+  canvas.style.left = layoutLeft > 0 ? `${layoutLeft}px` : '0';
+  canvas.style.position = viewport ? 'absolute' : 'absolute';
+  canvas.style.top = '0';
 
   const mediaDur = entry.duration || sourceMediaDuration || clip.duration;
   const region = peaksForClipRegion(
     entry.peaks,
     mediaDur,
-    clip.sourceStart ?? 0,
-    clip.duration,
+    regionStart,
+    regionDuration,
     barCount,
   );
-  drawTimelineWaveform(canvas, region, colors, waveStyle);
+  return drawTimelineWaveform(canvas, region, colors, waveStyle);
 }
 
 export function TimelineClipWaveform({
@@ -88,6 +112,9 @@ export function TimelineClipWaveform({
   width,
   height,
   trackType,
+  clipLeftPx = 0,
+  timelineScrollLeft = 0,
+  timelineViewportWidth = 0,
   stretchOnly = false,
   underPlayhead = false,
   playheadRatio,
@@ -125,6 +152,17 @@ export function TimelineClipWaveform({
   const liveHot = livePeakLevel >= PLAYBACK_HIGH_VOLUME;
   const liveClipping = livePeakLevel >= PLAYBACK_CLIP_VOLUME;
   const liveBarPct = Math.round(Math.max(18, Math.min(100, livePeakLevel * 100)));
+
+  const viewport = useMemo(
+    () =>
+      resolveWaveformViewport(
+        width,
+        clipLeftPx,
+        timelineScrollLeft,
+        timelineViewportWidth || (typeof window !== 'undefined' ? window.innerWidth : 1280),
+      ),
+    [width, clipLeftPx, timelineScrollLeft, timelineViewportWidth],
+  );
 
   useEffect(() => {
     if (stretchOnly || !source) {
@@ -184,7 +222,7 @@ export function TimelineClipWaveform({
       return;
     }
 
-    paintWaveform(
+    const drew = paintWaveform(
       canvas,
       width,
       height,
@@ -193,8 +231,9 @@ export function TimelineClipWaveform({
       source.mediaDuration,
       colors,
       waveStyle,
+      viewport,
     );
-    setReady(true);
+    setReady(drew);
   }, [
     peakEntry,
     source,
@@ -205,6 +244,7 @@ export function TimelineClipWaveform({
     colors,
     waveStyle,
     stretchOnly,
+    viewport,
   ]);
 
   if (!source) return null;
@@ -216,6 +256,7 @@ export function TimelineClipWaveform({
       className={cn(
         'studio-timeline-clip-waveform-wrap',
         `studio-timeline-clip-waveform-wrap--${waveStyle}`,
+        viewport && 'is-viewport-window',
         showLive && liveHot && 'is-live-hot',
         showLive && liveClipping && 'is-live-clipping',
       )}

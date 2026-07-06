@@ -130,7 +130,7 @@ export function StudioStatusbarMonitor({ active = true }: StudioStatusbarMonitor
       open={open}
       onOpenChange={setOpen}
       placement="top"
-      overlayClassName="studio-statusbar-monitor-popover"
+      classNames={{ root: 'studio-statusbar-monitor-popover' }}
     >
       <button
         type="button"

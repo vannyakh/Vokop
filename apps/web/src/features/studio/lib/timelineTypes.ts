@@ -126,6 +126,10 @@ export interface MediaClip {
   voiceTimbre?: number;
   /** Speed multiplier (default 1) */
   speed?: number;
+  /** Mirror horizontally in the composition preview. */
+  flipX?: boolean;
+  /** Mirror vertically in the composition preview. */
+  flipY?: boolean;
   /**
    * Audio clip plays from the main video media (extract / detach).
    * Points at the source video clip id when created.
@@ -183,8 +187,11 @@ export const DEFAULT_HIDDEN_CORE_TRACKS: string[] = [
 /** Track header column width (room for label + menu). */
 export const TRACK_HEADER_WIDTH = 220;
 export const TIMELINE_RULER_HEIGHT = 34;
+export const TIMELINE_RULER_HEIGHT_COMPACT = 26;
+/** Below this zoom % the ruler uses compact ticks/labels. */
+export const TIMELINE_ZOOM_COMPACT_RULER = 50;
 export const TIMELINE_BASE_PX_PER_SEC = 80;
-export const TIMELINE_ZOOM_MIN = 25;
+export const TIMELINE_ZOOM_MIN = 10;
 export const TIMELINE_ZOOM_MAX = 800;
 export const TIMELINE_ZOOM_STEP = 5;
 export const TIMELINE_ZOOM_BUTTON_STEP = 25;

@@ -23,6 +23,9 @@ function editorStateSignature(input: {
   timelineTrackOrder: string[];
   extraTimelineTracks: ExtraTimelineTrack[];
   compositionSpace: 'legacy-px' | 'fraction-v2';
+  projectThumbnailUrl: string | null;
+  projectCoverTimeSec: number;
+  projectCoverSource: 'video' | 'upload';
 }): string {
   return JSON.stringify({
     title: input.projectName,
@@ -43,6 +46,14 @@ function editorStateSignature(input: {
     transcript: input.transcript,
     translatedText: input.translatedText,
     compositionSpace: input.compositionSpace,
+    thumbnailUrl: input.projectThumbnailUrl,
+    projectCover: input.projectThumbnailUrl
+      ? {
+          url: input.projectThumbnailUrl,
+          source: input.projectCoverSource,
+          ...(input.projectCoverSource === 'video' ? { timeSec: input.projectCoverTimeSec } : {}),
+        }
+      : null,
   });
 }
 
@@ -69,6 +80,9 @@ export function useStudioProject(projectId: string | undefined) {
   const timelineTrackOrder = useAppStore((s) => s.timelineTrackOrder);
   const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
   const compositionSpace = useAppStore((s) => s.compositionSpace);
+  const projectThumbnailUrl = useAppStore((s) => s.projectThumbnailUrl);
+  const projectCoverTimeSec = useAppStore((s) => s.projectCoverTimeSec);
+  const projectCoverSource = useAppStore((s) => s.projectCoverSource);
   const hydrateMediaLibrary = useAppStore((s) => s.hydrateMediaLibrary);
 
   const skipNextSaveRef = useRef(false);
@@ -105,6 +119,7 @@ export function useStudioProject(projectId: string | undefined) {
         status: query.data.status,
         progress: query.data.progress,
         durationSec: query.data.durationSec,
+        thumbnailUrl: query.data.thumbnailUrl,
         editorState: editorState
           ? {
               videoClips: editorState.videoClips as MediaClip[] | undefined,
@@ -117,6 +132,13 @@ export function useStudioProject(projectId: string | undefined) {
               timelineTrackOrder: editorState.timelineTrackOrder,
               extraTimelineTracks: editorState.extraTimelineTracks as ExtraTimelineTrack[] | undefined,
               compositionSpace: editorState.compositionSpace as 'legacy-px' | 'fraction-v2' | undefined,
+              projectCover: editorState.projectCover
+                ? {
+                    url: editorState.projectCover.url,
+                    source: editorState.projectCover.source as 'video' | 'upload',
+                    timeSec: editorState.projectCover.timeSec,
+                  }
+                : undefined,
             }
           : undefined,
       });
@@ -139,6 +161,9 @@ export function useStudioProject(projectId: string | undefined) {
         extraTimelineTracks: (editorState?.extraTimelineTracks as ExtraTimelineTrack[] | undefined) ?? [],
         compositionSpace:
           (editorState?.compositionSpace as 'legacy-px' | 'fraction-v2' | undefined) ?? 'legacy-px',
+        projectThumbnailUrl: query.data.thumbnailUrl ?? editorState?.projectCover?.url ?? null,
+        projectCoverTimeSec: editorState?.projectCover?.timeSec ?? 0,
+        projectCoverSource: editorState?.projectCover?.source ?? 'video',
       });
       return;
     }
@@ -165,7 +190,9 @@ export function useStudioProject(projectId: string | undefined) {
         timelineTrackOrder: string[];
         extraTimelineTracks: ExtraTimelineTrack[];
         compositionSpace: 'legacy-px' | 'fraction-v2';
+        projectCover?: { url: string; source: 'video' | 'upload'; timeSec?: number };
       };
+      thumbnailUrl?: string;
     }) => api.updateProject(projectId!, input),
     onSuccess: (response) => {
       queryClient.setQueryData(queryKeys.projects.detail(projectId!), response.project);
@@ -198,6 +225,9 @@ export function useStudioProject(projectId: string | undefined) {
       timelineTrackOrder,
       extraTimelineTracks,
       compositionSpace,
+      projectThumbnailUrl,
+      projectCoverTimeSec,
+      projectCoverSource,
     });
     if (sig === lastSavedSigRef.current) return;
 
@@ -214,6 +244,7 @@ export function useStudioProject(projectId: string | undefined) {
         title: projectName.trim(),
         aspectRatio,
         durationSec: duration,
+        thumbnailUrl: projectThumbnailUrl ?? undefined,
         editorState: {
           videoClips,
           audioClips,
@@ -225,6 +256,15 @@ export function useStudioProject(projectId: string | undefined) {
           timelineTrackOrder,
           extraTimelineTracks,
           compositionSpace,
+          ...(projectThumbnailUrl
+            ? {
+                projectCover: {
+                  url: projectThumbnailUrl,
+                  source: projectCoverSource,
+                  ...(projectCoverSource === 'video' ? { timeSec: projectCoverTimeSec } : {}),
+                },
+              }
+            : {}),
         },
       });
     }, SAVE_DEBOUNCE_MS);
@@ -240,8 +280,11 @@ export function useStudioProject(projectId: string | undefined) {
     duration,
     extraTimelineTracks,
     mediaAssets,
+    projectCoverSource,
+    projectCoverTimeSec,
     projectId,
     projectName,
+    projectThumbnailUrl,
     saveProject,
     storeProjectId,
     timelineTrackHidden,

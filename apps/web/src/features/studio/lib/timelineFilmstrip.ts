@@ -1,4 +1,12 @@
-import { FILMSTRIP_THUMB_WIDTH } from '@vokop/shared';
+import { FILMSTRIP_THUMB_HEIGHT, FILMSTRIP_THUMB_WIDTH } from '@vokop/shared';
+import { isCompactTrackHeight } from '@/features/studio/lib/timelineTypes';
+
+/** CapCut-style filmstrip band height for a video lane (frames above embedded waveform). */
+export function resolveFilmstripBandHeight(laneHeight: number): number {
+  const clipHeight = Math.max(1, laneHeight - 4);
+  if (isCompactTrackHeight(laneHeight)) return clipHeight;
+  return Math.max(FILMSTRIP_THUMB_HEIGHT, Math.round(clipHeight * 0.58));
+}
 
 /** How many thumb slots to render for a clip block width. */
 export function filmstripSlotCount(clipPixelWidth: number, thumbWidth = FILMSTRIP_THUMB_WIDTH): number {

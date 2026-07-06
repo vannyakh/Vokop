@@ -132,7 +132,7 @@ export function ExportVideoModal({ open, onClose, onExport, isExporting }: Expor
       width={500}
       draggable={!isExporting}
       destroyOnHidden
-      maskClosable={!isExporting}
+      mask={{ closable: !isExporting }}
       closable={!isExporting}
       className="studio-modal export-modal"
       styles={STUDIO_MODAL_STYLES}

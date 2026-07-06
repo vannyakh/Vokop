@@ -1,4 +1,6 @@
 import type {
+  ExtraTimelineTrack,
+  MediaClip,
   TimelineClipModel,
   TimelineTrackId,
   TimelineTrackModel,
@@ -31,6 +33,45 @@ export function isVideoTimelineTrack(trackId: TimelineTrackId | string | undefin
   if (!trackId) return false;
   const id = String(trackId);
   return id === 'video' || id.startsWith('video-');
+}
+
+/** Whether a footage track has at least one clip on the timeline. */
+export function footageTrackHasClips(trackId: string, videoClips: MediaClip[]): boolean {
+  if (trackId === 'video') {
+    return videoClips.some((clip) => !clip.trackId || clip.trackId === 'video');
+  }
+  if (trackId.startsWith('video-')) {
+    return videoClips.some((clip) => clip.trackId === trackId);
+  }
+  return false;
+}
+
+/** Drop empty extra footage tracks after clip deletes/moves. */
+export function pruneEmptyExtraFootageTracks(state: {
+  extraTimelineTracks: ExtraTimelineTrack[];
+  videoClips: MediaClip[];
+  timelineTrackOrder: string[];
+  timelineTrackMuted: Record<string, boolean>;
+  timelineTrackPreviewHidden: Record<string, boolean>;
+  timelineTrackLabels: Record<string, string>;
+}): Partial<typeof state> | null {
+  const emptyIds = state.extraTimelineTracks
+    .filter((track) => track.type === 'video')
+    .filter((track) => !footageTrackHasClips(track.id, state.videoClips))
+    .map((track) => track.id);
+  if (emptyIds.length === 0) return null;
+
+  const empty = new Set(emptyIds);
+  const omit = <T extends Record<string, unknown>>(obj: T) =>
+    Object.fromEntries(Object.entries(obj).filter(([key]) => !empty.has(key))) as T;
+
+  return {
+    extraTimelineTracks: state.extraTimelineTracks.filter((track) => !empty.has(track.id)),
+    timelineTrackOrder: state.timelineTrackOrder.filter((id) => !empty.has(id)),
+    timelineTrackMuted: omit(state.timelineTrackMuted),
+    timelineTrackPreviewHidden: omit(state.timelineTrackPreviewHidden),
+    timelineTrackLabels: omit(state.timelineTrackLabels),
+  };
 }
 
 export function isVisualTimelineTrack(trackId: TimelineTrackId | string | undefined): boolean {

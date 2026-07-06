@@ -160,19 +160,26 @@ export function VideoPreviewFrame({
 
   const composedStyle: CSSProperties | undefined =
     hasActiveVideoClip && frameSize.width > 0
-      ? {
-          left: videoLayout.x,
-          top: videoLayout.y,
-          width: videoLayout.width,
-          height: videoLayout.height,
-          opacity: videoLayout.opacity,
-          transformOrigin: 'top left',
-          transform:
-            videoLayout.rotation !== 0
-              ? `rotate(${videoLayout.rotation}deg)`
+      ? (() => {
+          const transforms: string[] = [];
+          if (activeVideoClip?.flipX) transforms.push('scaleX(-1)');
+          if (activeVideoClip?.flipY) transforms.push('scaleY(-1)');
+          if (videoLayout.rotation !== 0) transforms.push(`rotate(${videoLayout.rotation}deg)`);
+          const usesCenter =
+            transforms.length > 0 || videoLayout.rotation !== 0;
+          return {
+            left: usesCenter ? videoLayout.x + videoLayout.width / 2 : videoLayout.x,
+            top: usesCenter ? videoLayout.y + videoLayout.height / 2 : videoLayout.y,
+            width: videoLayout.width,
+            height: videoLayout.height,
+            opacity: videoLayout.opacity,
+            transformOrigin: 'center center',
+            transform: usesCenter
+              ? `translate(-50%, -50%) ${transforms.join(' ')}`.trim()
               : undefined,
-          ...(videoCssFilter !== 'none' ? { filter: videoCssFilter } : {}),
-        }
+            ...(videoCssFilter !== 'none' ? { filter: videoCssFilter } : {}),
+          };
+        })()
       : videoCssFilter !== 'none'
         ? { filter: videoCssFilter }
         : undefined;
