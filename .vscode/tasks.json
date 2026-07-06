@@ -1,0 +1,72 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: all",
+      "type": "shell",
+      "command": "pnpm dev",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "dev: web",
+      "type": "shell",
+      "command": "pnpm dev:web",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: admin",
+      "type": "shell",
+      "command": "pnpm dev:admin",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "db: up",
+      "type": "shell",
+      "command": "pnpm db:up",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "lint (tsc)",
+      "type": "shell",
+      "command": "pnpm lint",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "linecheck (eslint)",
+      "type": "shell",
+      "command": "pnpm linecheck",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "format",
+      "type": "shell",
+      "command": "pnpm format",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "format: check",
+      "type": "shell",
+      "command": "pnpm format:check",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "pnpm build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

@@ -58,3 +58,5 @@ Single package:
 pnpm --filter @vokop/web linecheck
 pnpm --filter @vokop/web format
 ```
+
+**VS Code / Cursor** — open the repo folder or `vokop.code-workspace`. Settings in `.vscode/settings.json` wire Prettier + ESLint to `@vokop/devtools`.

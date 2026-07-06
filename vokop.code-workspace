@@ -1,0 +1,28 @@
+{
+  "folders": [
+    { "name": "Vokop", "path": "." },
+    { "name": "apps / web", "path": "apps/web" },
+    { "name": "apps / admin", "path": "apps/admin" },
+    { "name": "apps / desktop", "path": "apps/desktop" },
+    { "name": "packages", "path": "packages" },
+    { "name": "services", "path": "services" },
+    { "name": "internal", "path": "internal" }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "prettier.configPath": "internal/devtools/prettier.config.js",
+    "prettier.ignorePath": ".prettierignore",
+    "eslint.useFlatConfig": true,
+    "eslint.workingDirectories": [{ "mode": "auto" }],
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true
+  },
+  "extensions": {
+    "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss"
+    ]
+  }
+}
