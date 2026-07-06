@@ -13,6 +13,7 @@ import {
   resolveCompositorExportSize,
   runCompositorExportLoop,
 } from '@/features/studio/lib/compositorExport';
+import { runWasmCompositorExportLoop } from '@/features/studio/lib/compositorWasm';
 import {
   buildExportAudioSnapshot,
   evenExportDimensions,
@@ -280,7 +281,7 @@ async function exportWithWebCodecs(input: {
       codec: input.webCodecsCodec,
     });
 
-    await runCompositorExportLoop({
+    const wasmLoopOptions = {
       video: input.video,
       ctx,
       snapshot: input.snapshot,
@@ -296,9 +297,15 @@ async function exportWithWebCodecs(input: {
       onFrame: async () => {
         await encoder.encodeCanvas(canvas);
       },
-      onProgress: (pct) => input.setExportProgress(Math.min(80, pct * 0.8)),
+      onProgress: (pct: number) => input.setExportProgress(Math.min(80, pct * 0.8)),
       shouldStop: () => !input.exportActive(),
-    });
+    };
+
+    const usedWasmExport = await runWasmCompositorExportLoop(wasmLoopOptions);
+
+    if (!usedWasmExport) {
+      await runCompositorExportLoop(wasmLoopOptions);
+    }
 
     input.setExportProgress(82);
     const videoBinary = await encoder.flush();

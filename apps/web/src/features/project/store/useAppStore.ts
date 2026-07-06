@@ -22,6 +22,7 @@ import {
   type TimelineTransition,
   type CompositionBackground,
 } from '@vokop/shared';
+import { snappedSeekSeconds } from '@vokop/editor';
 import {
   findAdjacentPairForClip,
   upsertTimelineTransition,
@@ -54,6 +55,7 @@ import {
   isVisualTimelineTrack,
   moveTrackInOrder,
   pruneEmptyExtraFootageTracks,
+  masterTrackIdForClip,
   trackTypeFromId,
 } from '@/features/studio/lib/timelineTrackUtils';
 import {
@@ -117,6 +119,7 @@ import {
 import type { TextTemplateInput, AddTextTemplateOptions } from '@/features/studio/constants/textTemplates';
 import { computeTemplatePlacement, estimateCanvasSize } from '@/features/studio/lib/textTemplatePlacement';
 import { toFractionBox, toFractionFontSize, toFractionPoint, frameReferenceSize } from '@/features/studio/lib/canvasCoords';
+import { buildCaptionCanvasElements } from '@/features/studio/lib/buildCaptionCanvasElements';
 
 export type AddCanvasImageOptions = {
   keepStudioTool?: boolean;
@@ -593,6 +596,8 @@ interface AppState {
   updateSegmentTime: (index: number, newTime: number, type: 'transcript' | 'translation') => void;
   updateSegmentDuration: (index: number, duration: number, type: 'transcript' | 'translation') => void;
   setCaptionTracks: (type: 'transcript' | 'translation', segments: CaptionSegment[]) => void;
+  /** Convert caption segments into editable canvas text layers (OpenCut-style). */
+  promoteCaptionTrackToCanvas: (type: 'transcript' | 'translation') => number;
   updateCaptionWord: (
     segmentIndex: number,
     wordIndex: number,
@@ -611,6 +616,7 @@ interface AppState {
     fromTrackId: string,
     toTrackId: string,
   ) => void;
+  promoteTimelineClipToMaster: (clipId: string, fromTrackId: string) => void;
   addClipKeyframe: (clipId: string, atTime?: number) => void;
   removeClipKeyframe: (clipId: string, keyframeId: string) => void;
   setCanvasElements: (elements: CanvasElement[]) => void;
@@ -1304,7 +1310,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   seekTimeline: (time) => {
     const state = get();
     const max = state.duration > 0 ? state.duration : Number.POSITIVE_INFINITY;
-    const next = Math.min(Math.max(0, time), max);
+    const snapped =
+      max === Number.POSITIVE_INFINITY
+        ? time
+        : snappedSeekSeconds({ timeSec: time, durationSec: max });
+    const next = Math.min(Math.max(0, snapped), max);
     set({ currentTime: next });
     syncVideoToTimeline(state, next, state.isTimelinePlaying);
   },
@@ -1846,6 +1856,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  promoteCaptionTrackToCanvas: (type) => {
+    const state = get();
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const segments = state.captionTracks[trackKey];
+    if (!segments.length) return 0;
+
+    const created = buildCaptionCanvasElements({
+      segments,
+      segmentType: type,
+      videoWidth: state.videoWidth,
+      videoHeight: state.videoHeight,
+      trackId: 'text',
+    }).map((element, index) => ({
+      ...element,
+      id: `caption-${type}-${index}-${Date.now()}-${index}`,
+    }));
+
+    set({
+      ...pushHistory(state),
+      canvasElements: [...state.canvasElements, ...created],
+      activeStudioTool: 'text',
+      toolsDrawerOpen: true,
+    });
+    return created.length;
+  },
+
   updateCaptionWord: (segmentIndex, wordIndex, patch, type) => {
     const state = get();
     const trackKey = type === 'transcript' ? 'transcript' : 'translation';
@@ -2193,6 +2229,37 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...withTimelineDuration(state, { audioClips }),
         ...buildTimelineSelection([item], item),
       });
+    }
+  },
+
+  promoteTimelineClipToMaster: (clipId, fromTrackId) => {
+    const state = get();
+    const videoClip = state.videoClips.find((c) => c.id === clipId);
+    const canvasEl = state.canvasElements.find((el) => el.id === clipId);
+    const masterId = videoClip
+      ? masterTrackIdForClip({
+          id: clipId,
+          start: videoClip.start,
+          duration: videoClip.duration,
+          name: videoClip.name,
+          mediaKind: 'video',
+        })
+      : canvasEl && (canvasEl.type === 'image' || canvasEl.type === 'logo')
+        ? masterTrackIdForClip({
+            id: clipId,
+            start: canvasEl.startTime,
+            duration: Math.max(0.4, canvasEl.endTime - canvasEl.startTime),
+            name: canvasEl.text,
+            canvasKind: canvasEl.type === 'logo' ? 'logo' : 'image',
+          })
+        : null;
+
+    if (!masterId || fromTrackId === masterId) return;
+
+    get().moveTimelineClipToTrack(clipId, fromTrackId, masterId);
+
+    if (videoClip?.mediaAssetId) {
+      get().setPrimaryVideoAsset(videoClip.mediaAssetId);
     }
   },
 

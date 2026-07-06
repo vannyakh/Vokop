@@ -40,6 +40,7 @@ Use these open-source projects as **architecture and capability references only*
 |---------|---------------|---------|--------|
 | [Omniclip](https://github.com/omni-media/omniclip) | Video editor **frontend core** inspiration | Timeline/clip model, trim/split, undo/redo, effects/transitions concepts, project manager patterns, browser media pipeline ideas (e.g. WebCodecs-oriented thinking) | Copy Omniclip components, DOM tags, or visual design |
 | [Omnitool](https://github.com/omni-media/omnitool) | Browser **video tools** (`@omnimedia/omnitool`) | Client filmstrip, timeline build/playback/export via WebCodecs — see `apps/web/src/features/studio/lib/omniTool/` | Use in Node `services/video-tools` (FFmpeg stays server-side) |
+| [OpenCut](https://github.com/opencut-app/opencut) (local: `@templates/OpenCut/`) | **Rust/WASM performance engine** | GPU compositor (wgpu), effects, masks, frame-accurate time — see `rust/` + `opencut-wasm` | Copy Next.js UI or move React logic into Rust; do not replace Vokop shell |
 | [FunClip](https://github.com/modelscope/FunClip) | **AI generate-content** service inspiration | ASR/transcription, SRT subtitles, speaker-aware segments, LLM-assisted clip selection, hotwords | Embed Gradio UI or ship FunClip’s Python UI in `apps/web` |
 | [302.AI](https://302.ai/) | Optional **unified LLM gateway** | One API key for many models (`provider: 302ai`, `AI_302_API_KEY`) | Hard-code only 302; keep native gemini/openai/claude providers |
 
@@ -52,6 +53,18 @@ When extending the editor in `apps/web/src/features/studio/`:
 - Keep preview/canvas interactions (move, resize, rotate, text style) in Vokop’s Konva canvas layer.
 - Plan export/render paths that can grow toward higher-quality browser or server render; today server FFmpeg lives in `video-tools`.
 - **Always keep Vokop’s CapCut-style chrome**: menubar, tools rail, black studio shell, custom export/launch buttons.
+
+### OpenCut → Rust/WASM performance engine (sample template)
+
+Local **sample only**: `@templates/OpenCut/` — do not build or ship from Vokop. Patterns are ported into Vokop code:
+
+| OpenCut sample | Vokop implementation |
+|----------------|----------------------|
+| `rust/crates/time` | `@vokop/editor` → `utils/mediaTime.ts` (120k ticks, frame snap) |
+| `rust/crates/compositor` `FrameDescriptor` | `apps/web/.../compositorFrameDescriptor.ts` (WASM-ready JSON) |
+| `renderFrame` / wgpu | Not wired yet — Konva preview until compositor package exists |
+
+Seek/split use `snappedSeekSeconds()` via `seekTimeline` in the store.
 
 ### FunClip + LLM registry → `services/ai-content`
 

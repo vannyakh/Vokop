@@ -15,7 +15,7 @@ export default createReactAppViteConfig({
     'Cross-Origin-Embedder-Policy': 'credentialless',
   },
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@omnimedia/omnitool'],
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@omnimedia/omnitool', 'opencut-wasm'],
     include: ['gl-transitions', 'opfs-tools'],
   },
 });

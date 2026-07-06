@@ -7,7 +7,9 @@ import {
   formatTimecode,
   getRulerTicks as editorRulerTicks,
   pxToTime as editorPxToTime,
+  snappedSeekSeconds,
   timeToPx as editorTimeToPx,
+  DEFAULT_TIMELINE_FPS,
 } from '@vokop/editor';
 
 /** Always `HH:MM:SS` for studio chrome (playback bar, inspector). */
@@ -31,4 +33,13 @@ export function getRulerTicks(duration: number, pxPerSec: number): number[] {
   return editorRulerTicks(duration, pxPerSec);
 }
 
-export { formatTimecode };
+/** Frame-aligned seek (OpenCut-style media ticks). */
+export function snapTimelineSeekTime(
+  timeSec: number,
+  durationSec: number,
+  fps = DEFAULT_TIMELINE_FPS,
+): number {
+  return snappedSeekSeconds({ timeSec, durationSec, fps });
+}
+
+export { formatTimecode, DEFAULT_TIMELINE_FPS };

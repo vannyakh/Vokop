@@ -29,6 +29,7 @@ Read `.cursor/skills/vokop/SKILL.md` when implementing features across UI, API, 
 | Project | Role |
 |---------|------|
 | [Omniclip](https://github.com/omni-media/omniclip) | Editor frontend **core** patterns (timeline/clips). Keep own UI/UX. |
+| [OpenCut](https://github.com/opencut-app/opencut) | **Rust/WASM GPU engine** — compositor, effects, frame time (`@templates/OpenCut/rust/`). |
 | [FunClip](https://github.com/modelscope/FunClip) | **AI content** service design (`services/ai-content`). No Gradio UI. |
 | [302.AI](https://302.ai/) | Optional unified LLM gateway (`provider: 302ai`). |
 

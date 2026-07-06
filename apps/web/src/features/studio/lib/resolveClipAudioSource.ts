@@ -6,6 +6,8 @@ export interface ClipAudioSource {
   key: string;
   url: string;
   mediaDuration: number;
+  assetId?: string;
+  isVideoSource?: boolean;
 }
 
 const voiceBlobCache = new Map<string, string>();
@@ -42,6 +44,8 @@ export function resolveClipAudioSource(
           key: `asset:${asset.id}`,
           url: asset.url,
           mediaDuration: Math.max(asset.duration || 0, (clip.sourceStart ?? 0) + clip.duration),
+          assetId: asset.id,
+          isVideoSource: true,
         };
       }
     }
@@ -49,7 +53,12 @@ export function resolveClipAudioSource(
       return {
         key: `video:${ctx.videoUrl}`,
         url: ctx.videoUrl,
-        mediaDuration: Math.max(ctx.mediaDuration, clip.duration),
+        mediaDuration: Math.max(
+          ctx.mediaDuration,
+          clip.duration,
+          (clip.sourceStart ?? 0) + clip.duration,
+        ),
+        isVideoSource: true,
       };
     }
     return null;
@@ -64,6 +73,7 @@ export function resolveClipAudioSource(
         key: `asset:${asset.id}`,
         url: asset.url,
         mediaDuration: Math.max(asset.duration || 0, (clip.sourceStart ?? 0) + clip.duration),
+        assetId: asset.id,
       };
     }
   }
@@ -76,7 +86,13 @@ export function resolveClipAudioSource(
         return {
           key: `asset:${asset.id}`,
           url: asset.url,
-          mediaDuration: Math.max(asset.duration || ctx.mediaDuration, clip.duration),
+          mediaDuration: Math.max(
+            asset.duration || ctx.mediaDuration,
+            clip.duration,
+            (clip.sourceStart ?? 0) + clip.duration,
+          ),
+          assetId: asset.id,
+          isVideoSource: asset.kind === 'video',
         };
       }
     }
@@ -84,7 +100,12 @@ export function resolveClipAudioSource(
       return {
         key: `video:${ctx.videoUrl}`,
         url: ctx.videoUrl,
-        mediaDuration: Math.max(ctx.mediaDuration, clip.duration),
+        mediaDuration: Math.max(
+          ctx.mediaDuration,
+          clip.duration,
+          (clip.sourceStart ?? 0) + clip.duration,
+        ),
+        isVideoSource: true,
       };
     }
   }
@@ -96,7 +117,12 @@ export function resolveClipAudioSource(
     return {
       key: `asset:${namedAsset.id}`,
       url: namedAsset.url,
-      mediaDuration: Math.max(namedAsset.duration || 0, clip.duration),
+      mediaDuration: Math.max(
+        namedAsset.duration || 0,
+        clip.duration,
+        (clip.sourceStart ?? 0) + clip.duration,
+      ),
+      assetId: namedAsset.id,
     };
   }
 
@@ -112,7 +138,12 @@ export function resolveClipAudioSource(
     return {
       key: `video:${ctx.videoUrl}`,
       url: ctx.videoUrl,
-      mediaDuration: Math.max(ctx.mediaDuration, clip.duration),
+      mediaDuration: Math.max(
+        ctx.mediaDuration,
+        clip.duration,
+        (clip.sourceStart ?? 0) + clip.duration,
+      ),
+      isVideoSource: true,
     };
   }
 

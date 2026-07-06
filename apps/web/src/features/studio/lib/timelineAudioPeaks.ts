@@ -3,11 +3,21 @@ export interface PeakEntry {
   duration: number;
 }
 
+export interface AudioPeaksOptions {
+  file?: File | null;
+  /** Source is a video container — prefer ffmpeg decode for full-length audio. */
+  isVideoSource?: boolean;
+  expectedDuration?: number;
+}
+
 const peakCache = new Map<string, PeakEntry>();
 const inflight = new Map<string, Promise<PeakEntry>>();
 
 // High-resolution peak buffer: 32k samples for fine detail when zoomed in
 const DEFAULT_SAMPLES = 32768;
+
+/** Prefer ffmpeg when the file is large or a video container. */
+const FFMPEG_PEAKS_MIN_BYTES = 32 * 1024 * 1024;
 
 /** Soft cap — bar slots expand to fill width when clip is wider than this. */
 export const MAX_WAVEFORM_DRAW_BARS = 12288;
@@ -32,41 +42,121 @@ export function computeWaveformBarCount(canvasPx: number, style: WaveformDrawSty
   return Math.min(max, Math.max(min, target));
 }
 
+function peaksFromAudioBuffer(audioBuffer: AudioBuffer, samples = DEFAULT_SAMPLES): PeakEntry {
+  const channelCount = audioBuffer.numberOfChannels;
+  const length = audioBuffer.length;
+  const blockSize = Math.max(1, Math.floor(length / samples));
+  const peaks = new Float32Array(samples);
+
+  for (let i = 0; i < samples; i++) {
+    const start = i * blockSize;
+    const end = Math.min(start + blockSize, length);
+    let max = 0;
+    for (let ch = 0; ch < channelCount; ch++) {
+      const channel = audioBuffer.getChannelData(ch);
+      for (let j = start; j < end; j++) {
+        max = Math.max(max, Math.abs(channel[j] ?? 0));
+      }
+    }
+    peaks[i] = max;
+  }
+
+  return { peaks, duration: audioBuffer.duration };
+}
+
+async function decodePeaksFromFile(file: File, samples = DEFAULT_SAMPLES): Promise<PeakEntry> {
+  const arrayBuffer = await file.arrayBuffer();
+  const ctx = new AudioContext();
+  try {
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    return peaksFromAudioBuffer(audioBuffer, samples);
+  } finally {
+    void ctx.close();
+  }
+}
+
 async function decodePeaksFromUrl(url: string, samples = DEFAULT_SAMPLES): Promise<PeakEntry> {
   const response = await fetch(url);
   const arrayBuffer = await response.arrayBuffer();
   const ctx = new AudioContext();
   try {
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-    const channel = audioBuffer.getChannelData(0);
-    const length = channel.length;
-    const blockSize = Math.max(1, Math.floor(length / samples));
-    const peaks = new Float32Array(samples);
-
-    for (let i = 0; i < samples; i++) {
-      const start = i * blockSize;
-      const end = Math.min(start + blockSize, length);
-      let max = 0;
-      for (let j = start; j < end; j++) {
-        max = Math.max(max, Math.abs(channel[j] ?? 0));
-      }
-      peaks[i] = max;
-    }
-
-    return { peaks, duration: audioBuffer.duration };
+    return peaksFromAudioBuffer(audioBuffer, samples);
   } finally {
     void ctx.close();
   }
 }
 
-export async function getAudioPeaks(key: string, url: string): Promise<PeakEntry> {
+function shouldPreferFfmpegPeaks(file: File, isVideoSource?: boolean): boolean {
+  if (isVideoSource) return true;
+  if (file.type.startsWith('video/')) return true;
+  return file.size >= FFMPEG_PEAKS_MIN_BYTES;
+}
+
+function isTruncatedPeaks(entry: PeakEntry, expectedDuration?: number): boolean {
+  if (!expectedDuration || expectedDuration <= 0 || entry.duration <= 0) return false;
+  return entry.duration < expectedDuration * 0.85;
+}
+
+async function decodePeaksWithFallback(
+  url: string,
+  options?: AudioPeaksOptions,
+): Promise<PeakEntry> {
+  const { file, isVideoSource, expectedDuration } = options ?? {};
+  const samples = DEFAULT_SAMPLES;
+
+  if (file) {
+    const { extractWaveformPeaksFromFile } = await import('@/features/studio/lib/ffmpeg');
+
+    if (shouldPreferFfmpegPeaks(file, isVideoSource)) {
+      try {
+        const ffmpegPeaks = await extractWaveformPeaksFromFile(file, samples);
+        if (ffmpegPeaks.duration > 0) return ffmpegPeaks;
+      } catch {
+        // fall through to AudioContext
+      }
+    }
+
+    try {
+      const entry = await decodePeaksFromFile(file, samples);
+      if (!isTruncatedPeaks(entry, expectedDuration)) return entry;
+    } catch {
+      // fall through to ffmpeg
+    }
+
+    try {
+      const ffmpegPeaks = await extractWaveformPeaksFromFile(file, samples);
+      if (ffmpegPeaks.duration > 0) return ffmpegPeaks;
+    } catch {
+      // fall through to URL fetch
+    }
+  }
+
+  const fromUrl = await decodePeaksFromUrl(url, samples);
+  if (!isTruncatedPeaks(fromUrl, expectedDuration)) return fromUrl;
+
+  if (file) {
+    const { extractWaveformPeaksFromFile } = await import('@/features/studio/lib/ffmpeg');
+    const ffmpegPeaks = await extractWaveformPeaksFromFile(file, samples);
+    if (ffmpegPeaks.duration > 0) return ffmpegPeaks;
+  }
+
+  return fromUrl;
+}
+
+export async function getAudioPeaks(
+  key: string,
+  url: string,
+  options?: AudioPeaksOptions,
+): Promise<PeakEntry> {
   const cached = peakCache.get(key);
-  if (cached) return cached;
+  if (cached && !isTruncatedPeaks(cached, options?.expectedDuration)) return cached;
+  if (cached) peakCache.delete(key);
 
   const pending = inflight.get(key);
   if (pending) return pending;
 
-  const task = decodePeaksFromUrl(url)
+  const task = decodePeaksWithFallback(url, options)
     .then((entry) => {
       peakCache.set(key, entry);
       inflight.delete(key);
@@ -123,27 +213,16 @@ export function peaksForClipRegion(
 /** Visible slice of a wide clip — keeps canvas under browser size limits when zoomed in. */
 export function resolveWaveformViewport(
   clipWidthPx: number,
-  clipLeftPx: number,
-  timelineScrollLeft: number,
-  timelineClientWidth: number,
+  _clipLeftPx: number,
+  _timelineScrollLeft: number,
+  _timelineClientWidth: number,
   devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio : 1,
 ): { startPx: number; widthPx: number } | null {
   const fullCanvasPx = Math.floor(clipWidthPx * devicePixelRatio);
   if (fullCanvasPx <= MAX_WAVEFORM_CANVAS_PX || clipWidthPx <= 0) return null;
 
-  const viewLeft = timelineScrollLeft;
-  const viewRight = timelineScrollLeft + Math.max(timelineClientWidth, 320);
-  const visStart = Math.max(0, viewLeft - clipLeftPx);
-  const visEnd = Math.min(clipWidthPx, viewRight - clipLeftPx);
-  const pad = Math.min(240, timelineClientWidth * 0.35);
-
-  if (visEnd <= visStart + 2) {
-    return { startPx: 0, widthPx: Math.min(clipWidthPx, 1200) };
-  }
-
-  const startPx = Math.max(0, visStart - pad);
-  const endPx = Math.min(clipWidthPx, visEnd + pad);
-  return { startPx, widthPx: Math.max(48, endPx - startPx) };
+  // One downsampled bitmap spans the full clip — avoids empty gaps when scrolled.
+  return null;
 }
 export function normalizeWaveformPeaks(peaks: Float32Array): Float32Array {
   let max = 0;

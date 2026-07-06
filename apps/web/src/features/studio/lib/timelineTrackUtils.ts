@@ -9,6 +9,25 @@ import type {
 import { DEFAULT_TIMELINE_TRACK_ORDER } from '@/features/studio/lib/timelineTypes';
 import type { MediaAssetKind } from '@/features/studio/lib/mediaLibrary';
 
+/** Core timeline track id for a clip type when promoting from an extra lane. */
+export function masterTrackIdForClip(clip: TimelineClipModel): 'video' | 'image' | null {
+  if (clip.mediaKind === 'video') return 'video';
+  if (clip.canvasKind === 'image' || clip.canvasKind === 'logo') return 'image';
+  return null;
+}
+
+/** Whether a clip on `fromTrackId` can be promoted to its type's master track. */
+export function clipCanPromoteToMaster(
+  clip: TimelineClipModel,
+  fromTrackId: string,
+): boolean {
+  const masterId = masterTrackIdForClip(clip);
+  if (!masterId) return false;
+  const from = String(fromTrackId);
+  if (masterId === 'video') return from !== 'video';
+  return from !== 'image';
+}
+
 /** Whether a clip can be moved onto a destination track (drag or menu). */
 export function clipCanMoveToTrack(
   clip: TimelineClipModel,

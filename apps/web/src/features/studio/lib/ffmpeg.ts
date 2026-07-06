@@ -96,4 +96,76 @@ export async function extractFilmstripThumbnails(
   return thumbnails;
 }
 
+/** Full-length mono PCM peaks via ffmpeg — reliable for long video files. */
+export async function extractWaveformPeaksFromFile(
+  file: File,
+  samples = 32768,
+  signal?: AbortSignal,
+): Promise<{ peaks: Float32Array; duration: number }> {
+  if (signal?.aborted) return { peaks: new Float32Array(0), duration: 0 };
+
+  const ffmpeg = await getFFmpeg();
+  if (signal?.aborted) return { peaks: new Float32Array(0), duration: 0 };
+
+  const inputName = `input.${extensionForFile(file)}`;
+  const pcmName = 'waveform.pcm';
+  const sampleRate = 8000;
+
+  await ffmpeg.writeFile(inputName, await fetchFile(file));
+  if (signal?.aborted) {
+    await ffmpeg.deleteFile(inputName).catch(() => undefined);
+    return { peaks: new Float32Array(0), duration: 0 };
+  }
+
+  try {
+    await ffmpeg.exec([
+      '-i',
+      inputName,
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      String(sampleRate),
+      '-f',
+      'f32le',
+      pcmName,
+    ]);
+  } catch {
+    return { peaks: new Float32Array(samples), duration: 0 };
+  } finally {
+    await ffmpeg.deleteFile(inputName).catch(() => undefined);
+  }
+
+  if (signal?.aborted) {
+    await ffmpeg.deleteFile(pcmName).catch(() => undefined);
+    return { peaks: new Float32Array(0), duration: 0 };
+  }
+
+  try {
+    const raw = await ffmpeg.readFile(pcmName);
+    const bytes = raw instanceof Uint8Array ? raw : new TextEncoder().encode(String(raw));
+    const floatCount = Math.floor(bytes.byteLength / 4);
+    if (floatCount <= 0) return { peaks: new Float32Array(samples), duration: 0 };
+
+    const duration = floatCount / sampleRate;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const peaks = new Float32Array(samples);
+    const blockSize = Math.max(1, Math.floor(floatCount / samples));
+
+    for (let i = 0; i < samples; i++) {
+      const start = i * blockSize;
+      const end = Math.min(start + blockSize, floatCount);
+      let max = 0;
+      for (let j = start; j < end; j++) {
+        max = Math.max(max, Math.abs(view.getFloat32(j * 4, true)));
+      }
+      peaks[i] = max;
+    }
+
+    return { peaks, duration };
+  } finally {
+    await ffmpeg.deleteFile(pcmName).catch(() => undefined);
+  }
+}
+
 export { FILMSTRIP_THUMB_WIDTH } from '@/features/studio/lib/filmstripConstants';

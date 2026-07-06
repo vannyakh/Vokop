@@ -10,6 +10,7 @@ import {
   CopyPlus,
   Diamond,
   ImageIcon,
+  ArrowUpToLine,
 } from 'lucide-react';
 import {
   EditorContextMenu,
@@ -42,6 +43,8 @@ interface TimelineContextMenuProps {
   onAddClip: (trackId: TimelineTrackId) => void;
   onEditCanvas: () => void;
   onAddKeyframe?: () => void;
+  onPromoteToMaster?: () => void;
+  canPromoteToMaster?: boolean;
   footageActions?: FootageContextMenuActions;
   canSplit: boolean;
   canDelete: boolean;
@@ -63,6 +66,8 @@ export function TimelineContextMenu({
   onAddClip,
   onEditCanvas,
   onAddKeyframe,
+  onPromoteToMaster,
+  canPromoteToMaster = false,
   footageActions,
   canSplit,
   canDelete,
@@ -159,6 +164,16 @@ export function TimelineContextMenu({
       icon: isOverlay ? Layers : Type,
       onClick: onEditCanvas,
       separatorBefore: true,
+    });
+  }
+
+  if (isClip && canPromoteToMaster && onPromoteToMaster) {
+    items.push({
+      id: 'promote-master',
+      label: 'Promote to master',
+      icon: ArrowUpToLine,
+      onClick: onPromoteToMaster,
+      separatorBefore: !canEditCanvas,
     });
   }
 

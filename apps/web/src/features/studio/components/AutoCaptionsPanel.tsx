@@ -7,6 +7,7 @@ import { CaptionWordEditor } from '@/features/studio/components/CaptionWordEdito
 export function AutoCaptionsPanel() {
   const videoFile = useAppStore((s) => s.videoFile);
   const captionTracks = useAppStore((s) => s.captionTracks);
+  const promoteCaptionTrackToCanvas = useAppStore((s) => s.promoteCaptionTrackToCanvas);
   const { generateCaptions, generateCaptionsAndTranslate, progress, error, isBusy } =
     useAutoCaptions();
 
@@ -61,6 +62,29 @@ export function AutoCaptionsPanel() {
             {captionTracks.translation.length || captionTracks.transcript.length} segments
           </span>
           {wordCount > 0 && <span>{wordCount} words timed</span>}
+        </div>
+      )}
+
+      {hasCaptions && (
+        <div className="studio-auto-captions-actions">
+          {captionTracks.transcript.length > 0 && (
+            <button
+              type="button"
+              className="studio-tools-action-btn w-full studio-tools-action-btn--secondary"
+              onClick={() => promoteCaptionTrackToCanvas('transcript')}
+            >
+              Promote transcript to canvas text
+            </button>
+          )}
+          {captionTracks.translation.length > 0 && (
+            <button
+              type="button"
+              className="studio-tools-action-btn w-full studio-tools-action-btn--secondary"
+              onClick={() => promoteCaptionTrackToCanvas('translation')}
+            >
+              Promote translation to canvas text
+            </button>
+          )}
         </div>
       )}
 

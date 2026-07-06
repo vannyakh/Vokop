@@ -11,6 +11,7 @@ import {
   SplitSquareVertical,
   Trash2,
   Volume2,
+  ArrowUpToLine,
 } from 'lucide-react';
 import type { EditorMenuItem } from '@/features/studio/components/EditorContextMenu';
 
@@ -28,10 +29,12 @@ export interface FootageContextMenuActions {
   separateAudio: () => void;
   splitScene: () => void;
   freeze: () => void;
+  promoteToMaster?: () => void;
   canSplit: boolean;
   canDelete: boolean;
   hasClipboard: boolean;
   hasClipSelection: boolean;
+  canPromoteToMaster?: boolean;
 }
 
 /** CapCut-style right-click menu for video footage clips on the timeline. */
@@ -113,6 +116,15 @@ export function buildFootageContextMenuItems(
     onClick: actions.replace,
     separatorBefore: true,
   });
+
+  if (actions.canPromoteToMaster && actions.promoteToMaster) {
+    items.push({
+      id: 'promote-master',
+      label: 'Promote to master',
+      icon: ArrowUpToLine,
+      onClick: actions.promoteToMaster,
+    });
+  }
 
   items.push({
     id: 'download',

@@ -19,6 +19,7 @@ import {
   Music2,
   Diamond,
   ArrowRightLeft,
+  ArrowUpToLine,
   AudioLines,
   Unplug,
 } from 'lucide-react';
@@ -46,6 +47,8 @@ interface TimelineTrackHeaderProps {
   moveTargets?: { id: string; label: string }[];
   onMoveClipToTrack?: (trackId: string) => void;
   hasSelectedClip?: boolean;
+  canPromoteToMaster?: boolean;
+  onPromoteToMaster?: () => void;
   /** Video track: extract audio to audio track (video keeps sound). */
   onExtractAudio?: () => void;
   /** Video track: extract audio and mute video (split audio from video). */
@@ -108,6 +111,8 @@ export function TimelineTrackHeader({
   moveTargets,
   onMoveClipToTrack,
   hasSelectedClip,
+  canPromoteToMaster = false,
+  onPromoteToMaster,
   onExtractAudio,
   onDetachAudio,
   onDragStart,
@@ -204,6 +209,18 @@ export function TimelineTrackHeader({
       });
     }
 
+    if (hasSelectedClip && canPromoteToMaster && onPromoteToMaster) {
+      items.push({
+        key: 'promote-master',
+        icon: <ArrowUpToLine size={14} />,
+        label: 'Promote to master',
+        onClick: ({ domEvent }) => {
+          domEvent.stopPropagation();
+          onPromoteToMaster();
+        },
+      });
+    }
+
     if (hasSelectedClip && moveTargets && moveTargets.length > 0 && onMoveClipToTrack) {
       items.push({
         key: 'move',
@@ -266,12 +283,14 @@ export function TimelineTrackHeader({
     canDelete,
     canMute,
     hasSelectedClip,
+    canPromoteToMaster,
     moveTargets,
     muted,
     onAddClip,
     onAddKeyframe,
     onDelete,
     onMoveClipToTrack,
+    onPromoteToMaster,
     onExtractAudio,
     onDetachAudio,
     onToggleMute,

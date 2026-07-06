@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import type { TimelineClipModel, TimelineTrackType } from '@/features/studio/lib/timelineTypes';
 import { resolveClipAudioSource } from '@/features/studio/lib/resolveClipAudioSource';
+import { getMediaFile } from '@/features/studio/lib/mediaLibrary';
 import {
   computeWaveformBarCount,
   drawTimelineWaveform,
@@ -93,10 +95,14 @@ function paintWaveform(
   canvas.style.width = `${layoutWidth}px`;
   canvas.style.height = `${height}px`;
   canvas.style.left = layoutLeft > 0 ? `${layoutLeft}px` : '0';
-  canvas.style.position = viewport ? 'absolute' : 'absolute';
+  canvas.style.position = 'absolute';
   canvas.style.top = '0';
 
-  const mediaDur = entry.duration || sourceMediaDuration || clip.duration;
+  const clipMediaSpan = (clip.sourceStart ?? 0) + clip.duration;
+  const mediaDur =
+    entry.duration > 0
+      ? entry.duration
+      : Math.max(sourceMediaDuration || 0, clipMediaSpan);
   const region = peaksForClipRegion(
     entry.peaks,
     mediaDur,
@@ -123,9 +129,11 @@ export function TimelineClipWaveform({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [peakEntry, setPeakEntry] = useState<PeakEntry | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const sourceKeyRef = useRef<string | null>(null);
 
   const videoUrl = useAppStore((s) => s.videoUrl);
+  const videoFile = useAppStore((s) => s.videoFile);
   const audioBase64 = useAppStore((s) => s.audioBase64);
   const mediaAssets = useAppStore((s) => s.mediaAssets);
   const videoClips = useAppStore((s) => s.videoClips);
@@ -164,21 +172,34 @@ export function TimelineClipWaveform({
     [width, clipLeftPx, timelineScrollLeft, timelineViewportWidth],
   );
 
+  const peakFile = useMemo(() => {
+    if (!source) return null;
+    if (source.assetId) return getMediaFile(source.assetId) ?? null;
+    if (source.isVideoSource && videoFile) return videoFile;
+    return null;
+  }, [source, videoFile]);
+
+  const peaksRequestKey = source
+    ? `${source.key}:${peakFile ? `file:${peakFile.size}` : 'url'}`
+    : null;
+
   useEffect(() => {
-    if (stretchOnly || !source) {
+    if (stretchOnly || !source || !peaksRequestKey) {
       if (!source) {
         sourceKeyRef.current = null;
         setPeakEntry(null);
         setReady(false);
+        setLoadError(false);
       }
       return;
     }
 
-    if (sourceKeyRef.current === source.key) return;
-    sourceKeyRef.current = source.key;
+    if (sourceKeyRef.current === peaksRequestKey) return;
+    sourceKeyRef.current = peaksRequestKey;
+    setLoadError(false);
 
     const cached = getCachedAudioPeaks(source.key);
-    if (cached) {
+    if (cached && cached.duration >= source.mediaDuration * 0.85) {
       setPeakEntry(cached);
       return;
     }
@@ -187,7 +208,11 @@ export function TimelineClipWaveform({
     setReady(false);
 
     let cancelled = false;
-    void getAudioPeaks(source.key, source.url)
+    void getAudioPeaks(source.key, source.url, {
+      file: peakFile,
+      isVideoSource: source.isVideoSource,
+      expectedDuration: source.mediaDuration,
+    })
       .then((entry) => {
         if (cancelled) return;
         setPeakEntry(entry);
@@ -196,13 +221,14 @@ export function TimelineClipWaveform({
         if (!cancelled) {
           setPeakEntry(null);
           setReady(false);
+          setLoadError(true);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [source, stretchOnly]);
+  }, [source, stretchOnly, peakFile, peaksRequestKey]);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -250,6 +276,7 @@ export function TimelineClipWaveform({
   if (!source) return null;
 
   const showLive = underPlayhead && playheadRatio != null && playheadRatio >= 0 && playheadRatio <= 1;
+  const isLoading = !stretchOnly && !ready && !loadError;
 
   return (
     <div
@@ -257,6 +284,7 @@ export function TimelineClipWaveform({
         'studio-timeline-clip-waveform-wrap',
         `studio-timeline-clip-waveform-wrap--${waveStyle}`,
         viewport && 'is-viewport-window',
+        isLoading && 'is-loading',
         showLive && liveHot && 'is-live-hot',
         showLive && liveClipping && 'is-live-clipping',
       )}
@@ -270,6 +298,29 @@ export function TimelineClipWaveform({
         )}
         aria-hidden
       />
+      {isLoading && (
+        <div
+          className="studio-timeline-clip-waveform-loading"
+          aria-busy="true"
+          aria-label="Loading waveform"
+        >
+          <div className="studio-timeline-clip-waveform-loading-bars" aria-hidden>
+            {Array.from({ length: 24 }, (_, i) => (
+              <span
+                key={i}
+                className="studio-timeline-clip-waveform-loading-bar"
+                style={{ animationDelay: `${(i % 8) * 0.08}s` }}
+              />
+            ))}
+          </div>
+          {width > 88 && waveStyle !== 'video' && (
+            <span className="studio-timeline-clip-waveform-loading-label">
+              <Loader2 size={11} className="animate-spin studio-timeline-clip-waveform-loading-spin" aria-hidden />
+              Loading audio…
+            </span>
+          )}
+        </div>
+      )}
       {showLive && (
         <>
           <div

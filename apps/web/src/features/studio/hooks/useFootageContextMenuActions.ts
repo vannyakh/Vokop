@@ -15,10 +15,23 @@ import {
 export function useFootageContextMenuActions(
   clipId?: string | null,
   pasteAtTime?: number,
+  fromTrackId?: string | null,
 ): FootageContextMenuActions {
   const currentTime = useAppStore((s) => s.currentTime);
+  const videoClips = useAppStore((s) => s.videoClips);
+  const promoteTimelineClipToMaster = useAppStore((s) => s.promoteTimelineClipToMaster);
   const selection = useTimelineSelection();
   const pasteTime = pasteAtTime ?? currentTime;
+
+  const canPromoteToMaster = useMemo(() => {
+    if (!clipId || !fromTrackId || fromTrackId === 'video') return false;
+    return videoClips.some((c) => c.id === clipId);
+  }, [clipId, fromTrackId, videoClips]);
+
+  const promoteToMaster = useCallback(() => {
+    if (!clipId || !fromTrackId) return;
+    promoteTimelineClipToMaster(clipId, String(fromTrackId));
+  }, [clipId, fromTrackId, promoteTimelineClipToMaster]);
 
   const split = useCallback(() => selection.splitAtPlayhead(), [selection]);
   const copy = useCallback(() => selection.copySelection(), [selection]);
@@ -63,6 +76,8 @@ export function useFootageContextMenuActions(
       separateAudio,
       splitScene: splitFootageScene,
       freeze,
+      promoteToMaster,
+      canPromoteToMaster,
       canSplit: selection.canSplit,
       canDelete: selection.canDelete,
       hasClipboard: selection.hasClipboard,
@@ -80,6 +95,8 @@ export function useFootageContextMenuActions(
       downloadFrame,
       separateAudio,
       freeze,
+      promoteToMaster,
+      canPromoteToMaster,
       selection.canSplit,
       selection.canDelete,
       selection.hasClipboard,

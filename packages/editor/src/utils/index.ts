@@ -1,4 +1,5 @@
 export * from './timecode.js';
+export * from './mediaTime.js';
 export * from './timeline.js';
 export * from './clips.js';
 export * from './human.js';

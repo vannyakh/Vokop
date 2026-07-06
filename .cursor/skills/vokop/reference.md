@@ -141,6 +141,14 @@ VITE_API_URL  # optional; dev uses Vite proxy
 - Vokop mapping: `apps/web/src/features/studio/lib/omniTool/` (filmstrip fallback in `useVideoFilmstrip`).
 - Server FFmpeg stays in `services/video-tools` — do not run Omnitool in Node.
 
+### OpenCut — sample template (not shipped)
+
+- `@templates/OpenCut/` is **reference sample code only** — patterns are ported into Vokop, not built from the template.
+- **Frame time**: `@vokop/editor` `mediaTime.ts` — 120k ticks/sec, `snappedSeekSeconds`, `roundSecondsToFrame` (from OpenCut `time` crate).
+- **Compositor JSON**: `apps/web/src/features/studio/lib/compositorFrameDescriptor.ts` — OpenCut-shaped `FrameDescriptor` for future WASM `renderFrame`.
+- **Seek snap**: `useAppStore.seekTimeline` snaps to 30fps frames via `snappedSeekSeconds`.
+- **Future**: wire `buildCompositorFrameDescriptor` → `opencut-wasm` when adding wgpu preview; keep Konva until then.
+
 ### Omniclip-aligned browser deps (web)
 
 | Package | Role | Vokop path |

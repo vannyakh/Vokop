@@ -61,6 +61,7 @@ import {
 import { Dropdown } from '@vokop/ui/antd';
 import {
   clipCanMoveToTrack,
+  clipCanPromoteToMaster,
   isAudioLikeTimelineTrack,
   isEditableTimelineTrack,
   isVisualTimelineTrack,
@@ -88,6 +89,12 @@ import {
   isTimelineEmpty,
 } from '@/features/studio/lib/timelineEmpty';
 
+import {
+  buildTimelineRulerTicks,
+  formatTimelineRulerLabel,
+} from '@/features/studio/lib/timelineRuler';
+import { useTimelineEdgeAutoScroll } from '@/features/studio/hooks/useTimelineEdgeAutoScroll';
+
 interface StudioTimelineProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   isPlaying?: boolean;
@@ -108,96 +115,6 @@ const ADD_TRACK_ICONS = {
   sound: Music2,
   audio: Mic2,
 } as const;
-
-function formatRulerTick(seconds: number, compact = false, subSecond = false): string {
-  const safe = Math.max(0, seconds);
-  if (safe < 3600) {
-    const m = Math.floor(safe / 60);
-    const s = safe % 60;
-    if (subSecond || (compact && safe < 60 && Math.abs(s - Math.round(s)) > 0.01)) {
-      if (m > 0) {
-        const whole = Math.floor(s);
-        const frac = Math.round((s - whole) * 10);
-        return frac > 0
-          ? `${m}:${whole.toString().padStart(2, '0')}.${frac}`
-          : `${m}:${whole.toString().padStart(2, '0')}`;
-      }
-      return `${s.toFixed(1).replace(/\.0$/, '')}s`;
-    }
-    if (compact) {
-      return `${m}:${Math.floor(s).toString().padStart(2, '0')}`;
-    }
-    return `${m.toString().padStart(2, '0')}:${Math.floor(s).toString().padStart(2, '0')}`;
-  }
-  const h = Math.floor(safe / 3600);
-  const rem = safe % 3600;
-  const m = Math.floor(rem / 60);
-  const s = Math.floor(rem % 60);
-  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-/**
- * Choose adaptive major/minor tick intervals based on zoom level.
- * Target ~48–120px between major ticks when zoomed out; finer when zoomed in.
- */
-function getRulerIntervals(pxPerSec: number): {
-  majorInterval: number;
-  minorDivisions: number;
-  subSecondLabels: boolean;
-} {
-  const minMajorPx = pxPerSec < 24 ? 48 : 72;
-  const candidates: [number, number][] = [
-    [0.1, 5],
-    [0.2, 4],
-    [0.25, 5],
-    [0.5, 5],
-    [1, 5],
-    [2, 4],
-    [5, 5],
-    [10, 5],
-    [15, 3],
-    [30, 5],
-    [60, 4],
-    [120, 4],
-    [300, 5],
-    [600, 5],
-    [900, 5],
-    [1800, 6],
-    [3600, 4],
-  ];
-  for (const [interval, divisions] of candidates) {
-    if (pxPerSec * interval >= minMajorPx) {
-      return {
-        majorInterval: interval,
-        minorDivisions: divisions,
-        subSecondLabels: interval < 1,
-      };
-    }
-  }
-  return { majorInterval: 3600, minorDivisions: 4, subSecondLabels: false };
-}
-
-function buildRulerTicks(span: number, pxPerSec: number) {
-  if (!span) return { majorTicks: [0], minorTicks: [] as number[], subSecondLabels: false };
-  const { majorInterval, minorDivisions, subSecondLabels } = getRulerIntervals(pxPerSec);
-  const majorMs = Math.max(1, Math.round(majorInterval * 1000));
-  const minorMs = Math.max(1, Math.round((majorInterval / minorDivisions) * 1000));
-  const spanMs = Math.ceil(span * 1000);
-
-  const majorTicks: number[] = [];
-  for (let ms = 0; ms <= spanMs + majorMs; ms += majorMs) {
-    majorTicks.push(ms / 1000);
-  }
-
-  const majorSet = new Set(majorTicks.map((t) => Math.round(t * 1000)));
-  const minorTicks: number[] = [];
-  for (let ms = 0; ms <= spanMs + minorMs; ms += minorMs) {
-    if (majorSet.has(ms)) continue;
-    minorTicks.push(ms / 1000);
-  }
-
-  return { majorTicks, minorTicks, subSecondLabels };
-}
 
 export function StudioTimeline({
   videoRef,
@@ -245,6 +162,7 @@ export function StudioTimeline({
   const reorderTimelineTracks = useAppStore((s) => s.reorderTimelineTracks);
   const renameTimelineTrack = useAppStore((s) => s.renameTimelineTrack);
   const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
+  const promoteTimelineClipToMaster = useAppStore((s) => s.promoteTimelineClipToMaster);
   const addClipKeyframe = useAppStore((s) => s.addClipKeyframe);
   const setActiveStudioTool = useAppStore((s) => s.setActiveStudioTool);
   const setToolsDrawerOpen = useAppStore((s) => s.setToolsDrawerOpen);
@@ -322,7 +240,16 @@ export function StudioTimeline({
   const footageMenuActions = useFootageContextMenuActions(
     contextMenu?.clipId,
     contextMenu?.time,
+    contextMenu?.trackId,
   );
+
+  const contextMenuCanPromote = useMemo(() => {
+    if (!contextMenu?.clipId || !contextMenu.trackId) return false;
+    const track = tracks.find((t) => t.id === contextMenu.trackId);
+    const clip = track?.clips.find((c) => c.id === contextMenu.clipId);
+    if (!clip) return false;
+    return clipCanPromoteToMaster(clip, String(contextMenu.trackId));
+  }, [contextMenu?.clipId, contextMenu?.trackId, tracks]);
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [timelineViewport, setTimelineViewport] = useState({ left: 0, width: 0 });
   const scrollRafRef = useRef<number | null>(null);
@@ -333,22 +260,28 @@ export function StudioTimeline({
   const timelineContentWidth = Math.max(640, timeToPx(displayDuration, pxPerSec) + 80);
   const playheadX = timeToPx(currentTime, pxPerSec);
 
-  const { beginClipDrag, dragPreview, snapIndicator, hoverTrackId } = useTimelineClipDrag(
-    pxPerSec,
-    duration,
-    tracks,
-    trackHeights,
-    tracksContainerRef,
-  );
+  const { beginClipDrag, dragPreview, snapIndicator, hoverTrackId, getDragClientX } =
+    useTimelineClipDrag(pxPerSec, duration, tracks, trackHeights, tracksContainerRef, currentTime);
 
-  const { rulerMajorTicks, rulerMinorTicks, rulerSubSecondLabels } = useMemo(() => {
-    const { majorTicks, minorTicks, subSecondLabels } = buildRulerTicks(displayDuration, pxPerSec);
+  const { rulerMajorTicks, rulerMinorTicks, rulerFrameLabels } = useMemo(() => {
+    const { majorTicks, minorTicks, frameLabels } = buildTimelineRulerTicks(
+      displayDuration,
+      pxPerSec,
+    );
     return {
       rulerMajorTicks: majorTicks,
       rulerMinorTicks: minorTicks,
-      rulerSubSecondLabels: subSecondLabels,
+      rulerFrameLabels: frameLabels,
     };
   }, [displayDuration, pxPerSec]);
+
+  useTimelineEdgeAutoScroll({
+    isActive: dragPreview != null,
+    getMouseClientX: getDragClientX,
+    rulerScrollRef: scrollRef,
+    tracksScrollRef: scrollRef,
+    contentWidth: timelineContentWidth,
+  });
 
   const seekTimeline = useAppStore((s) => s.seekTimeline);
 
@@ -724,6 +657,22 @@ export function StudioTimeline({
                     )
                 : undefined
             }
+            canPromoteToMaster={(() => {
+              if (selectedTimelineClip?.trackId !== track.id || !selectedTimelineClip.clipId) {
+                return false;
+              }
+              const clip = track.clips.find((c) => c.id === selectedTimelineClip.clipId);
+              return clip ? clipCanPromoteToMaster(clip, String(track.id)) : false;
+            })()}
+            onPromoteToMaster={
+              selectedTimelineClip?.trackId === track.id && selectedTimelineClip.clipId
+                ? () =>
+                    promoteTimelineClipToMaster(
+                      selectedTimelineClip.clipId,
+                      String(track.id),
+                    )
+                : undefined
+            }
             onExtractAudio={
               track.type === 'video'
                 ? () => studioEdit.extractAudioFromVideoTrack(String(track.id))
@@ -860,7 +809,10 @@ export function StudioTimeline({
               >
                 <span className="studio-timeline-ruler-tick-line" />
                 <span className="studio-timeline-ruler-tick-label font-mono">
-                  {formatRulerTick(tick, true, rulerSubSecondLabels)}
+                  {formatTimelineRulerLabel(tick, {
+                    compact: true,
+                    frameLabels: rulerFrameLabels,
+                  })}
                 </span>
               </div>
             ))}
@@ -872,7 +824,10 @@ export function StudioTimeline({
                 style={{ left: hoverX ?? 0 }}
                 aria-hidden
               >
-                {formatRulerTick(hoverTime, true, rulerSubSecondLabels)}
+                {formatTimelineRulerLabel(hoverTime, {
+                  compact: true,
+                  frameLabels: rulerFrameLabels,
+                })}
               </div>
             )}
           </div>
@@ -1266,6 +1221,12 @@ export function StudioTimeline({
           addClipKeyframe(clipId, contextMenu?.time ?? currentTime);
         }}
         footageActions={footageMenuActions}
+        canPromoteToMaster={contextMenuCanPromote}
+        onPromoteToMaster={
+          contextMenu?.clipId && contextMenu.trackId
+            ? () => promoteTimelineClipToMaster(contextMenu.clipId!, String(contextMenu.trackId))
+            : undefined
+        }
         canSplit={canSplit}
         canDelete={canDeleteSelection}
         canEditCanvas={canEditCanvas}

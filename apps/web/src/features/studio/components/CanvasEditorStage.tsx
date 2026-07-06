@@ -61,6 +61,8 @@ interface CanvasEditorStageProps {
   previewMode?: boolean;
   /** Let HTML drag-and-drop reach the preview frame while dragging media/templates. */
   dropPassthrough?: boolean;
+  /** WASM compositor draws text/image pixels — Konva keeps selection handles only. */
+  compositorOwnsLayerPixels?: boolean;
   /** Live-sync DOM video while Konva proxy is dragged or resized. */
   onVideoLiveLayoutChange?: (layout: import('@/features/studio/lib/videoClipLayout').VideoClipLayout | null) => void;
 }
@@ -160,6 +162,7 @@ function CanvasElementNode({
   onChange,
   onDragGuideChange,
   onLiveLayoutChange,
+  hidePixelContent = false,
 }: {
   element: CanvasElement;
   selected: boolean;
@@ -173,6 +176,7 @@ function CanvasElementNode({
   onChange: (patch: Partial<CanvasElement>) => void;
   onDragGuideChange: (guides: CanvasGuideLine[] | null) => void;
   onLiveLayoutChange?: (box: CanvasOrientedBox | null) => void;
+  hidePixelContent?: boolean;
 }) {
   const groupRef = useRef<Konva.Group>(null);
   const [dragging, setDragging] = useState(false);
@@ -421,7 +425,7 @@ function CanvasElementNode({
       >
       {isImage ? (
         <>
-          {image ? (
+          {!hidePixelContent && image ? (
             <KonvaImage
               image={image}
               width={display.width}
@@ -432,14 +436,14 @@ function CanvasElementNode({
             <Rect
               width={display.width}
               height={display.height}
-              fill={failed ? 'rgba(232,116,106,0.12)' : 'rgba(255,255,255,0.06)'}
-              stroke={failed ? '#e8746a' : 'rgba(255,255,255,0.15)'}
-              strokeWidth={1}
-              dash={failed ? [4, 4] : undefined}
+              fill={hidePixelContent ? 'rgba(0,0,0,0)' : failed ? 'rgba(232,116,106,0.12)' : 'rgba(255,255,255,0.06)'}
+              stroke={hidePixelContent ? (selected ? accent : 'transparent') : failed ? '#e8746a' : 'rgba(255,255,255,0.15)'}
+              strokeWidth={hidePixelContent && selected ? 1.5 : 1}
+              dash={hidePixelContent ? undefined : failed ? [4, 4] : undefined}
               listening
             />
           )}
-          {selected && !interactive && (
+          {selected && !interactive && !hidePixelContent && (
             <Rect
               width={display.width}
               height={display.height}
@@ -451,7 +455,7 @@ function CanvasElementNode({
         </>
       ) : (
         <>
-          {style?.background && (
+          {!hidePixelContent && style?.background && (
             <Rect
               width={display.width}
               height={boxHeight}
@@ -463,13 +467,20 @@ function CanvasElementNode({
           <Rect
             width={display.width}
             height={boxHeight}
-            fill={isText && !style?.background ? 'rgba(84,214,201,0.06)' : 'rgba(156,140,216,0.06)'}
+            fill={
+              hidePixelContent
+                ? 'rgba(0,0,0,0)'
+                : isText && !style?.background
+                  ? 'rgba(84,214,201,0.06)'
+                  : 'rgba(156,140,216,0.06)'
+            }
             stroke={selected ? accent : 'transparent'}
-            strokeWidth={selected && !style?.background ? 1.5 : 0}
+            strokeWidth={selected && (hidePixelContent || !style?.background) ? 1.5 : 0}
             cornerRadius={6}
-            opacity={style?.background ? 0 : 1}
+            opacity={hidePixelContent ? 1 : style?.background ? 0 : 1}
             listening
           />
+          {!hidePixelContent && (
           <Text
             text={displayText}
             width={display.width}
@@ -503,6 +514,7 @@ function CanvasElementNode({
             textDecoration={style?.underline ? 'underline' : ''}
             listening={false}
           />
+          )}
         </>
       )}
       </Group>
@@ -714,6 +726,7 @@ export function CanvasEditorStage({
   onBackgroundClick,
   previewMode = false,
   dropPassthrough = false,
+  compositorOwnsLayerPixels = false,
   onVideoLiveLayoutChange,
 }: CanvasEditorStageProps) {
   const currentTime = useAppStore((s) => s.currentTime);
@@ -1135,6 +1148,7 @@ export function CanvasEditorStage({
               onLiveLayoutChange={
                 selectedCanvasElementId === element.id ? setLiveToolbarBox : undefined
               }
+              hidePixelContent={compositorOwnsLayerPixels}
             />
           ))}
 

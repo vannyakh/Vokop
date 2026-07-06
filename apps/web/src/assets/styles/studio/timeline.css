@@ -1513,6 +1513,113 @@ body.studio-track-height-dragging {
   background: transparent;
 }
 
+.studio-timeline-clip-waveform-wrap.is-loading .studio-timeline-clip-waveform {
+  opacity: 0;
+}
+
+.studio-timeline-clip-waveform-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.studio-timeline-clip-waveform-wrap--audio .studio-timeline-clip-waveform-loading,
+.studio-timeline-clip-waveform-wrap--sound .studio-timeline-clip-waveform-loading {
+  background: rgba(3, 14, 12, 0.88);
+}
+
+.studio-timeline-clip-waveform-wrap--video .studio-timeline-clip-waveform-loading {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.studio-timeline-clip-waveform-loading-bars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: min(100%, 220px);
+  height: 52%;
+  padding: 0 0.5rem;
+  opacity: 0.72;
+}
+
+.studio-timeline-clip-waveform-wrap--video .studio-timeline-clip-waveform-loading-bars {
+  height: 70%;
+  opacity: 0.55;
+}
+
+.studio-timeline-clip-waveform-loading-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 5px;
+  height: 38%;
+  border-radius: 9999px;
+  background: rgba(45, 230, 212, 0.28);
+  animation: studio-timeline-waveform-loading-pulse 1.1s ease-in-out infinite;
+}
+
+.studio-timeline-clip-waveform-wrap--sound .studio-timeline-clip-waveform-loading-bar {
+  background: rgba(251, 191, 36, 0.32);
+}
+
+.studio-timeline-clip-waveform-wrap--video .studio-timeline-clip-waveform-loading-bar {
+  background: rgba(255, 255, 255, 0.22);
+  max-width: 3px;
+}
+
+.studio-timeline-clip-waveform-loading-bar:nth-child(3n + 1) {
+  height: 52%;
+}
+
+.studio-timeline-clip-waveform-loading-bar:nth-child(3n + 2) {
+  height: 68%;
+}
+
+.studio-timeline-clip-waveform-loading-bar:nth-child(5n) {
+  height: 44%;
+}
+
+.studio-timeline-clip-waveform-loading-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.studio-timeline-clip-waveform-loading-spin {
+  flex-shrink: 0;
+  color: var(--accent, #2dd4bf);
+}
+
+.studio-timeline-clip-waveform-wrap--sound .studio-timeline-clip-waveform-loading-spin {
+  color: #fbbf24;
+}
+
+@keyframes studio-timeline-waveform-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scaleY(0.72);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scaleY(1);
+  }
+}
+
 .studio-timeline-clip-waveform-live-line {
   position: absolute;
   top: 0;

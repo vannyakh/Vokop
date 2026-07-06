@@ -27,8 +27,8 @@ import {
 } from '@/features/studio/lib/export/exportTransitionCompositor';
 import type { CanvasElement } from '@/types/canvas';
 import type { MediaAsset } from '@/features/studio/lib/mediaLibrary';
-import { getVideoContentRect, toPxBox, toPxFontSize, type CanvasRect } from '@/features/studio/lib/canvasCoords';
-import { isElementVisible } from '@/features/studio/lib/canvasElements';
+import { getVideoContentRect, type CanvasRect } from '@/features/studio/lib/canvasCoords';
+import { drawCanvasElement } from '@/features/studio/lib/canvasElementRasterizer';
 import {
   listVideoTrackIds,
   timelineToVideoSourceTime,
@@ -36,8 +36,7 @@ import {
 } from '@/features/studio/lib/mediaClips';
 import type { MediaClip } from '@/features/studio/lib/timelineTypes';
 import { resolveVideoClipLayout } from '@/features/studio/lib/videoClipLayout';
-import { sampleElementAtTime } from '@/features/studio/lib/keyframeUtils';
-import { getEffectProps } from '@/features/studio/constants/textEffects';
+import { isElementVisible } from '@/features/studio/lib/canvasElements';
 import { loadStudioFont } from '@/features/studio/lib/fontLoader';
 import {
   parseTranscriptCaptions,
@@ -212,7 +211,7 @@ export async function syncVideoForTimelineTime(
   return clip;
 }
 
-function visibleCanvasElements(snapshot: CompositorSnapshot, timelineTime: number): CanvasElement[] {
+export function visibleCanvasElements(snapshot: CompositorSnapshot, timelineTime: number): CanvasElement[] {
   return snapshot.canvasElements.filter((el) => {
     if (!isElementVisible(el, timelineTime)) return false;
     const trackId =
@@ -361,126 +360,6 @@ async function drawVideoLayers(
   }
 
   drawClipFrame(ctx, video, legacyClip, snapshot, timelineTime, contentRect);
-}
-
-function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [''];
-  const lines: string[] = [];
-  let line = words[0]!;
-  for (let i = 1; i < words.length; i += 1) {
-    const next = `${line} ${words[i]}`;
-    if (ctx.measureText(next).width <= maxWidth) {
-      line = next;
-    } else {
-      lines.push(line);
-      line = words[i]!;
-    }
-  }
-  lines.push(line);
-  return lines;
-}
-
-function drawCanvasElement(
-  ctx: CanvasRenderingContext2D,
-  element: CanvasElement,
-  timelineTime: number,
-  contentRect: CanvasRect,
-  images: Map<string, HTMLImageElement>,
-): void {
-  const animated = sampleElementAtTime(element, timelineTime);
-  const display = { ...animated, ...toPxBox(animated, contentRect) };
-  const isText = element.type === 'text' || element.type === 'overlay';
-  const isImage = element.type === 'logo' || element.type === 'image';
-  const fontSizePx = toPxFontSize(element.fontSize, contentRect);
-  const boxHeight = isImage ? display.height : fontSizePx * 1.6;
-
-  ctx.save();
-  ctx.globalAlpha = display.opacity;
-  ctx.translate(display.x + display.width / 2, display.y + boxHeight / 2);
-  ctx.scale(element.flipX ? -1 : 1, element.flipY ? -1 : 1);
-  ctx.rotate((display.rotation * Math.PI) / 180);
-  ctx.translate(-display.width / 2, -boxHeight / 2);
-
-  if (isImage) {
-    const img = element.src ? images.get(element.src) : undefined;
-    if (img) {
-      ctx.drawImage(img, 0, 0, display.width, display.height);
-    }
-    ctx.restore();
-    return;
-  }
-
-  const style = element.textStyle;
-  const effectProps = getEffectProps(element.textEffect);
-  const displayText =
-    style?.textTransform === 'uppercase' ? element.text.toUpperCase() : element.text;
-  const resolvedFill = effectProps.fill ?? style?.fill ?? '#ffffff';
-  const resolvedFontFamily = element.fontFamily
-    ? `${element.fontFamily}, "Noto Sans", "Inter", sans-serif`
-    : '"Khmer OS Battambang", "Noto Sans", "Inter", sans-serif';
-  const fontWeight = style?.fontWeight === 'bold' ? 'bold' : 'normal';
-  const fontStyle = style?.fontStyle === 'italic' ? 'italic' : 'normal';
-  ctx.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${resolvedFontFamily}`;
-  ctx.textBaseline = 'top';
-
-  if (style?.background) {
-    ctx.fillStyle = style.background;
-    const radius = style.backgroundRadius ?? 8;
-    roundRect(ctx, 0, 0, display.width, boxHeight, radius);
-    ctx.fill();
-  }
-
-  const shadowEnabled = effectProps.shadowEnabled ?? Boolean(style?.shadowColor);
-  if (shadowEnabled) {
-    ctx.shadowColor = effectProps.shadowColor ?? style?.shadowColor ?? 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur = effectProps.shadowBlur ?? style?.shadowBlur ?? 8;
-    ctx.shadowOffsetX = effectProps.shadowOffsetX ?? style?.shadowDistance ?? 2;
-    ctx.shadowOffsetY = effectProps.shadowOffsetY ?? (style?.shadowDistance ? 0 : 2);
-  }
-
-  const align = style?.align ?? 'center';
-  ctx.textAlign = align;
-  const textX = align === 'left' ? 4 : align === 'right' ? display.width - 4 : display.width / 2;
-  const lineHeight = fontSizePx * (style?.lineHeight ?? 1.35);
-  const lines = wrapTextLines(ctx, displayText, display.width - 8);
-
-  const stroke = effectProps.stroke ?? style?.stroke;
-  const strokeWidth = effectProps.strokeWidth ?? style?.strokeWidth ?? 0;
-
-  lines.forEach((line, index) => {
-    const y = 4 + index * lineHeight;
-    if (stroke && strokeWidth > 0) {
-      ctx.lineWidth = strokeWidth;
-      ctx.strokeStyle = stroke;
-      ctx.strokeText(line, textX, y);
-    }
-    ctx.fillStyle = resolvedFill;
-    ctx.fillText(line, textX, y);
-  });
-
-  ctx.restore();
-}
-
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
 }
 
 /** Render one composited export frame (video layout + canvas overlays + captions). */

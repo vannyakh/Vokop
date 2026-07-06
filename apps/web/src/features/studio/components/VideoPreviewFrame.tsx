@@ -21,6 +21,8 @@ import { isBackgroundActive, resolvePreviewBackground } from '@/features/studio/
 import { DEFAULT_COMPOSITION_BACKGROUND } from '@vokop/shared';
 import { findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
 import { resolveVideoClipLayout, type VideoClipLayout } from '@/features/studio/lib/videoClipLayout';
+import { WasmCompositorLayer } from '@/features/studio/components/WasmCompositorLayer';
+import { isWasmCompositorEnabled } from '@/features/studio/lib/compositorWasm';
 import { cn } from '@/lib/cn';
 
 interface VideoPreviewFrameProps {
@@ -76,7 +78,10 @@ export function VideoPreviewFrame({
     (s) => s.projectEditor.compositionBackground ?? DEFAULT_COMPOSITION_BACKGROUND,
   );
   const mediaAssets = useAppStore((s) => s.mediaAssets);
+  const canvasElements = useAppStore((s) => s.canvasElements);
+  const isTimelinePlaying = useAppStore((s) => s.isTimelinePlaying);
   const videoCssFilter = useAppStore((s) => s.getVideoCssFilter());
+  const wasmCompositorPreview = isWasmCompositorEnabled();
   const videoTrackIds = useMemo(
     () => listVideoTrackIds(extraTimelineTracks, timelineTrackOrder, timelineTrackHidden),
     [extraTimelineTracks, timelineTrackOrder, timelineTrackHidden],
@@ -210,7 +215,7 @@ export function VideoPreviewFrame({
           </div>
         )}
 
-        {showBackground && effectiveBackground.mode !== 'color' && (
+        {showBackground && effectiveBackground.mode !== 'color' && !wasmCompositorPreview && (
           <CompositionBackgroundLayer
             contentRect={contentRect}
             background={effectiveBackground}
@@ -229,6 +234,7 @@ export function VideoPreviewFrame({
             hasActiveVideoClip && frameSize.width > 0 && 'studio-video-player--composed',
             liveVideoLayout && 'studio-video-player--live-transform',
             !hasActiveVideoClip && videoUrl && 'studio-video-player--gap',
+            wasmCompositorPreview && hasActiveVideoClip && 'studio-video-player--wasm-source',
           )}
           style={composedStyle}
           playsInline
@@ -244,11 +250,24 @@ export function VideoPreviewFrame({
           {videoUrl && <source src={videoUrl} type={videoFile?.type} />}
         </video>
 
+        {wasmCompositorPreview && (
+          <WasmCompositorLayer
+            contentRect={contentRect}
+            currentTime={currentTime}
+            videoClip={activeVideoClip}
+            canvasElements={canvasElements}
+            compositionBackground={effectiveBackground}
+            videoRef={videoRef}
+            isPlaying={isTimelinePlaying}
+          />
+        )}
+
         <CanvasEditorStage
           wrapRef={wrapRef}
           onBackgroundClick={togglePlay}
           previewMode={cinema}
           dropPassthrough={externalDrag}
+          compositorOwnsLayerPixels={wasmCompositorPreview}
           onVideoLiveLayoutChange={setLiveVideoLayout}
         />
 

@@ -268,6 +268,9 @@ importers:
       omniclip:
         specifier: ^1.0.7
         version: 1.0.7(@types/node@22.20.0)(babylonjs-gltf2interface@6.49.0)(enquirer@2.4.1)
+      opencut-wasm:
+        specifier: ^0.2.10
+        version: 0.2.10
       opfs-tools:
         specifier: ^0.7.4
         version: 0.7.4
@@ -6142,6 +6145,9 @@ packages:
         optional: true
       zod:
         optional: true
+
+  opencut-wasm@0.2.10:
+    resolution: {integrity: sha512-dy+Z9SWwpjLjgmTAMQoMMIUmdbUk9OXoWXLoacl9xT9TCrekIGSeMM0F7bJ1H3VJwwUxbGasaVibvn5AfmeZrg==}
 
   opfs-tools@0.7.4:
     resolution: {integrity: sha512-DJgQnXyPcCj3q8pKa8SjP4HfNBPffj8kO6W1nc2zQydTqu5G/AxOuIjmWnRxZ84nE1EOpzZzhj8MYCZP1jRR9A==}
@@ -13388,6 +13394,8 @@ snapshots:
     optionalDependencies:
       ws: 8.21.0
       zod: 3.25.76
+
+  opencut-wasm@0.2.10: {}
 
   opfs-tools@0.7.4: {}
 
