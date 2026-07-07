@@ -7,6 +7,7 @@ import {
   blurLevelToPx,
 } from '@vokop/shared';
 import filterPreview from '@/assets/filter-preview.webp';
+import { ColorPickerContent, Popover, PopoverTrigger } from '@vokop/ui/shadcn';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
 import { InspectorSection } from '@/features/studio/components/InspectorSection';
@@ -118,14 +119,21 @@ export function CompositionBackgroundPanel({
                 onClick={() => onChange({ mode: 'color', color })}
               />
             ))}
-            <label className="composition-bg-color-swatch composition-bg-color-swatch--custom" title="Custom color">
-              <input
-                type="color"
-                value={background.color ?? '#000000'}
-                onChange={(e) => onChange({ mode: 'color', color: e.target.value })}
-                className="composition-bg-color-input"
+            <Popover>
+              <PopoverTrigger
+                aria-label="Custom color"
+                title="Custom color"
+                className="composition-bg-color-swatch composition-bg-color-swatch--custom"
+                style={{ backgroundColor: background.color ?? undefined }}
+              >
+                <Palette size={13} aria-hidden />
+              </PopoverTrigger>
+              <ColorPickerContent
+                value={(background.color ?? '#000000').replace('#', '')}
+                onChange={(hex) => onChange({ mode: 'color', color: `#${hex}` })}
+                side="left"
               />
-            </label>
+            </Popover>
           </div>
         </div>
       )}

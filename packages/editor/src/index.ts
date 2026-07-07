@@ -21,5 +21,8 @@ export * from './utils/index.js';
 // ─── Constants ───────────────────────────────────────────────────────────────
 export * from './constants/index.js';
 
+// ─── Gradients (CSS gradient parser + canvas renderer, from OpenCut) ─────────
+export * from './gradients/index.js';
+
 // ─── React Hooks ─────────────────────────────────────────────────────────────
 export * from './hooks/index.js';

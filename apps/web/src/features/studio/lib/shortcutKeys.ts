@@ -1,5 +1,7 @@
 /** Platform-aware keyboard shortcut labels (Mac ⌘ vs Windows/Linux Ctrl). */
 
+import { isAppleDevice } from '@vokop/shared';
+
 export type ShortcutToken = 'mod' | 'shift' | 'alt' | 'ctrl' | string;
 
 const TOKEN_LABELS: Record<string, { mac: string; win: string }> = {
@@ -10,11 +12,7 @@ const TOKEN_LABELS: Record<string, { mac: string; win: string }> = {
 };
 
 export function isMacPlatform(): boolean {
-  if (typeof navigator === 'undefined') return true;
-  return (
-    /Mac|iPhone|iPod|iPad/i.test(navigator.platform) ||
-    navigator.userAgent.includes('Mac')
-  );
+  return isAppleDevice();
 }
 
 /** Individual key badges for the shortcuts modal (Omniclip-style). */

@@ -4,3 +4,7 @@ export * from './types/index.js';
 export * from './studio/applyStudioTemplate.js';
 export * from './studio/captionSegments.js';
 export * from './studio/beatDetection.js';
+export * from './utils/color.js';
+export * from './utils/geometry.js';
+export * from './utils/math.js';
+export * from './utils/platform.js';

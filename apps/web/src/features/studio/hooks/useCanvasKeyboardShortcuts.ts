@@ -132,6 +132,25 @@ export function useCanvasKeyboardShortcuts(videoRef?: RefObject<HTMLVideoElement
         return;
       }
 
+      // OpenCut-style trim: Q removes the left side, W removes the right side.
+      if (!mod && !e.altKey && e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        useAppStore.getState().splitTimelineRemoveSide('left');
+        return;
+      }
+      if (!mod && !e.altKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        useAppStore.getState().splitTimelineRemoveSide('right');
+        return;
+      }
+
+      // Toggle a timeline bookmark at the playhead.
+      if (!mod && !e.altKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        useAppStore.getState().toggleTimelineBookmarkAtPlayhead();
+        return;
+      }
+
       if (e.key === 'Escape') {
         clearTimelineSelection({ clearCanvas: true });
         return;

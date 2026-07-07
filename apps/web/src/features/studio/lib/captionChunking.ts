@@ -1,5 +1,6 @@
 import type { CaptionSegment, CaptionWord } from '@vokop/shared';
 import type { SubtitleCue } from '@/features/studio/lib/subtitles/types';
+import { toCaptionSegmentStyle } from '@/features/studio/lib/subtitles/captionSegmentStyle';
 
 export interface ChunkCaptionOptions {
   maxChars?: number;
@@ -57,6 +58,7 @@ function chunkSegmentByWords(
       speaker: segment.speaker,
       text: chunkWords.map((w) => w.text).join(' ').trim(),
       words: [...chunkWords],
+      ...(segment.style ? { style: segment.style } : {}),
     });
     chunkWords = [];
   };
@@ -105,6 +107,7 @@ function chunkSegmentByText(
       endSec: segment.startSec + duration * endRatio,
       speaker: segment.speaker,
       text: line.join(' '),
+      ...(segment.style ? { style: segment.style } : {}),
     });
     line = [];
   };
@@ -138,6 +141,7 @@ export function subtitleCuesToCaptionSegments(cues: SubtitleCue[]): CaptionSegme
     endSec: cue.startTime + cue.duration,
     speaker: '',
     text: cue.text,
+    ...(cue.style ? { style: toCaptionSegmentStyle(cue.style) } : {}),
   }));
 }
 

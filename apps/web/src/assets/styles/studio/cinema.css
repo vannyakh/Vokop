@@ -414,7 +414,88 @@
 
 .canvas-rotation-handle-btn:active {
   cursor: grabbing;
-  transform: scale(0.96);
+  opacity: 0.92;
+}
+
+.canvas-crop-overlay-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+}
+
+.canvas-crop-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.canvas-crop-overlay__svg {
+  pointer-events: none;
+}
+
+.canvas-crop-window {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  pointer-events: auto;
+}
+
+.canvas-crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1.5px solid rgba(12, 14, 18, 0.85);
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  padding: 0;
+  pointer-events: auto;
+}
+
+.canvas-crop-handle:hover {
+  background: #f4f4f5;
+}
+
+.canvas-crop-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.canvas-crop-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.75rem;
+  border-radius: 0.5625rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, rgb(18 18 20) 94%, transparent);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+
+.canvas-crop-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.canvas-crop-action-btn--apply {
+  border-color: rgba(84, 214, 201, 0.45);
+  background: color-mix(in srgb, rgb(84 214 201) 18%, rgb(18 18 20));
+}
+
+.canvas-crop-action-btn--apply:hover {
+  background: color-mix(in srgb, rgb(84 214 201) 28%, rgb(18 18 20));
+}
+
+.studio-video-crop-wrap {
+  position: absolute;
 }
 
 .canvas-inline-text-editor {

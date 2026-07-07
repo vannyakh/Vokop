@@ -170,20 +170,22 @@ export function CanvasSelectionToolbar({
               </button>
             )}
 
-            <button
-              type="button"
-              className="canvas-selection-toolbar-btn"
-              title="Crop"
-              onClick={() =>
-                isVideo && videoClip
-                  ? actions.focusVideoForCrop(videoClip.id)
-                  : element
-                    ? actions.focusElementForCrop(element.id)
-                    : undefined
-              }
-            >
-              <Crop size={15} strokeWidth={1.75} />
-            </button>
+            {(isVideo || (element && isImageElement(element))) && (
+              <button
+                type="button"
+                className="canvas-selection-toolbar-btn"
+                title="Crop"
+                onClick={() =>
+                  isVideo && videoClip
+                    ? actions.focusVideoForCrop(videoClip.id)
+                    : element
+                      ? actions.focusElementForCrop(element.id)
+                      : undefined
+                }
+              >
+                <Crop size={15} strokeWidth={1.75} />
+              </button>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger

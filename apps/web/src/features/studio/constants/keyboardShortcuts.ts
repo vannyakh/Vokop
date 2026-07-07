@@ -39,6 +39,9 @@ export const STUDIO_KEYBOARD_SHORTCUTS: StudioShortcutGroup[] = [
     titleKey: 'shortcutsGroupTimeline',
     items: [
       { labelKey: 'shortcutSplit', keys: ['mod', 'B'] },
+      { labelKey: 'shortcutSplitRemoveLeft', keys: ['Q'] },
+      { labelKey: 'shortcutSplitRemoveRight', keys: ['W'] },
+      { labelKey: 'shortcutToggleBookmark', keys: ['M'] },
       { labelKey: 'shortcutSeparateAudio', keys: ['shift', 'mod', 'S'] },
       { labelKey: 'shortcutZoomIn', keys: ['mod', '+'] },
       { labelKey: 'shortcutZoomOut', keys: ['mod', '-'] },

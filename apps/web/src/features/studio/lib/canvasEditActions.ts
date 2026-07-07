@@ -47,11 +47,13 @@ export function toggleElementFlip(elementId: string, axis: 'x' | 'y'): void {
 }
 
 export function focusVideoForCrop(clipId: string): void {
-  studioEdit.focusVideoClip(clipId, { openInspector: false });
+  useAppStore.getState().startCropSession({ kind: 'video', targetId: clipId });
 }
 
 export function focusElementForCrop(elementId: string): void {
-  studioEdit.focusCanvasElement(elementId);
+  const element = useAppStore.getState().canvasElements.find((el) => el.id === elementId);
+  if (!element || !isImageElement(element)) return;
+  useAppStore.getState().startCropSession({ kind: 'element', targetId: elementId });
 }
 
 export function addImageTrackAtPlayhead(): void {

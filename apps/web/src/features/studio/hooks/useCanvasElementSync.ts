@@ -5,6 +5,7 @@ import { mergeSegmentsIntoCanvasElements } from '@/features/studio/lib/canvasEle
 export function useCanvasElementSync(canvasWidth: number, canvasHeight: number) {
   const translatedText = useAppStore((s) => s.translatedText);
   const transcript = useAppStore((s) => s.transcript);
+  const captionTracks = useAppStore((s) => s.captionTracks);
   const duration = useAppStore((s) => s.duration);
   const setCanvasElements = useAppStore((s) => s.setCanvasElements);
   const canvasElementsRef = useRef(useAppStore.getState().canvasElements);
@@ -21,7 +22,8 @@ export function useCanvasElementSync(canvasWidth: number, canvasHeight: number) 
       duration,
       canvasElementsRef.current,
       { width: canvasWidth, height: canvasHeight },
+      captionTracks,
     );
     setCanvasElements(merged);
-  }, [translatedText, transcript, duration, canvasWidth, canvasHeight, setCanvasElements]);
+  }, [translatedText, transcript, captionTracks, duration, canvasWidth, canvasHeight, setCanvasElements]);
 }

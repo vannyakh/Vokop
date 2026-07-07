@@ -12,9 +12,14 @@ import {
 import type { TimelineTrackType } from '@/features/studio/lib/timelineTypes';
 import {
   isAudioLikeTimelineTrack,
+  isTextTimelineTrack,
   isVisualTimelineTrack,
 } from '@/features/studio/lib/timelineTrackUtils';
 import { useAppStore } from '@/features/project/store/useAppStore';
+import {
+  getSubtitleFiles,
+  importSubtitlesToProject,
+} from '@/features/studio/lib/subtitles/importSubtitlesToProject';
 
 export interface TimelineMediaDropActions {
   ensureTimelineTrackVisible: (trackId: string) => void;
@@ -46,11 +51,25 @@ export async function processTimelineMediaDrop(input: {
   actions: TimelineMediaDropActions;
 }): Promise<boolean> {
   const types = Array.from(input.dataTransfer.types);
-  if (!isTimelineExternalDrag(types)) return false;
-
   const files = input.dataTransfer.files?.length
     ? Array.from(input.dataTransfer.files)
     : undefined;
+  if (!isTimelineExternalDrag(types, files)) return false;
+
+  const subtitleFiles = getSubtitleFiles(files);
+  if (subtitleFiles.length > 0) {
+    const trackId = input.trackId ?? 'text';
+    const trackType = input.trackType ?? 'text';
+    if (!isTextTimelineTrack(String(trackId)) && trackType !== 'text') return false;
+    input.actions.ensureTimelineTrackVisible('text');
+    await importSubtitlesToProject({
+      file: subtitleFiles[0]!,
+      track: 'transcript',
+      alignStartSec: input.atTime,
+    });
+    return true;
+  }
+
   const resolved = resolveEmptyTimelineDrop(types, files);
   const trackId = input.trackId ?? resolved.trackId;
   const trackType = input.trackType ?? resolved.trackType;

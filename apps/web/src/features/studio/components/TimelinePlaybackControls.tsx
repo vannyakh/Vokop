@@ -1,17 +1,19 @@
-import type { RefObject, CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { StudioIcon } from '@vokop/ui';
+import { useAppStore } from '@/features/project';
 import {
   PLAYBACK_CLIP_VOLUME,
   PLAYBACK_HIGH_VOLUME,
   type AudioVisualizerReadout,
 } from '@/features/audio/hooks/useAudioVisualizer';
-import type { VideoAudioGraph } from '@/features/audio/hooks/useAudioEngine';
-import { formatStudioTimecode } from '@/features/studio/lib/timelineUtils';
+import {
+  EditableFrameTimecode,
+  PreviewFrameStepButtons,
+} from '@/features/studio/components/PreviewToolbar';
+import { FRAME_STEP_SEC } from '@/features/studio/lib/shortcutKeys';
 import { cn } from '@/lib/cn';
 
 interface TimelinePlaybackControlsProps {
-  videoRef: RefObject<HTMLVideoElement | null>;
-  connectVideoAudioGraph: (video: HTMLVideoElement) => Promise<VideoAudioGraph>;
   isPaused: boolean;
   currentTime: number;
   duration: number;
@@ -19,7 +21,7 @@ interface TimelinePlaybackControlsProps {
   audioReadout: AudioVisualizerReadout;
 }
 
-/** Center transport: play/pause + timecode + live audio level meter. */
+/** Center transport: frame timecode, step, play/pause, audio meter. */
 export function TimelinePlaybackControls({
   isPaused,
   currentTime,
@@ -27,43 +29,43 @@ export function TimelinePlaybackControls({
   onTogglePlay,
   audioReadout,
 }: TimelinePlaybackControlsProps) {
+  const seekTimeline = useAppStore((s) => s.seekTimeline);
   const { levels, peakLevel, isHighVolume, isClipping } = audioReadout;
   const peakPct = Math.round(peakLevel * 100);
 
+  const stepFrame = (direction: -1 | 1) => {
+    seekTimeline(currentTime + direction * FRAME_STEP_SEC);
+  };
+
   return (
     <div className="studio-playback-center" aria-label="Playback">
-      <button
-        type="button"
-        onClick={onTogglePlay}
-        className={cn(
-          'studio-playback-play',
-          !isPaused && 'is-playing',
-          isHighVolume && 'is-loud',
-          isClipping && 'is-clipping',
-        )}
-        title={isPaused ? 'Play' : 'Pause'}
-      >
-        {isPaused ? (
-          <StudioIcon name="play" size={15} className="ml-0.5" />
-        ) : (
-          <StudioIcon name="pause" size={15} />
-        )}
-      </button>
-      <span className="studio-playback-time font-mono">
-        <span
+      <EditableFrameTimecode
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={seekTimeline}
+        className="studio-preview-timecode studio-playback-timecode font-mono"
+      />
+
+      <div className="studio-playback-transport">
+        <PreviewFrameStepButtons onStep={stepFrame} />
+        <button
+          type="button"
+          onClick={onTogglePlay}
           className={cn(
-            'studio-playback-time-current',
+            'studio-playback-play',
+            !isPaused && 'is-playing',
             isHighVolume && 'is-loud',
             isClipping && 'is-clipping',
           )}
+          title={isPaused ? 'Play (Space)' : 'Pause (Space)'}
         >
-          {formatStudioTimecode(currentTime)}
-        </span>
-        <span className="studio-playback-time-sep">|</span>
-        <span className="studio-playback-time-total">
-          {formatStudioTimecode(duration)}
-        </span>
-      </span>
+          {isPaused ? (
+            <StudioIcon name="play" size={15} className="ml-0.5" />
+          ) : (
+            <StudioIcon name="pause" size={15} />
+          )}
+        </button>
+      </div>
 
       <div
         className={cn(

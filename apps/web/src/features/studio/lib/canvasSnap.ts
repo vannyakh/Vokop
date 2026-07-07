@@ -4,13 +4,10 @@ import { toPxBox, toPxFontSize, type CanvasRect } from '@/features/studio/lib/ca
 export interface CanvasGuideLine {
   orientation: 'horizontal' | 'vertical';
   position: number;
-  /** True when actively snapping to this line. */
   snapped?: boolean;
-  /** Frame guides (video content rect) vs center-only axis. */
   kind?: 'frame' | 'axis' | 'snap';
 }
 
-/** Generic bounds peer for attach-snap (overlays, video proxy, etc.) — always live on-screen px. */
 export interface SnapPeer {
   id: string;
   x: number;
@@ -19,9 +16,7 @@ export interface SnapPeer {
   height: number;
 }
 
-const SNAP_THRESHOLD = 8;
-
-/** Project a (fraction-space) CanvasElement to a px snap peer bounds for the given contentRect. */
+/** Project a fraction-space element to px snap peer bounds. */
 export function elementToSnapPeer(el: CanvasElement, contentRect: CanvasRect): SnapPeer {
   const heightFraction =
     el.type === 'logo' || el.type === 'image' ? el.height : el.fontSize * 1.6;
@@ -32,25 +27,20 @@ export function elementToSnapPeer(el: CanvasElement, contentRect: CanvasRect): S
 function snapAxis(
   origin: number,
   size: number,
-  targets: number[],
+  targets: readonly number[],
   threshold: number,
 ): { origin: number; guide: number | null } {
-  const anchors = [
-    { point: origin },
-    { point: origin + size / 2 },
-    { point: origin + size },
-  ];
-
   let bestOrigin = origin;
   let bestDist = threshold + 1;
   let bestGuide: number | null = null;
 
-  for (const anchor of anchors) {
-    for (const target of targets) {
-      const dist = Math.abs(anchor.point - target);
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i];
+    for (const anchor of [origin, origin + size / 2, origin + size]) {
+      const dist = Math.abs(anchor - target);
       if (dist <= threshold && dist < bestDist) {
         bestDist = dist;
-        bestOrigin = origin + (target - anchor.point);
+        bestOrigin = origin + (target - anchor);
         bestGuide = target;
       }
     }
@@ -59,40 +49,16 @@ function snapAxis(
   return { origin: bestOrigin, guide: bestGuide };
 }
 
-function snapEdge(
-  value: number,
-  targets: number[],
-  threshold: number,
-): { value: number; guide: number | null } {
-  let best = value;
-  let bestDist = threshold + 1;
-  let bestGuide: number | null = null;
-
-  for (const target of targets) {
-    const dist = Math.abs(value - target);
-    if (dist <= threshold && dist < bestDist) {
-      bestDist = dist;
-      best = target;
-      bestGuide = target;
-    }
-  }
-
-  return { value: best, guide: bestGuide };
-}
-
-function buildTargets(
-  bounds: { x: number; y: number; width: number; height: number },
-  others: SnapPeer[],
+/** Precompute peer attach targets (frame edges excluded — frame snap is handled separately). */
+export function buildPeerTargets(
+  others: readonly SnapPeer[],
   excludeId: string,
-) {
-  const cx = bounds.x + bounds.width / 2;
-  const cy = bounds.y + bounds.height / 2;
-  const right = bounds.x + bounds.width;
-  const bottom = bounds.y + bounds.height;
-  const vertical = [cx, bounds.x, right];
-  const horizontal = [cy, bounds.y, bottom];
+): { vertical: number[]; horizontal: number[] } {
+  const vertical: number[] = [];
+  const horizontal: number[] = [];
 
-  for (const el of others) {
+  for (let i = 0; i < others.length; i++) {
+    const el = others[i];
     if (el.id === excludeId) continue;
     vertical.push(el.x, el.x + el.width / 2, el.x + el.width);
     horizontal.push(el.y, el.y + el.height / 2, el.y + el.height);
@@ -101,90 +67,16 @@ function buildTargets(
   return { vertical, horizontal };
 }
 
-/** Center crosshair of the composition frame. */
-export function getPreviewAxisGuides(bounds: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}): CanvasGuideLine[] {
-  return [
-    {
-      orientation: 'vertical',
-      position: bounds.x + bounds.width / 2,
-      kind: 'axis',
-    },
-    {
-      orientation: 'horizontal',
-      position: bounds.y + bounds.height / 2,
-      kind: 'axis',
-    },
-  ];
-}
-
-/** Full video-frame guides: edges + center (CapCut-style). */
-export function getFrameGuideLines(bounds: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}): CanvasGuideLine[] {
-  return [
-    { orientation: 'vertical', position: bounds.x, kind: 'frame' },
-    {
-      orientation: 'vertical',
-      position: bounds.x + bounds.width / 2,
-      kind: 'frame',
-    },
-    {
-      orientation: 'vertical',
-      position: bounds.x + bounds.width,
-      kind: 'frame',
-    },
-    { orientation: 'horizontal', position: bounds.y, kind: 'frame' },
-    {
-      orientation: 'horizontal',
-      position: bounds.y + bounds.height / 2,
-      kind: 'frame',
-    },
-    {
-      orientation: 'horizontal',
-      position: bounds.y + bounds.height,
-      kind: 'frame',
-    },
-  ];
-}
-
-export type SnapAxisMode = 'none' | 'center' | 'frame';
-
-function baseGuides(
-  bounds: { x: number; y: number; width: number; height: number },
-  axisMode: SnapAxisMode,
-): CanvasGuideLine[] {
-  if (axisMode === 'frame') return getFrameGuideLines(bounds);
-  if (axisMode === 'center') return getPreviewAxisGuides(bounds);
-  return [];
-}
-
-export function snapDragPosition(
+/** Snap to peer elements only (no frame guides allocated). */
+export function snapPeerPosition(
   pos: { x: number; y: number },
   size: { width: number; height: number },
-  bounds: { x: number; y: number; width: number; height: number },
-  others: SnapPeer[],
-  excludeId: string,
-  attach: boolean,
-  axisMode: SnapAxisMode | boolean = 'center',
+  peerTargets: { vertical: readonly number[]; horizontal: readonly number[] },
+  threshold: number,
 ): { x: number; y: number; guides: CanvasGuideLine[] } {
-  // Legacy boolean: true = center axis, false = none.
-  const mode: SnapAxisMode =
-    typeof axisMode === 'boolean' ? (axisMode ? 'center' : 'none') : axisMode;
-
-  const guides = baseGuides(bounds, mode);
-  if (!attach) return { ...pos, guides };
-
-  const { vertical, horizontal } = buildTargets(bounds, others, excludeId);
-  const snapX = snapAxis(pos.x, size.width, vertical, SNAP_THRESHOLD);
-  const snapY = snapAxis(pos.y, size.height, horizontal, SNAP_THRESHOLD);
+  const guides: CanvasGuideLine[] = [];
+  const snapX = snapAxis(pos.x, size.width, peerTargets.vertical, threshold);
+  const snapY = snapAxis(pos.y, size.height, peerTargets.horizontal, threshold);
 
   if (snapX.guide != null) {
     guides.push({
@@ -206,105 +98,39 @@ export function snapDragPosition(
   return { x: snapX.origin, y: snapY.origin, guides };
 }
 
-/** Snap a box's edges to the frame and peers (move + resize). */
-export function snapBoxEdges(
-  box: { x: number; y: number; width: number; height: number },
-  bounds: { x: number; y: number; width: number; height: number },
-  others: SnapPeer[],
-  excludeId: string,
-  attach: boolean,
-  axisMode: SnapAxisMode = 'frame',
-): { box: { x: number; y: number; width: number; height: number }; guides: CanvasGuideLine[] } {
-  const guides = baseGuides(bounds, axisMode);
-  if (!attach) return { box, guides };
+/** Full video-frame guides: edges + center. Returns a stable 6-item array. */
+export function getFrameGuideLines(bounds: CanvasRect): readonly CanvasGuideLine[] {
+  const cx = bounds.x + bounds.width / 2;
+  const cy = bounds.y + bounds.height / 2;
+  const right = bounds.x + bounds.width;
+  const bottom = bounds.y + bounds.height;
+  return [
+    { orientation: 'vertical', position: bounds.x, kind: 'frame' },
+    { orientation: 'vertical', position: cx, kind: 'frame' },
+    { orientation: 'vertical', position: right, kind: 'frame' },
+    { orientation: 'horizontal', position: bounds.y, kind: 'frame' },
+    { orientation: 'horizontal', position: cy, kind: 'frame' },
+    { orientation: 'horizontal', position: bottom, kind: 'frame' },
+  ];
+}
 
-  const { vertical, horizontal } = buildTargets(bounds, others, excludeId);
-  let { x, y, width, height } = box;
-
-  const left = snapEdge(x, vertical, SNAP_THRESHOLD);
-  const right = snapEdge(x + width, vertical, SNAP_THRESHOLD);
-  const top = snapEdge(y, horizontal, SNAP_THRESHOLD);
-  const bottom = snapEdge(y + height, horizontal, SNAP_THRESHOLD);
-
-  if (left.guide != null && right.guide != null) {
-    x = left.value;
-    width = Math.max(48, right.value - left.value);
-    guides.push(
-      { orientation: 'vertical', position: left.guide, snapped: true, kind: 'snap' },
-      { orientation: 'vertical', position: right.guide, snapped: true, kind: 'snap' },
-    );
-  } else if (left.guide != null) {
-    const dx = left.value - x;
-    x = left.value;
-    width = Math.max(48, width - dx);
-    guides.push({
-      orientation: 'vertical',
-      position: left.guide,
-      snapped: true,
-      kind: 'snap',
-    });
-  } else if (right.guide != null) {
-    width = Math.max(48, right.value - x);
-    guides.push({
-      orientation: 'vertical',
-      position: right.guide,
-      snapped: true,
-      kind: 'snap',
-    });
-  }
-
-  if (top.guide != null && bottom.guide != null) {
-    y = top.value;
-    height = Math.max(48, bottom.value - top.value);
-    guides.push(
-      { orientation: 'horizontal', position: top.guide, snapped: true, kind: 'snap' },
-      { orientation: 'horizontal', position: bottom.guide, snapped: true, kind: 'snap' },
-    );
-  } else if (top.guide != null) {
-    const dy = top.value - y;
-    y = top.value;
-    height = Math.max(48, height - dy);
-    guides.push({
-      orientation: 'horizontal',
-      position: top.guide,
-      snapped: true,
-      kind: 'snap',
-    });
-  } else if (bottom.guide != null) {
-    height = Math.max(48, bottom.value - y);
-    guides.push({
-      orientation: 'horizontal',
-      position: bottom.guide,
-      snapped: true,
-      kind: 'snap',
-    });
-  }
-
-  // Center snap when edges did not lock.
-  if (left.guide == null && right.guide == null) {
-    const mid = snapAxis(x, width, vertical, SNAP_THRESHOLD);
-    if (mid.guide != null) {
-      x = mid.origin;
-      guides.push({
-        orientation: 'vertical',
-        position: mid.guide,
-        snapped: true,
-        kind: 'snap',
-      });
+export function guidesEqual(
+  a: readonly CanvasGuideLine[] | null,
+  b: readonly CanvasGuideLine[] | null,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const ga = a[i];
+    const gb = b[i];
+    if (
+      ga.orientation !== gb.orientation ||
+      ga.position !== gb.position ||
+      ga.snapped !== gb.snapped ||
+      ga.kind !== gb.kind
+    ) {
+      return false;
     }
   }
-  if (top.guide == null && bottom.guide == null) {
-    const mid = snapAxis(y, height, horizontal, SNAP_THRESHOLD);
-    if (mid.guide != null) {
-      y = mid.origin;
-      guides.push({
-        orientation: 'horizontal',
-        position: mid.guide,
-        snapped: true,
-        kind: 'snap',
-      });
-    }
-  }
-
-  return { box: { x, y, width, height }, guides };
+  return true;
 }

@@ -4,7 +4,6 @@ import { buildCompositorFrameDescriptor } from '@/features/studio/lib/compositor
 import type { CanvasRect } from '@/features/studio/lib/canvasCoords';
 import {
   buildCompositorTextures,
-  collectOverlayFontFamilies,
   initializeWasmGpuRenderer,
   isWasmCompositorEnabled,
   isWasmGpuAvailable,
@@ -12,7 +11,7 @@ import {
   toWasmFrameDescriptor,
   wasmCompositorEngine,
 } from '@/features/studio/lib/compositorWasm';
-import { loadStudioFont } from '@/features/studio/lib/fontLoader';
+import { ensureFontsForCanvasElements } from '@/features/studio/lib/fontLoader';
 import type { CanvasElement } from '@/types/canvas';
 import type { MediaClip } from '@/features/studio/lib/timelineTypes';
 
@@ -115,8 +114,7 @@ export function useWasmCompositorPreview(
           }),
       );
 
-      const fonts = collectOverlayFontFamilies(input.canvasElements);
-      await Promise.all(fonts.map((font) => loadStudioFont(font)));
+      await ensureFontsForCanvasElements(input.canvasElements);
 
       if (cancelled) return;
     })();

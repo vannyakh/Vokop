@@ -9,6 +9,7 @@ import {
   isVisualTimelineTrack,
   trackTypeForMediaDrop,
 } from '@/features/studio/lib/timelineTrackUtils';
+import { isSubtitleFileName } from '@/features/studio/lib/subtitles/importSubtitlesToProject';
 
 /** Secondary drag type so lanes can accept/reject before drop. */
 export const MEDIA_KIND_DRAG_PREFIX = 'application/x-vokop-media-kind-';
@@ -17,17 +18,21 @@ export function mediaKindDragType(kind: MediaAssetKind): string {
   return `${MEDIA_KIND_DRAG_PREFIX}${kind}`;
 }
 
-export type TimelineDropSource = 'media' | 'template' | 'files' | 'unknown';
+export type TimelineDropSource = 'media' | 'template' | 'files' | 'subtitle' | 'unknown';
 
-export function getTimelineDropSource(types: readonly string[]): TimelineDropSource {
+export function getTimelineDropSource(types: readonly string[], files?: File[]): TimelineDropSource {
   if (types.includes(MEDIA_ASSET_DRAG_MIME)) return 'media';
   if (types.includes(TEXT_TEMPLATE_DRAG_MIME)) return 'template';
-  if (types.includes('Files')) return 'files';
+  if (types.includes('Files')) {
+    if (files?.length && files.every((f) => isSubtitleFileName(f.name))) return 'subtitle';
+    if (files?.length && isSubtitleFileName(files[0]!.name)) return 'subtitle';
+    return 'files';
+  }
   return 'unknown';
 }
 
-export function isTimelineExternalDrag(types: readonly string[]): boolean {
-  return getTimelineDropSource(types) !== 'unknown';
+export function isTimelineExternalDrag(types: readonly string[], files?: File[]): boolean {
+  return getTimelineDropSource(types, files) !== 'unknown';
 }
 
 export function getDragMediaKind(types: readonly string[]): MediaAssetKind | null {
@@ -42,9 +47,14 @@ export function trackAcceptsDrop(
   trackId: string,
   trackType: TimelineTrackType,
   types: readonly string[],
+  files?: File[],
 ): boolean {
-  const source = getTimelineDropSource(types);
+  const source = getTimelineDropSource(types, files);
   if (source === 'unknown') return false;
+
+  if (source === 'subtitle') {
+    return isTextTimelineTrack(trackId) || trackType === 'text';
+  }
 
   if (source === 'template') {
     return isTextTimelineTrack(trackId) || trackType === 'text';
@@ -97,9 +107,11 @@ export function dropHintForTrack(
   trackId: string,
   trackType: TimelineTrackType,
   types: readonly string[],
+  files?: File[],
 ): string {
-  if (!trackAcceptsDrop(trackId, trackType, types)) {
-    const source = getTimelineDropSource(types);
+  if (!trackAcceptsDrop(trackId, trackType, types, files)) {
+    const source = getTimelineDropSource(types, files);
+    if (source === 'subtitle') return 'Drop subtitles on a text track';
     if (source === 'template') return 'Drop on a text track';
     if (source === 'media') {
       const kind = getDragMediaKind(types);
@@ -109,7 +121,8 @@ export function dropHintForTrack(
     }
     return 'Incompatible track';
   }
-  const source = getTimelineDropSource(types);
+  const source = getTimelineDropSource(types, files);
+  if (source === 'subtitle') return 'Import subtitles at drop time';
   if (source === 'template') return 'Add text at playhead';
   if (source === 'media') {
     const kind = getDragMediaKind(types);
@@ -131,8 +144,8 @@ export function resolveEmptyTimelineDrop(
   types: readonly string[],
   files?: File[],
 ): { trackId: string; trackType: TimelineTrackType } {
-  const source = getTimelineDropSource(types);
-  if (source === 'template') {
+  const source = getTimelineDropSource(types, files);
+  if (source === 'subtitle' || source === 'template') {
     return { trackId: 'text', trackType: 'text' };
   }
 

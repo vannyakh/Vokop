@@ -22,6 +22,7 @@ function editorStateSignature(input: {
   timelineTrackHidden: string[];
   timelineTrackOrder: string[];
   extraTimelineTracks: ExtraTimelineTrack[];
+  timelineBookmarks: number[];
   compositionSpace: 'legacy-px' | 'fraction-v2';
   projectThumbnailUrl: string | null;
   projectCoverTimeSec: number;
@@ -37,6 +38,7 @@ function editorStateSignature(input: {
     timelineTrackHidden: input.timelineTrackHidden,
     timelineTrackOrder: input.timelineTrackOrder,
     extraTimelineTracks: input.extraTimelineTracks,
+    timelineBookmarks: input.timelineBookmarks,
     // Persist layout/timing only — skip large blob/data URLs for images.
     canvasElements: input.canvasElements.map(({ src, ...rest }) =>
       src && (src.startsWith('blob:') || src.startsWith('data:'))
@@ -79,6 +81,7 @@ export function useStudioProject(projectId: string | undefined) {
   const timelineTrackHidden = useAppStore((s) => s.timelineTrackHidden);
   const timelineTrackOrder = useAppStore((s) => s.timelineTrackOrder);
   const extraTimelineTracks = useAppStore((s) => s.extraTimelineTracks);
+  const timelineBookmarks = useAppStore((s) => s.timelineBookmarks);
   const compositionSpace = useAppStore((s) => s.compositionSpace);
   const projectThumbnailUrl = useAppStore((s) => s.projectThumbnailUrl);
   const projectCoverTimeSec = useAppStore((s) => s.projectCoverTimeSec);
@@ -131,6 +134,7 @@ export function useStudioProject(projectId: string | undefined) {
               timelineTrackHidden: editorState.timelineTrackHidden,
               timelineTrackOrder: editorState.timelineTrackOrder,
               extraTimelineTracks: editorState.extraTimelineTracks as ExtraTimelineTrack[] | undefined,
+              timelineBookmarks: editorState.timelineBookmarks,
               compositionSpace: editorState.compositionSpace as 'legacy-px' | 'fraction-v2' | undefined,
               projectCover: editorState.projectCover
                 ? {
@@ -159,6 +163,7 @@ export function useStudioProject(projectId: string | undefined) {
         timelineTrackHidden: editorState?.timelineTrackHidden ?? [],
         timelineTrackOrder: editorState?.timelineTrackOrder ?? [],
         extraTimelineTracks: (editorState?.extraTimelineTracks as ExtraTimelineTrack[] | undefined) ?? [],
+        timelineBookmarks: editorState?.timelineBookmarks ?? [],
         compositionSpace:
           (editorState?.compositionSpace as 'legacy-px' | 'fraction-v2' | undefined) ?? 'legacy-px',
         projectThumbnailUrl: query.data.thumbnailUrl ?? editorState?.projectCover?.url ?? null,
@@ -189,6 +194,7 @@ export function useStudioProject(projectId: string | undefined) {
         timelineTrackHidden: string[];
         timelineTrackOrder: string[];
         extraTimelineTracks: ExtraTimelineTrack[];
+        timelineBookmarks: number[];
         compositionSpace: 'legacy-px' | 'fraction-v2';
         projectCover?: { url: string; source: 'video' | 'upload'; timeSec?: number };
       };
@@ -224,6 +230,7 @@ export function useStudioProject(projectId: string | undefined) {
       timelineTrackHidden,
       timelineTrackOrder,
       extraTimelineTracks,
+      timelineBookmarks,
       compositionSpace,
       projectThumbnailUrl,
       projectCoverTimeSec,
@@ -255,6 +262,7 @@ export function useStudioProject(projectId: string | undefined) {
           timelineTrackHidden,
           timelineTrackOrder,
           extraTimelineTracks,
+          timelineBookmarks,
           compositionSpace,
           ...(projectThumbnailUrl
             ? {
@@ -287,6 +295,7 @@ export function useStudioProject(projectId: string | undefined) {
     projectThumbnailUrl,
     saveProject,
     storeProjectId,
+    timelineBookmarks,
     timelineTrackHidden,
     timelineTrackOrder,
     transcript,

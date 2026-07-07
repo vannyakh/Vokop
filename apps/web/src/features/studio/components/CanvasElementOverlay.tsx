@@ -1,5 +1,6 @@
 import type { CanvasRect } from '@/features/studio/lib/canvasCoords';
 import { toPxBox, toPxFontSize } from '@/features/studio/lib/canvasCoords';
+import { resolveStudioFontStack } from '@/features/studio/fonts/fontStack';
 import type { CanvasElement } from '@/types/canvas';
 
 interface CanvasInlineTextEditorProps {
@@ -27,7 +28,7 @@ export function CanvasInlineTextEditor({ element, contentRect, onCommit, onCance
         width: box.width,
         minHeight: boxHeight,
         fontSize: fontSizePx,
-        fontFamily: element.fontFamily ? `${element.fontFamily}, system-ui, sans-serif` : undefined,
+        fontFamily: element.fontFamily ? resolveStudioFontStack(element.fontFamily) : undefined,
         fontWeight: style?.fontWeight === 'bold' ? 700 : 500,
         fontStyle: style?.fontStyle === 'italic' ? 'italic' : 'normal',
         textDecoration: style?.underline ? 'underline' : undefined,

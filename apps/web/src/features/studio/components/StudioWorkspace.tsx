@@ -20,6 +20,7 @@ import { useTimelinePlayback } from '@/features/studio/hooks/useTimelinePlayback
 import { useLinkedVideoAudioPlayback } from '@/features/studio/hooks/useLinkedVideoAudioPlayback';
 import { TemplateSlotBanner } from '@/features/studio/components/TemplateSlotBanner';
 import { StudioProjectStatusBar } from '@/features/studio/components/StudioProjectStatusBar';
+import { PreviewViewportProvider } from '@/features/studio/context/PreviewViewportContext';
 import type { ExportSettings } from '@/features/studio/lib/exportSettings';
 
 export function StudioWorkspace() {
@@ -76,67 +77,69 @@ export function StudioWorkspace() {
   };
 
   return (
-    <div className="studio-shell h-full min-h-screen flex flex-col overflow-hidden relative">
-      <AppHeader onExport={() => setExportModalOpen(true)} />
-      <StudioRendererBanner />
-      <TemplateSlotBanner />
+    <PreviewViewportProvider>
+      <div className="studio-shell h-full min-h-screen flex flex-col overflow-hidden relative">
+        <AppHeader onExport={() => setExportModalOpen(true)} />
+        <StudioRendererBanner />
+        <TemplateSlotBanner />
 
-      <div className="flex-1 flex overflow-hidden relative z-10">
-        <StudioToolsDock
-          videoRef={videoRef}
-          onPreviewVoice={handlePreviewVoice}
-          onRegenerateVoiceover={regenerateVoiceover}
-        />
+        <div className="flex-1 flex overflow-hidden relative z-10">
+          <StudioToolsDock
+            videoRef={videoRef}
+            onPreviewVoice={handlePreviewVoice}
+            onRegenerateVoiceover={regenerateVoiceover}
+          />
 
-        <main ref={containerRef} className="studio-main studio-main-split">
-          <div className="studio-preview-pane">
-            <VideoViewport videoRef={videoRef} />
-          </div>
+          <main ref={containerRef} className="studio-main studio-main-split">
+            <div className="studio-preview-pane">
+              <VideoViewport videoRef={videoRef} />
+            </div>
 
-          {(videoUrl || projectId) && (
-            <>
-              <div
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label="Resize timeline panel"
-                aria-valuenow={Math.round(dockHeight)}
-                className={cn('studio-panel-splitter', dragging && 'is-dragging')}
-                {...splitterProps}
-              />
-              <div
-                ref={dockShellRef}
-                className={cn('studio-editor-dock-shell', dragging && 'is-resizing')}
-                style={{ height: dockHeight }}
-              >
-                <TimelineBar
-                  videoRef={videoRef}
-                  timelineAudioRef={timelineAudioRef}
-                  connectVideoAudioGraph={connectVideoAudioGraph}
-                  connectTimelineAudioGraph={connectTimelineAudioGraph}
-                  onToggleSyncPlayback={toggleSyncPlayback}
+            {(videoUrl || projectId) && (
+              <>
+                <div
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label="Resize timeline panel"
+                  aria-valuenow={Math.round(dockHeight)}
+                  className={cn('studio-panel-splitter', dragging && 'is-dragging')}
+                  {...splitterProps}
                 />
-              </div>
-            </>
-          )}
-        </main>
+                <div
+                  ref={dockShellRef}
+                  className={cn('studio-editor-dock-shell', dragging && 'is-resizing')}
+                  style={{ height: dockHeight }}
+                >
+                  <TimelineBar
+                    videoRef={videoRef}
+                    timelineAudioRef={timelineAudioRef}
+                    connectVideoAudioGraph={connectVideoAudioGraph}
+                    connectTimelineAudioGraph={connectTimelineAudioGraph}
+                    onToggleSyncPlayback={toggleSyncPlayback}
+                  />
+                </div>
+              </>
+            )}
+          </main>
 
-        <EditorSidebar
-          videoRef={videoRef}
-          onPlayAnalysis={handlePlayAnalysis}
-          onStartReel={startReel}
+          <EditorSidebar
+            videoRef={videoRef}
+            onPlayAnalysis={handlePlayAnalysis}
+            onStartReel={startReel}
+          />
+        </div>
+
+        <StudioProjectStatusBar />
+
+        <CinemaPreviewOverlay videoRef={videoRef} />
+
+        <ExportVideoModal
+          open={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          onExport={handleExport}
+          isExporting={isExporting}
         />
       </div>
-
-      <StudioProjectStatusBar />
-
-      <CinemaPreviewOverlay videoRef={videoRef} />
-
-      <ExportVideoModal
-        open={exportModalOpen}
-        onClose={() => setExportModalOpen(false)}
-        onExport={handleExport}
-        isExporting={isExporting}
-      />
-    </div>
+    </PreviewViewportProvider>
   );
 }

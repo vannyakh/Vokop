@@ -11,6 +11,8 @@ import {
   captionSegmentsToTranscript,
   updateCaptionSegmentText,
   updateCaptionWordTiming,
+  moveCaptionSegment,
+  resizeCaptionSegment,
   getTransitionDefaultDurationSec,
   type AutoCutDensity,
   type AutoCutSuggestion,
@@ -80,10 +82,18 @@ import {
   applyCanvasElementPatch,
   applyMediaClipToLists,
   applySplitAtPlayhead,
+  applySplitRemoveSide,
   applyMediaSplitsAtTimes,
   timelineItemForCanvasElement,
 } from '@/features/studio/services/studioEdit';
 import type { CanvasElement, CanvasTool } from '@/types/canvas';
+import {
+  FULL_CROP,
+  clampCropRect,
+  combineCrop,
+  isFullCrop,
+  type NormalizedCropRect,
+} from '@vokop/shared/types/crop';
 import { defaultProjectName, detectAspectRatioId } from '@/features/studio/constants/aspectRatios';
 import {
   computeTimelineDuration,
@@ -107,10 +117,10 @@ import {
   mergePersistedMediaAssets,
 } from '@/features/studio/lib/mediaLibrary';
 import {
-  hydrateMediaFromOpfs,
-  persistMediaToOpfs,
-  removeMediaFromOpfs,
-} from '@/features/studio/lib/opfsMediaCache';
+  formatStorageBytes,
+  isStorageQuotaExceededError,
+  mediaStorage,
+} from '@/features/studio/services/mediaStorage';
 import {
   cloneProjectSnapshot,
   pushProjectHistory,
@@ -120,6 +130,7 @@ import type { TextTemplateInput, AddTextTemplateOptions } from '@/features/studi
 import { computeTemplatePlacement, estimateCanvasSize } from '@/features/studio/lib/textTemplatePlacement';
 import { toFractionBox, toFractionFontSize, toFractionPoint, frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 import { buildCaptionCanvasElements } from '@/features/studio/lib/buildCaptionCanvasElements';
+import { applyRippleShiftOnTrack } from '@/features/studio/lib/timelineRipple';
 
 export type AddCanvasImageOptions = {
   keepStudioTool?: boolean;
@@ -230,6 +241,9 @@ function buildCanvasImageElement(
       resolveVisualTrackId(state, options?.label?.toLowerCase().includes('sticker') ? 'sticker' : 'image'),
   };
 }
+
+/** Bookmarks closer than this are treated as the same marker. */
+const TIMELINE_BOOKMARK_EPS_SEC = 0.1;
 
 function snapshotFromState(state: {
   canvasElements: CanvasElement[];
@@ -359,6 +373,14 @@ function syncVideoToTimeline(
   if (!playing && !video.paused) video.pause();
 }
 
+export type CropSessionKind = 'video' | 'element';
+
+export interface CropSession {
+  kind: CropSessionKind;
+  targetId: string;
+  rect: NormalizedCropRect;
+}
+
 interface AppState {
   videoFile: File | null;
   videoUrl: string | null;
@@ -419,6 +441,8 @@ interface AppState {
   selectedTimelineClip: TimelineSelectionItem | null;
   selectedTimelineClips: TimelineSelectionItem[];
   timelineClipboard: CanvasElement[] | null;
+  /** Bookmarked playhead times shown as markers on the timeline ruler. */
+  timelineBookmarks: number[];
   canvasElements: CanvasElement[];
   /**
    * Coordinate space for videoClips/canvasElements x/y/width/height/fontSize.
@@ -453,10 +477,15 @@ interface AppState {
   showBeatMarkers: boolean;
   beatSensitivity: number;
   autoCutDensity: AutoCutDensity;
+  /** Active non-destructive crop editor session (video clip or image/logo element). */
+  cropSession: CropSession | null;
+  /** Set when browser storage is too full to persist imported media locally. */
+  mediaStorageWarning: string | null;
 
   setVideo: (file: File, url: string) => void;
   importMediaFiles: (files: FileList | File[]) => Promise<void>;
   removeMediaAsset: (id: string) => void;
+  dismissMediaStorageWarning: () => void;
   addMediaAssetToTimeline: (
     assetId: string,
     atTime?: number,
@@ -490,6 +519,7 @@ interface AppState {
       timelineTrackHidden?: string[];
       timelineTrackOrder?: string[];
       extraTimelineTracks?: ExtraTimelineTrack[];
+      timelineBookmarks?: number[];
       compositionSpace?: 'legacy-px' | 'fraction-v2';
       projectCover?: { url: string; source: 'video' | 'upload'; timeSec?: number };
     };
@@ -562,6 +592,13 @@ interface AppState {
   resolveTimelineDropTrack: (input: TimelinePlacementInput) => string;
   /** After moving/resizing a clip, move it to a free track when it overlaps on the current one. */
   resolveTimelineClipOverlap: (clipId: string, trackId: string) => void;
+  /** Ripple trim: shift clips on the same track at/after the pivot time. */
+  rippleShiftTimelineClips: (input: {
+    trackId: string;
+    pivotSec: number;
+    deltaSec: number;
+    excludeClipId: string;
+  }) => void;
   /** Replace selection with one clip (or clear). Keeps primary + multi in sync. */
   selectTimelineClip: (
     clip: TimelineSelectionItem | null,
@@ -634,6 +671,10 @@ interface AppState {
     options?: { history?: boolean },
   ) => void;
   commitProjectHistory: () => void;
+  startCropSession: (payload: { kind: CropSessionKind; targetId: string }) => void;
+  setCropSessionRect: (rect: NormalizedCropRect) => void;
+  applyCropSession: () => void;
+  cancelCropSession: () => void;
   duplicateCanvasElement: (id: string) => void;
   replaceCanvasElementImage: (id: string, file: File) => void;
   addCanvasLogo: (file: File) => void;
@@ -644,6 +685,9 @@ interface AppState {
   undoCanvas: () => void;
   redoCanvas: () => void;
   splitTimelineAtPlayhead: () => void;
+  splitTimelineRemoveSide: (removeSide: 'left' | 'right') => void;
+  toggleTimelineBookmarkAtPlayhead: () => void;
+  removeTimelineBookmark: (time: number) => void;
   /** Copy video audio onto the audio track (video keeps sound). */
   extractAudioFromVideoClip: (clipId?: string) => string | null;
   /** Extract audio and mute the video clip (split audio from video). */
@@ -729,6 +773,7 @@ const initialState = {
   selectedTimelineClip: null as TimelineSelectionItem | null,
   selectedTimelineClips: [] as TimelineSelectionItem[],
   timelineClipboard: null as CanvasElement[] | null,
+  timelineBookmarks: [] as number[],
   canvasElements: [] as CanvasElement[],
   compositionSpace: 'fraction-v2' as 'legacy-px' | 'fraction-v2',
   selectedCanvasElementId: null as string | null,
@@ -753,6 +798,8 @@ const initialState = {
   showBeatMarkers: true,
   beatSensitivity: 0.5,
   autoCutDensity: 'every-beat' as AutoCutDensity,
+  cropSession: null as CropSession | null,
+  mediaStorageWarning: null as string | null,
 };
 
 function revokeAllMediaAssets(assets: MediaAsset[], videoUrl: string | null) {
@@ -782,13 +829,23 @@ let pendingOpfsMediaSync = false;
 
 async function syncMediaAssetsToOpfs(projectId: string, assets: MediaAsset[]): Promise<void> {
   if (!projectId) return;
+  let quotaWarning: string | null = null;
   await Promise.all(
     assets.map(async (asset) => {
       const file = getMediaFile(asset.id);
       if (!file) return;
-      await persistMediaToOpfs(projectId, asset, file).catch(() => undefined);
+      try {
+        await mediaStorage.saveAsset(projectId, asset, file);
+      } catch (error) {
+        if (isStorageQuotaExceededError(error)) {
+          quotaWarning = `Browser storage is full — "${asset.name}" (${formatStorageBytes(asset.size)}) stays available this session but won't survive a reload.`;
+        }
+      }
     }),
   );
+  if (quotaWarning) {
+    useAppStore.setState({ mediaStorageWarning: quotaWarning });
+  }
 }
 
 function scheduleMediaOpfsSync(projectId: string | null, assets: MediaAsset[]) {
@@ -918,6 +975,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         height: meta.height,
       };
       set((s) => ({ mediaAssets: [...s.mediaAssets, asset] }));
+
+      const capacity = await mediaStorage.canStoreFile(file.size).catch(() => null);
+      if (capacity && !capacity.canStore) {
+        set({
+          mediaStorageWarning: `Browser storage is full — "${asset.name}" (${formatStorageBytes(asset.size)}) stays available this session but won't survive a reload.`,
+        });
+      }
       scheduleMediaOpfsSync(get().projectId, get().mediaAssets);
     }
   },
@@ -935,8 +999,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     forgetMediaFile(id);
     set({ mediaAssets: state.mediaAssets.filter((item) => item.id !== id) });
     const projectId = state.projectId;
-    if (projectId) void removeMediaFromOpfs(projectId, id).catch(() => undefined);
+    if (projectId) void mediaStorage.removeAsset(projectId, id).catch(() => undefined);
   },
+
+  dismissMediaStorageWarning: () => set({ mediaStorageWarning: null }),
 
   setPrimaryVideoAsset: (assetId) => {
     const state = get();
@@ -1061,7 +1127,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!projectId) return;
 
     try {
-      const hydrated = await hydrateMediaFromOpfs(projectId, storeMediaFile);
+      const hydrated = await mediaStorage.loadProjectAssets(projectId, storeMediaFile);
       const merged = mergePersistedMediaAssets(hydrated, persistedAssets).filter(
         (asset) => asset.url.length > 0,
       );
@@ -1175,6 +1241,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? { extraTimelineTracks: editor.extraTimelineTracks }
         : switching
           ? { extraTimelineTracks: [] }
+          : {}),
+      ...(editor?.timelineBookmarks
+        ? { timelineBookmarks: [...editor.timelineBookmarks].sort((a, b) => a - b) }
+        : switching
+          ? { timelineBookmarks: [] }
           : {}),
       // Missing marker on a project that already has composition data means it
       // predates the fraction-space migration — flag it for one-time conversion.
@@ -1355,6 +1426,60 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     set(pushHistory(state));
   },
+
+  startCropSession: ({ kind, targetId }) => {
+    if (kind === 'video') {
+      const clip = get().videoClips.find((c) => c.id === targetId);
+      if (!clip) return;
+      get().selectTimelineClip(
+        { trackId: 'video', clipId: targetId },
+        { syncCanvas: true, openInspector: false },
+      );
+    } else {
+      get().selectCanvasElement(targetId);
+    }
+    set({ cropSession: { kind, targetId, rect: { ...FULL_CROP } } });
+  },
+
+  setCropSessionRect: (rect) => {
+    const session = get().cropSession;
+    if (!session) return;
+    set({ cropSession: { ...session, rect: clampCropRect(rect) } });
+  },
+
+  applyCropSession: () => {
+    const state = get();
+    const session = state.cropSession;
+    if (!session) return;
+
+    state.commitProjectHistory();
+
+    if (session.kind === 'video') {
+      const clip = state.videoClips.find((c) => c.id === session.targetId);
+      if (!clip) {
+        set({ cropSession: null });
+        return;
+      }
+      const existing = clip.crop ?? FULL_CROP;
+      const combined = isFullCrop(session.rect) ? existing : combineCrop(existing, session.rect);
+      const nextCrop = isFullCrop(combined) ? undefined : combined;
+      get().updateMediaClip(session.targetId, { crop: nextCrop }, { history: false });
+    } else {
+      const element = state.canvasElements.find((el) => el.id === session.targetId);
+      if (!element) {
+        set({ cropSession: null });
+        return;
+      }
+      const existing = element.crop ?? FULL_CROP;
+      const combined = isFullCrop(session.rect) ? existing : combineCrop(existing, session.rect);
+      const nextCrop = isFullCrop(combined) ? undefined : combined;
+      get().updateCanvasElement(session.targetId, { crop: nextCrop }, { history: false });
+    }
+
+    set({ cropSession: null });
+  },
+
+  cancelCropSession: () => set({ cropSession: null }),
 
   updateMediaClip: (id, patch, options) => {
     const state = get();
@@ -1647,6 +1772,35 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     }
   },
+
+  rippleShiftTimelineClips: (input) => {
+    const state = get();
+    if (Math.abs(input.deltaSec) < 1e-4) return;
+
+    const shifted = applyRippleShiftOnTrack({
+      trackId: input.trackId,
+      pivotSec: input.pivotSec,
+      deltaSec: input.deltaSec,
+      excludeClipId: input.excludeClipId,
+      videoClips: state.videoClips,
+      audioClips: state.audioClips,
+      canvasElements: state.canvasElements,
+      captionTracks: state.captionTracks,
+    });
+
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, {
+        videoClips: shifted.videoClips,
+        audioClips: shifted.audioClips,
+      }),
+      canvasElements: shifted.canvasElements,
+      captionTracks: shifted.captionTracks,
+      transcript: shifted.transcript,
+      translatedText: shifted.translatedText,
+    });
+  },
+
   selectTimelineClip: (clip, options = {}) => {
     const { mode = 'replace', syncCanvas = true, openInspector = false } = options;
     const state = get();
@@ -1899,6 +2053,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateSegmentTime: (index, newTime, type) => {
     const state = get();
     const maxTime = state.duration || Infinity;
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const structured = state.captionTracks[trackKey];
+
+    // Structured captions are the timeline's source of truth when populated —
+    // update them first, then mirror into the legacy transcript string.
+    if (structured.length > 0 && structured[index]) {
+      const nextTracks = moveCaptionSegment(structured, index, newTime, maxTime);
+      const serialized = captionSegmentsToTranscript(nextTracks);
+      set({
+        captionTracks: { ...state.captionTracks, [trackKey]: nextTracks },
+        ...(type === 'transcript' ? { transcript: serialized } : { translatedText: serialized }),
+      });
+      return;
+    }
+
     if (type === 'transcript') {
       const segments = parseSegments(state.transcript);
       set({ transcript: updateSegmentTime(segments, index, newTime, maxTime) });
@@ -1911,6 +2080,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateSegmentDuration: (index, duration, type) => {
     const state = get();
     const maxTime = state.duration || Infinity;
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const structured = state.captionTracks[trackKey];
+
+    if (structured.length > 0 && structured[index]) {
+      const nextTracks = resizeCaptionSegment(structured, index, duration, maxTime);
+      const serialized = captionSegmentsToTranscript(nextTracks);
+      set({
+        captionTracks: { ...state.captionTracks, [trackKey]: nextTracks },
+        ...(type === 'transcript' ? { transcript: serialized } : { translatedText: serialized }),
+      });
+      return;
+    }
+
     if (type === 'transcript') {
       const segments = parseSegments(state.transcript);
       set({ transcript: updateSegmentDuration(segments, index, duration, maxTime) });
@@ -2407,6 +2589,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       state.canvasElements,
       state.transcript,
       state.translatedText,
+      state.captionTracks,
       id,
       patch,
     );
@@ -2418,6 +2601,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...(applied.translatedText !== undefined
         ? { translatedText: applied.translatedText }
         : {}),
+      ...(applied.captionTracks !== undefined ? { captionTracks: applied.captionTracks } : {}),
       ...(recordHistory ? pushHistory(state) : {}),
     });
   },
@@ -2675,6 +2859,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       videoClips: state.videoClips,
       audioClips: state.audioClips,
       canvasElements: state.canvasElements,
+      captionTracks: state.captionTracks,
       selectedTimelineClip: state.selectedTimelineClip,
     });
     if (!result) return;
@@ -2690,10 +2875,71 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...(result.translatedText !== undefined
         ? { translatedText: result.translatedText }
         : {}),
+      ...(result.captionTracks !== undefined ? { captionTracks: result.captionTracks } : {}),
       selectedTimelineClip: result.selectedTimelineClip,
       selectedTimelineClips: result.selectedTimelineClips,
       selectedCanvasElementId: result.selectedCanvasElementId,
     });
+  },
+
+  splitTimelineRemoveSide: (removeSide) => {
+    const state = get();
+    const result = applySplitRemoveSide(
+      {
+        currentTime: state.currentTime,
+        duration: state.duration,
+        transcript: state.transcript,
+        translatedText: state.translatedText,
+        status: state.status,
+        videoClips: state.videoClips,
+        audioClips: state.audioClips,
+        canvasElements: state.canvasElements,
+        captionTracks: state.captionTracks,
+        selectedTimelineClip: state.selectedTimelineClip,
+      },
+      removeSide,
+    );
+    if (!result) return;
+
+    set({
+      ...pushHistory(state),
+      ...withTimelineDuration(state, {
+        videoClips: result.videoClips ?? state.videoClips,
+        audioClips: result.audioClips ?? state.audioClips,
+      }),
+      ...(result.canvasElements ? { canvasElements: result.canvasElements } : {}),
+      selectedTimelineClip: result.selectedTimelineClip,
+      selectedTimelineClips: result.selectedTimelineClips,
+      selectedCanvasElementId: result.selectedCanvasElementId,
+    });
+
+    // Removing the left side leaves the playhead at the kept clip's new start;
+    // keep the frame in sync li ripple-aware split-left.
+    if (removeSide === 'left') {
+      get().seekTimeline(state.currentTime);
+    }
+  },
+
+  toggleTimelineBookmarkAtPlayhead: () => {
+    const state = get();
+    const t = Math.max(0, state.currentTime);
+    const existing = state.timelineBookmarks.find(
+      (b) => Math.abs(b - t) < TIMELINE_BOOKMARK_EPS_SEC,
+    );
+    set({
+      timelineBookmarks:
+        existing !== undefined
+          ? state.timelineBookmarks.filter((b) => b !== existing)
+          : [...state.timelineBookmarks, t].sort((a, b) => a - b),
+    });
+  },
+
+  removeTimelineBookmark: (time) => {
+    set((s) => ({
+      timelineBookmarks: s.timelineBookmarks.filter(
+        (b) => Math.abs(b - time) >= TIMELINE_BOOKMARK_EPS_SEC,
+      ),
+    }));
   },
 
   extractAudioFromVideoClip: (clipId) => {
@@ -2961,6 +3207,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         videoClips: state.videoClips,
         audioClips: state.audioClips,
         canvasElements: state.canvasElements,
+        captionTracks: state.captionTracks,
         selectedTimelineClip: state.selectedTimelineClip,
       },
       times,

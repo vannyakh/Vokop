@@ -21,3 +21,11 @@ export async function readSubtitleFile(file: File): Promise<ParseSubtitleResult>
   const text = await file.text();
   return parseSubtitleFile(file.name, text);
 }
+
+export {
+  getSubtitleFiles,
+  importSubtitlesToProject,
+  isSubtitleFile,
+  isSubtitleFileName,
+} from '@/features/studio/lib/subtitles/importSubtitlesToProject';
+export { toCaptionSegmentStyle } from '@/features/studio/lib/subtitles/captionSegmentStyle';

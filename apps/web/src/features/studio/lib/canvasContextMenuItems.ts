@@ -166,19 +166,22 @@ function transformBlock(
         : [];
 
   const cropSeparator = items.length > 0;
-  items.push(
-    {
+  const canCrop =
+    target.kind === 'video' || (target.kind === 'element' && isImageElement(element));
+  if (canCrop) {
+    items.push({
       id: 'crop',
       label: 'Crop',
       icon: Crop,
       onClick: () =>
         target.kind === 'video'
           ? actions.focusVideoForCrop(target.clipId)
-          : target.kind === 'element'
-            ? actions.focusElementForCrop(target.elementId)
-            : undefined,
+          : actions.focusElementForCrop(target.elementId),
       separatorBefore: cropSeparator || (options.separatorBefore ?? false),
-    },
+    });
+  }
+
+  items.push(
     {
       id: 'flip',
       label: 'Flip',

@@ -47,7 +47,7 @@ export function normalizeCaptionSegment(
     words = distributeWordsEvenly(text, startSec, endSec);
   }
 
-  return { startSec, endSec, speaker, text, words };
+  return { startSec, endSec, speaker, text, words, ...(raw.style ? { style: raw.style } : {}) };
 }
 
 /** Split segment text into evenly timed words when ASR did not return word timings. */
@@ -147,6 +147,125 @@ export function updateCaptionSegmentText(
   const words = distributeWordsEvenly(text, current.startSec, current.endSec);
   updated[index] = { ...current, text, words };
   return updated;
+}
+
+const MIN_SEGMENT_SEC = 0.4;
+
+function clampWordsToSegment(
+  words: CaptionWord[] | undefined,
+  startSec: number,
+  endSec: number,
+): CaptionWord[] | undefined {
+  if (!words?.length) return words;
+  return words.map((w) => {
+    const s = Math.min(Math.max(w.startSec, startSec), endSec - MIN_WORD_SEC);
+    const e = Math.min(Math.max(w.endSec, s + MIN_WORD_SEC), endSec);
+    return s === w.startSec && e === w.endSec ? w : { ...w, startSec: s, endSec: e };
+  });
+}
+
+/** Move a segment to a new start time, shifting word timings with it. */
+export function moveCaptionSegment(
+  segments: CaptionSegment[],
+  index: number,
+  newStartSec: number,
+  maxSec = Infinity,
+): CaptionSegment[] {
+  const current = segments[index];
+  if (!current) return segments;
+
+  const duration = Math.max(MIN_SEGMENT_SEC, current.endSec - current.startSec);
+  const upper = Number.isFinite(maxSec) ? Math.max(0, maxSec - duration) : Infinity;
+  const startSec = Math.min(Math.max(0, newStartSec), upper);
+  const delta = startSec - current.startSec;
+  if (delta === 0) return segments;
+
+  const updated = [...segments];
+  updated[index] = {
+    ...current,
+    startSec,
+    endSec: startSec + duration,
+    words: current.words?.map((w) => ({
+      ...w,
+      startSec: w.startSec + delta,
+      endSec: w.endSec + delta,
+    })),
+  };
+  return updated.sort((a, b) => a.startSec - b.startSec);
+}
+
+/** Resize a segment to a new duration (start fixed), clamping word timings inside. */
+export function resizeCaptionSegment(
+  segments: CaptionSegment[],
+  index: number,
+  newDurationSec: number,
+  maxSec = Infinity,
+): CaptionSegment[] {
+  const current = segments[index];
+  if (!current) return segments;
+
+  const endSec = Math.max(
+    current.startSec + MIN_SEGMENT_SEC,
+    Math.min(
+      Number.isFinite(maxSec) ? maxSec : Infinity,
+      current.startSec + Math.max(MIN_SEGMENT_SEC, newDurationSec),
+    ),
+  );
+  if (endSec === current.endSec) return segments;
+
+  const updated = [...segments];
+  updated[index] = {
+    ...current,
+    endSec,
+    words: clampWordsToSegment(current.words, current.startSec, endSec),
+  };
+  return updated;
+}
+
+/** Split the segment under `timeSec` into two segments, dividing words by their midpoint. */
+export function splitCaptionSegmentAtTime(
+  segments: CaptionSegment[],
+  timeSec: number,
+  minGapSec = MIN_SEGMENT_SEC,
+): CaptionSegment[] | null {
+  const index = segments.findIndex(
+    (s) => timeSec > s.startSec + minGapSec && timeSec < s.endSec - minGapSec,
+  );
+  if (index < 0) return null;
+
+  const segment = segments[index]!;
+  const words =
+    segment.words?.length
+      ? segment.words
+      : distributeWordsEvenly(segment.text, segment.startSec, segment.endSec);
+  const leftWords = words.filter((w) => (w.startSec + w.endSec) / 2 <= timeSec);
+  const rightWords = words.filter((w) => (w.startSec + w.endSec) / 2 > timeSec);
+
+  const makeSide = (
+    startSec: number,
+    endSec: number,
+    sideWords: CaptionWord[],
+    sideIndex: number,
+  ) =>
+    normalizeCaptionSegment(
+      {
+        startSec,
+        endSec,
+        speaker: segment.speaker,
+        text: sideWords.length ? sideWords.map((w) => w.text).join(' ') : '…',
+        words: sideWords.length
+          ? clampWordsToSegment(sideWords, startSec, endSec)
+          : undefined,
+        ...(segment.style ? { style: segment.style } : {}),
+      },
+      sideIndex,
+    );
+
+  const left = makeSide(segment.startSec, timeSec, leftWords, index);
+  const right = makeSide(timeSec, segment.endSec, rightWords, index + 1);
+  if (!left || !right) return null;
+
+  return [...segments.slice(0, index), left, right, ...segments.slice(index + 1)];
 }
 
 export function updateCaptionWordTiming(

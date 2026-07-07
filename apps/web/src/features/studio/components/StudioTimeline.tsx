@@ -35,7 +35,7 @@ import {
 import { useTranslation } from '@/features/settings';
 import { useSidePanelSplit } from '@/features/studio/hooks/useSidePanelSplit';
 import { useTimelineTrackHeights } from '@/features/studio/hooks/useTimelineTrackHeights';
-import { useVideoFilmstrip } from '@/features/studio/hooks/useVideoFilmstrip';
+import { useTimelineFilmstrips } from '@/features/studio/hooks/useTimelineFilmstrips';
 import { useTimelineTracks } from '@/features/studio/hooks/useTimelineTracks';
 import { useTimelineClipDrag } from '@/features/studio/hooks/useTimelineClipDrag';
 import { useTimelineSelection } from '@/features/studio/hooks/useTimelineSelection';
@@ -49,6 +49,7 @@ import {
   type TimelineContextMenuTarget,
 } from '@/features/studio/components/TimelineContextMenu';
 import {
+  Bookmark,
   ImageIcon,
   Film,
   Mic2,
@@ -74,7 +75,7 @@ import {
 } from '@/features/studio/lib/timelineDrop';
 import { useTranscriptReady } from '@/features/studio/hooks/useTranscriptReady';
 import { processTimelineMediaDrop } from '@/features/studio/lib/timelineMediaDrop';
-import { filmstripThumbsForClip, resolveFilmstripBandHeight } from '@/features/studio/lib/timelineFilmstrip';
+import { resolveFilmstripBandHeight } from '@/features/studio/lib/timelineFilmstrip';
 import {
   imagePreviewThumbsForClip,
   isImagePreviewClip,
@@ -151,6 +152,7 @@ export function StudioTimeline({
   const storeTimelineZoom = useAppStore((s) => s.timelineZoom);
   const timelineZoom = timelineZoomProp ?? storeTimelineZoom;
   const videoClips = useAppStore((s) => s.videoClips);
+  const mediaAssets = useAppStore((s) => s.mediaAssets);
   const canvasElements = useAppStore((s) => s.canvasElements);
   const timelineTrackMuted = useAppStore((s) => s.timelineTrackMuted);
   const timelineTrackPreviewHidden = useAppStore((s) => s.timelineTrackPreviewHidden);
@@ -193,6 +195,8 @@ export function StudioTimeline({
   const beatAnalysis = useAppStore((s) => s.beatAnalysis);
   const showBeatMarkers = useAppStore((s) => s.showBeatMarkers);
   const autoCutSuggestions = useAppStore((s) => s.autoCutSuggestions);
+  const timelineBookmarks = useAppStore((s) => s.timelineBookmarks);
+  const removeTimelineBookmark = useAppStore((s) => s.removeTimelineBookmark);
 
   const videoSessionId = useAppStore((s) => s.videoSessionId);
   const [dragTrackId, setDragTrackId] = useState<string | null>(null);
@@ -216,8 +220,16 @@ export function StudioTimeline({
   const timelineIsEmpty = isTimelineEmpty(tracks);
   const showCoverRow = Boolean(projectId);
   const displayDuration = timelineIsEmpty ? emptyTimelineDurationSec(duration) : duration || 1;
-  const { thumbnails, loading: filmstripLoading, progress: filmstripProgress, thumbWidth: filmstripThumbWidth } =
-    useVideoFilmstrip(videoFile, mediaDuration || duration, videoSessionId);
+  const { resolveClipPreview, thumbWidth: filmstripThumbWidth } = useTimelineFilmstrips(
+    videoClips,
+    {
+      videoFile,
+      videoUrl,
+      mediaAssets,
+      mediaDuration: mediaDuration || duration,
+      videoSessionId,
+    },
+  );
 
   const masterFilmstripBandHeight = useMemo(() => {
     const masterIndex = tracks.findIndex((t) => t.id === 'video');
@@ -262,6 +274,7 @@ export function StudioTimeline({
   const playheadX = timeToPx(currentTime, pxPerSec);
 
   const snappingEnabled = useTimelineUiStore((s) => s.snappingEnabled);
+  const rippleEditEnabled = useTimelineUiStore((s) => s.rippleEditEnabled);
   const { beginClipDrag, dragPreview, snapIndicator, hoverTrackId, getDragClientX } =
     useTimelineClipDrag(
       pxPerSec,
@@ -271,6 +284,7 @@ export function StudioTimeline({
       tracksContainerRef,
       currentTime,
       snappingEnabled,
+      rippleEditEnabled,
     );
 
   const { rulerMajorTicks, rulerMinorTicks, rulerFrameLabels } = useMemo(() => {
@@ -503,10 +517,11 @@ export function StudioTimeline({
   const updateExternalDrop = useCallback(
     (e: ReactDragEvent, trackId: string, trackType: TimelineTrackType) => {
       const types = Array.from(e.dataTransfer.types);
-      if (!isTimelineExternalDrag(types)) return false;
+      const files = e.dataTransfer.files?.length ? Array.from(e.dataTransfer.files) : undefined;
+      if (!isTimelineExternalDrag(types, files)) return false;
       e.preventDefault();
       e.stopPropagation();
-      const allowed = trackAcceptsDrop(trackId, trackType, types);
+      const allowed = trackAcceptsDrop(trackId, trackType, types, files);
       e.dataTransfer.dropEffect = allowed ? 'copy' : 'none';
       const time = Math.max(0, timeAtClientX(e.clientX));
       const x = Math.max(0, timeToPx(time, pxPerSec));
@@ -515,7 +530,7 @@ export function StudioTimeline({
         allowed,
         time,
         x,
-        hint: dropHintForTrack(trackId, trackType, types),
+        hint: dropHintForTrack(trackId, trackType, types, files),
       });
       return true;
     },
@@ -538,8 +553,9 @@ export function StudioTimeline({
       e.preventDefault();
       e.stopPropagation();
       const types = Array.from(e.dataTransfer.types);
+      const files = e.dataTransfer.files?.length ? Array.from(e.dataTransfer.files) : undefined;
       const atTime = Math.max(0, timeAtClientX(e.clientX));
-      const allowed = trackAcceptsDrop(String(trackId), trackType, types);
+      const allowed = trackAcceptsDrop(String(trackId), trackType, types, files);
       clearExternalDrop();
       if (!allowed) return;
 
@@ -827,6 +843,27 @@ export function StudioTimeline({
               </div>
             ))}
 
+            {/* Bookmarks (click = seek, double-click = remove) */}
+            {timelineBookmarks.map((bookmark) => (
+              <button
+                key={`bm-${bookmark}`}
+                type="button"
+                className="studio-timeline-bookmark"
+                style={{ left: timeToPx(bookmark, pxPerSec) }}
+                title={`Bookmark ${formatStudioTimecode(bookmark)} — double-click to remove`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  seekTo(bookmark);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  removeTimelineBookmark(bookmark);
+                }}
+              >
+                <Bookmark size={10} fill="currentColor" />
+              </button>
+            ))}
+
             {/* Hover time tooltip on ruler */}
             {hoverTime != null && (
               <div
@@ -987,25 +1024,27 @@ export function StudioTimeline({
                     ? resolveTimelineImagePreviewSrc(clip.id, canvasElements)
                     : null;
 
+                  const storedVideoClip =
+                    track.type === 'video'
+                      ? videoClips.find((v) => v.id === clip.id)
+                      : undefined;
+                  const filmstripPreview =
+                    storedVideoClip && track.type === 'video'
+                      ? resolveClipPreview(storedVideoClip, filmstripWidth, {
+                          sourceStart: clipSourceStart,
+                          duration: clipDuration,
+                        })
+                      : null;
+
                   const clipThumbs =
-                    track.type === 'video' && thumbnails.length > 0 && mediaDuration > 0
-                      ? filmstripThumbsForClip(
-                          thumbnails,
-                          mediaDuration,
-                          {
-                            sourceStart: clipSourceStart,
-                            duration: clipDuration,
-                          },
+                    filmstripPreview?.thumbs ??
+                    (imagePreviewSrc
+                      ? imagePreviewThumbsForClip(
+                          imagePreviewSrc,
                           filmstripWidth,
                           filmstripThumbWidth,
                         )
-                      : imagePreviewSrc
-                        ? imagePreviewThumbsForClip(
-                            imagePreviewSrc,
-                            filmstripWidth,
-                            filmstripThumbWidth,
-                          )
-                        : undefined;
+                      : undefined);
 
                   const waveformClip =
                     preview != null
@@ -1041,6 +1080,8 @@ export function StudioTimeline({
                           Boolean(videoClips.find((v) => v.id === clip.id)?.muted))
                       }
                       filmstripThumbs={clipThumbs}
+                      filmstripLoading={filmstripPreview?.loading}
+                      filmstripProgress={filmstripPreview?.progress}
                       thumbWidth={filmstripThumbWidth}
                       filmstripBandHeight={filmstripBandHeight}
                       imagePreview={imagePreview && Boolean(imagePreviewSrc)}
@@ -1086,15 +1127,6 @@ export function StudioTimeline({
                   );
                 });
                 })()}
-
-                {track.type === 'video' && track.clips.length > 0 && filmstripLoading && (
-                  <div className="studio-timeline-filmstrip-loading">
-                    <span>Generating footage…</span>
-                    {filmstripProgress > 0 && (
-                      <span className="studio-timeline-filmstrip-progress">{filmstripProgress}%</span>
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}

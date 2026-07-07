@@ -14,6 +14,19 @@ import { buildTimelineSelection } from '@/features/studio/lib/timelineSelection'
 import { isTranscriptReady } from '@/features/studio/lib/transcriptReady';
 import type { CanvasElement } from '@/types/canvas';
 import {
+  clampCropRect,
+  isFullCrop,
+  type NormalizedCropRect,
+} from '@vokop/shared/types/crop';
+import {
+  captionSegmentsToLegacySegments,
+  captionSegmentsToTranscript,
+  splitCaptionSegmentAtTime,
+  updateCaptionSegmentText,
+  type CaptionTracks,
+} from '@vokop/shared';
+import { getSegmentEnd } from '@/features/studio/lib/timelineClipUtils';
+import {
   getSegmentIndexAtTime,
   parseSegments,
   splitSegmentAtTime,
@@ -42,6 +55,7 @@ export interface StudioEditSnapshot {
   videoClips: MediaClip[];
   audioClips: MediaClip[];
   canvasElements: CanvasElement[];
+  captionTracks: CaptionTracks;
   selectedTimelineClip: TimelineSelectionItem | null;
 }
 
@@ -121,18 +135,20 @@ export function resolveSplitTargets(state: StudioEditSnapshot): SplitTarget[] {
   if (isTranscriptReady(state.transcript, state.status)) {
     const type =
       selected?.trackId === 'overlay' ? ('transcript' as const) : ('translation' as const);
+    const structured = state.captionTracks[type];
     const source = type === 'transcript' ? state.transcript : state.translatedText;
-    const segments = parseSegments(source);
+    const segments = structured.length
+      ? captionSegmentsToLegacySegments(structured)
+      : parseSegments(source);
     const index =
       selected &&
       (selected.trackId === 'text' || selected.trackId === 'overlay') &&
       /^(translation|transcript)-\d+$/.test(selected.clipId)
         ? parseInt(selected.clipId.split('-')[1] ?? '-1', 10)
         : getSegmentIndexAtTime(segments, t, state.duration);
-    if (index >= 0) {
+    if (index >= 0 && segments[index]) {
       const segStart = segments[index].time;
-      const segEnd =
-        index < segments.length - 1 ? segments[index + 1].time : state.duration;
+      const segEnd = getSegmentEnd(segments, index, state.duration);
       if (t > segStart + MIN_CLIP_SEC && t < segEnd - MIN_CLIP_SEC) {
         push({
           kind: 'segment',
@@ -156,6 +172,7 @@ export interface SplitApplyResult {
   canvasElements?: CanvasElement[];
   transcript?: string;
   translatedText?: string;
+  captionTracks?: CaptionTracks;
   selectedTimelineClip: TimelineSelectionItem | null;
   selectedTimelineClips: TimelineSelectionItem[];
   selectedCanvasElementId: string | null;
@@ -172,6 +189,7 @@ export function applySplitAtPlayhead(state: StudioEditSnapshot): SplitApplyResul
   let canvasElements = state.canvasElements;
   let transcript = state.transcript;
   let translatedText = state.translatedText;
+  let captionTracks = state.captionTracks;
   let primary: TimelineSelectionItem | null = null;
   let selectedCanvasElementId: string | null = null;
   let changed = false;
@@ -225,6 +243,23 @@ export function applySplitAtPlayhead(state: StudioEditSnapshot): SplitApplyResul
       const type = target.clipId.startsWith('transcript')
         ? ('transcript' as const)
         : ('translation' as const);
+      const structured = captionTracks[type];
+
+      // Structured captions drive the timeline when populated — split them and
+      // mirror the result into the legacy transcript string.
+      if (structured.length > 0) {
+        const nextSegments = splitCaptionSegmentAtTime(structured, t, MIN_CLIP_SEC);
+        if (!nextSegments) continue;
+        captionTracks = { ...captionTracks, [type]: nextSegments };
+        const serialized = captionSegmentsToTranscript(nextSegments);
+        if (type === 'transcript') transcript = serialized;
+        else translatedText = serialized;
+        primary = target;
+        selectedCanvasElementId = null;
+        changed = true;
+        continue;
+      }
+
       const source = type === 'transcript' ? transcript : translatedText;
       const segments = parseSegments(source);
       const next = splitSegmentAtTime(segments, t, state.duration);
@@ -246,6 +281,80 @@ export function applySplitAtPlayhead(state: StudioEditSnapshot): SplitApplyResul
     canvasElements: canvasElements !== state.canvasElements ? canvasElements : undefined,
     transcript: transcript !== state.transcript ? transcript : undefined,
     translatedText: translatedText !== state.translatedText ? translatedText : undefined,
+    captionTracks: captionTracks !== state.captionTracks ? captionTracks : undefined,
+    ...selection,
+    selectedCanvasElementId,
+  };
+}
+
+/**
+ * Pure split that discards one side of each clip under the playhead
+ * (OpenCut "split left" / "split right"). Caption segments are skipped —
+ * their timing is edited in the captions panel.
+ */
+export function applySplitRemoveSide(
+  state: StudioEditSnapshot,
+  removeSide: 'left' | 'right',
+): SplitApplyResult | null {
+  const targets = resolveSplitTargets(state);
+  if (!targets.length) return null;
+
+  const t = state.currentTime;
+  let videoClips = state.videoClips;
+  let audioClips = state.audioClips;
+  let canvasElements = state.canvasElements;
+  let primary: TimelineSelectionItem | null = null;
+  let selectedCanvasElementId: string | null = null;
+  let changed = false;
+
+  const trimMedia = (clip: MediaClip): MediaClip =>
+    removeSide === 'left'
+      ? {
+          ...clip,
+          start: t,
+          duration: clip.start + clip.duration - t,
+          sourceStart: clip.sourceStart + (t - clip.start),
+        }
+      : { ...clip, duration: t - clip.start };
+
+  for (const target of targets) {
+    if (target.kind === 'video' || target.kind === 'audio') {
+      const list = target.kind === 'video' ? videoClips : audioClips;
+      const clip = list.find((c) => c.id === target.clipId);
+      if (!clip || !playheadInsideMedia(clip, t)) continue;
+      const nextList = list.map((c) => (c.id === clip.id ? trimMedia(c) : c));
+      if (target.kind === 'video') videoClips = nextList;
+      else audioClips = nextList;
+      primary = { trackId: target.trackId, clipId: clip.id };
+      selectedCanvasElementId = null;
+      changed = true;
+      continue;
+    }
+
+    if (target.kind === 'canvas') {
+      const element = canvasElements.find((el) => el.id === target.clipId);
+      if (!element || !playheadInsideCanvas(element, t)) continue;
+      canvasElements = canvasElements.map((el) =>
+        el.id === element.id
+          ? removeSide === 'left'
+            ? { ...el, startTime: t }
+            : { ...el, endTime: t }
+          : el,
+      );
+      primary = { trackId: target.trackId, clipId: element.id };
+      selectedCanvasElementId = element.id;
+      changed = true;
+    }
+  }
+
+  if (!changed) return null;
+
+  const selection = buildTimelineSelection(primary ? [primary] : [], primary);
+  return {
+    videoClips: videoClips !== state.videoClips ? videoClips : undefined,
+    audioClips: audioClips !== state.audioClips ? audioClips : undefined,
+    canvasElements:
+      canvasElements !== state.canvasElements ? canvasElements : undefined,
     ...selection,
     selectedCanvasElementId,
   };
@@ -339,6 +448,13 @@ export function normalizeMediaClipPatch(patch: Partial<MediaClip>): Partial<Medi
     next.rotation = r;
   }
   if (typeof next.name === 'string') next.name = next.name.trim() || next.name;
+  if (next.crop != null) {
+    if (isFullCrop(next.crop)) {
+      next.crop = undefined;
+    } else {
+      next.crop = clampCropRect(next.crop);
+    }
+  }
 
   return next;
 }
@@ -354,6 +470,13 @@ export function normalizeCanvasElementPatch(
   if (next.opacity != null) next.opacity = Math.min(1, Math.max(0, next.opacity));
   if (next.fontSize != null) {
     next.fontSize = Math.max(MIN_FONT_SIZE_FRACTION, Math.min(MAX_FONT_SIZE_FRACTION, next.fontSize));
+  }
+  if (next.crop != null) {
+    if (isFullCrop(next.crop)) {
+      next.crop = undefined;
+    } else {
+      next.crop = clampCropRect(next.crop);
+    }
   }
 
   return next;
@@ -388,6 +511,22 @@ export interface CanvasElementPatchResult {
   canvasElements: CanvasElement[];
   transcript?: string;
   translatedText?: string;
+  captionTracks?: CaptionTracks;
+}
+
+/**
+ * Enforce timing invariants on a partial patch against the current element
+ * (OpenCut update-pipeline style: startTime >= 0, endTime >= startTime + min).
+ */
+function enforceCanvasTiming(
+  element: CanvasElement,
+  patch: Partial<CanvasElement>,
+): Partial<CanvasElement> {
+  if (patch.startTime === undefined && patch.endTime === undefined) return patch;
+
+  const startTime = Math.max(0, patch.startTime ?? element.startTime);
+  const endTime = Math.max(startTime + MIN_CLIP_SEC, patch.endTime ?? element.endTime);
+  return { ...patch, startTime, endTime };
 }
 
 /** Apply a canvas element patch and optional caption segment text sync (pure). */
@@ -395,13 +534,14 @@ export function applyCanvasElementPatch(
   canvasElements: CanvasElement[],
   transcript: string,
   translatedText: string,
+  captionTracks: CaptionTracks,
   id: string,
   patch: Partial<CanvasElement>,
 ): CanvasElementPatchResult | null {
   const element = canvasElements.find((el) => el.id === id);
   if (!element) return null;
 
-  const normalized = normalizeCanvasElementPatch(patch);
+  const normalized = enforceCanvasTiming(element, normalizeCanvasElementPatch(patch));
   const nextElements = canvasElements.map((el) =>
     el.id === id ? { ...el, ...normalized } : el,
   );
@@ -413,7 +553,23 @@ export function applyCanvasElementPatch(
     element.segmentType !== undefined &&
     element.segmentIndex !== undefined
   ) {
-    if (element.segmentType === 'transcript') {
+    const type = element.segmentType;
+    const trackKey = type === 'transcript' ? 'transcript' : 'translation';
+    const structured = captionTracks[trackKey];
+
+    // Structured captions drive the timeline when populated; keep them and the
+    // legacy transcript string in sync so clip labels update everywhere.
+    if (structured.length > 0 && structured[element.segmentIndex]) {
+      const nextTracks = updateCaptionSegmentText(
+        structured,
+        element.segmentIndex,
+        normalized.text,
+      );
+      const serialized = captionSegmentsToTranscript(nextTracks);
+      result.captionTracks = { ...captionTracks, [trackKey]: nextTracks };
+      if (type === 'transcript') result.transcript = serialized;
+      else result.translatedText = serialized;
+    } else if (type === 'transcript') {
       const segments = parseSegments(transcript);
       result.transcript = updateSegmentText(segments, element.segmentIndex, normalized.text);
     } else {
@@ -534,6 +690,7 @@ export const studioEdit = {
       videoClips: s.videoClips,
       audioClips: s.audioClips,
       canvasElements: s.canvasElements,
+      captionTracks: s.captionTracks,
       selectedTimelineClip: s.selectedTimelineClip,
     });
   },

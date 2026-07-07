@@ -1,15 +1,13 @@
 import { RotateCw } from 'lucide-react';
-import { cn } from '@/lib/cn';
 import { CANVAS_FRAME } from '@/features/studio/lib/canvasFrameTokens';
 import {
-  orientedBoxBottomCenter,
+  orientedBoxTopCenter,
   snapRotationDegrees,
   type CanvasOrientedBox,
 } from '@/features/studio/lib/canvasTransformUtils';
 
 interface CanvasRotationHandleProps {
   box: CanvasOrientedBox;
-  accent: string;
   toStagePoint: (clientX: number, clientY: number) => { x: number; y: number };
   onRotate: (rotation: number) => void;
   onRotateEnd?: () => void;
@@ -21,8 +19,11 @@ export function CanvasRotationHandle({
   onRotate,
   onRotateEnd,
 }: CanvasRotationHandleProps) {
-  const anchor = orientedBoxBottomCenter(box);
-  const handleY = anchor.y + CANVAS_FRAME.rotationGap;
+  const rotation = box.rotation ?? 0;
+  const rad = (rotation * Math.PI) / 180;
+  const topCenter = orientedBoxTopCenter(box);
+  const handleX = topCenter.x + Math.sin(rad) * CANVAS_FRAME.rotationOffset;
+  const handleY = topCenter.y - Math.cos(rad) * CANVAS_FRAME.rotationOffset;
   const centerX = box.x + box.width / 2;
   const centerY = box.y + box.height / 2;
 
@@ -31,17 +32,18 @@ export function CanvasRotationHandle({
     e.stopPropagation();
     const start = toStagePoint(e.clientX, e.clientY);
     const startAngle = Math.atan2(start.y - centerY, start.x - centerX);
-    const startRotation = box.rotation ?? 0;
+    const startRotation = rotation;
 
     const onMove = (ev: PointerEvent) => {
       const point = toStagePoint(ev.clientX, ev.clientY);
       const angle = Math.atan2(point.y - centerY, point.x - centerX);
       const delta = ((angle - startAngle) * 180) / Math.PI;
-      const next = snapRotationDegrees(startRotation + delta, {
-        shiftKey: ev.shiftKey,
-        step: 15,
-      });
-      onRotate(next);
+      onRotate(
+        snapRotationDegrees(startRotation + delta, {
+          shiftKey: ev.shiftKey,
+          step: 15,
+        }),
+      );
     };
 
     const onUp = () => {
@@ -67,14 +69,23 @@ export function CanvasRotationHandle({
         overflow: 'visible',
       }}
     >
-      <foreignObject x={anchor.x - 15} y={handleY - 15} width={30} height={30}>
+      <line
+        x1={topCenter.x}
+        y1={topCenter.y}
+        x2={handleX}
+        y2={handleY}
+        stroke="rgba(255, 255, 255, 0.45)"
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+      <foreignObject x={handleX - 15} y={handleY - 15} width={30} height={30}>
         <button
           type="button"
-          className={cn('canvas-rotation-handle-btn')}
+          className="canvas-rotation-handle-btn"
           aria-label="Rotate"
           onPointerDown={onPointerDown}
         >
-          <RotateCw size={14} strokeWidth={2.25} />
+          <RotateCw size={13} strokeWidth={2.25} />
         </button>
       </foreignObject>
     </svg>

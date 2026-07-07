@@ -37,7 +37,7 @@ import {
 import type { MediaClip } from '@/features/studio/lib/timelineTypes';
 import { resolveVideoClipLayout } from '@/features/studio/lib/videoClipLayout';
 import { isElementVisible } from '@/features/studio/lib/canvasElements';
-import { loadStudioFont } from '@/features/studio/lib/fontLoader';
+import { ensureFontsForCanvasElements } from '@/features/studio/lib/fontLoader';
 import {
   parseTranscriptCaptions,
   renderCaptionsOnCanvas,
@@ -415,8 +415,7 @@ export async function preloadCanvasImages(
       ...extraUrls.filter(Boolean),
     ]),
   ];
-  const fonts = [...new Set(elements.map((el) => el.fontFamily).filter(Boolean))] as string[];
-  await Promise.all(fonts.map((font) => loadStudioFont(font)));
+  await ensureFontsForCanvasElements(elements);
 
   const map = new Map<string, HTMLImageElement>();
   await Promise.all(

@@ -18,12 +18,37 @@ export const clipEqSchema = z.object({
   bands: z.array(eqBandSchema),
 });
 
+/** Non-destructive crop, normalized 0..1 within the source media bounds. */
+export const normalizedCropRectSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
+/** Letterbox / canvas fill behind scaled clips (CapCut-style background). */
+export const compositionBackgroundSchema = z.object({
+  mode: z.enum(['none', 'color', 'blur', 'image']),
+  color: z.string().optional(),
+  blurLevel: z.number().optional(),
+  imagePresetId: z.string().optional(),
+  imageAssetId: z.string().optional(),
+});
+
 export const mediaClipSchema = z.object({
   id: z.string(),
   start: z.number(),
   duration: z.number().positive(),
   sourceStart: z.number().nonnegative(),
   name: z.string(),
+  // Composition transform — fractions of the video content rect (legacy-px
+  // projects store raw pixels, so no 0..1 bounds here).
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  rotation: z.number().optional(),
+  opacity: z.number().optional(),
   trackId: z.string().optional(),
   mediaAssetId: z.string().optional(),
   volume: z.number().min(0).max(2).optional(),
@@ -34,6 +59,14 @@ export const mediaClipSchema = z.object({
   videoFadeOutSec: z.number().nonnegative().optional(),
   eq: clipEqSchema.optional(),
   muted: z.boolean().optional(),
+  background: compositionBackgroundSchema.optional(),
+  voiceFilter: z.string().optional(),
+  voicePitch: z.number().min(0).max(100).optional(),
+  voiceTimbre: z.number().min(0).max(100).optional(),
+  speed: z.number().positive().optional(),
+  flipX: z.boolean().optional(),
+  flipY: z.boolean().optional(),
+  crop: normalizedCropRectSchema.optional(),
   linkedVideoClipId: z.string().optional(),
 });
 
@@ -120,6 +153,9 @@ export const projectCanvasElementSchema = z.object({
   keyframes: z.array(projectCanvasKeyframeSchema).optional(),
   animationIn: projectCanvasClipAnimationSchema.optional(),
   animationOut: projectCanvasClipAnimationSchema.optional(),
+  flipX: z.boolean().optional(),
+  flipY: z.boolean().optional(),
+  crop: normalizedCropRectSchema.optional(),
 });
 
 export const projectMediaAssetSchema = z.object({
@@ -156,6 +192,8 @@ export const projectEditorStateSchema = z.object({
   timelineTrackHidden: z.array(z.string()).optional(),
   timelineTrackOrder: z.array(z.string()).optional(),
   extraTimelineTracks: z.array(extraTimelineTrackSchema).optional(),
+  /** Bookmarked playhead times (seconds) shown on the timeline ruler. */
+  timelineBookmarks: z.array(z.number().nonnegative()).optional(),
   projectCover: projectCoverSchema.optional(),
   /**
    * Composition coordinate space for videoClips/canvasElements x/y/width/height/fontSize.

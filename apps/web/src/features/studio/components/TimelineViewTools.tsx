@@ -5,6 +5,7 @@ import {
   AlignCenter,
   Magnet,
   MoreHorizontal,
+  BetweenHorizontalEnd,
   Ruler,
 } from 'lucide-react';
 import { StudioIcon } from '@vokop/ui';
@@ -24,12 +25,14 @@ interface TimelineViewToolsProps {
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
   timelineSnappingEnabled: boolean;
+  timelineRippleEditEnabled: boolean;
   timelineZoom: number;
   previewFullscreenOpen: boolean;
   onToggleSyncPlayback: () => void;
   onTogglePreviewAxis: () => void;
   onToggleAttachSnap: () => void;
   onToggleTimelineSnap: () => void;
+  onToggleRippleEdit: () => void;
   onZoomChange: (zoom: number) => void;
   onToggleFullscreen: () => void;
   onOpenVoiceTools?: () => void;
@@ -47,12 +50,14 @@ export function TimelineViewTools({
   canvasPreviewAxis,
   canvasAttachSnap,
   timelineSnappingEnabled,
+  timelineRippleEditEnabled,
   timelineZoom,
   previewFullscreenOpen,
   onToggleSyncPlayback,
   onTogglePreviewAxis,
   onToggleAttachSnap,
   onToggleTimelineSnap,
+  onToggleRippleEdit,
   onZoomChange,
   onToggleFullscreen,
   onOpenVoiceTools,
@@ -87,6 +92,12 @@ export function TimelineViewTools({
         onClick: () => onToggleTimelineSnap(),
       },
       {
+        key: 'ripple',
+        icon: <BetweenHorizontalEnd size={14} />,
+        label: timelineRippleEditEnabled ? 'Disable ripple edit' : 'Enable ripple edit',
+        onClick: () => onToggleRippleEdit(),
+      },
+      {
         key: 'snap',
         icon: <Magnet size={14} />,
         label: canvasAttachSnap ? 'Disable attach snap' : 'Enable attach snap',
@@ -103,7 +114,9 @@ export function TimelineViewTools({
       onTogglePreviewAxis,
       onToggleSyncPlayback,
       onToggleTimelineSnap,
+      onToggleRippleEdit,
       timelineSnappingEnabled,
+      timelineRippleEditEnabled,
     ],
   );
 
@@ -150,6 +163,13 @@ export function TimelineViewTools({
             title={`${timelineSnappingEnabled ? 'Turn off' : 'Turn on'} timeline clip snap`}
           >
             <Ruler size={15} />
+          </TimelineToolButton>
+          <TimelineToolButton
+            active={timelineRippleEditEnabled}
+            onClick={onToggleRippleEdit}
+            title={`${timelineRippleEditEnabled ? 'Turn off' : 'Turn on'} ripple trim`}
+          >
+            <BetweenHorizontalEnd size={15} />
           </TimelineToolButton>
           <TimelineToolButton
             active={canvasAttachSnap}

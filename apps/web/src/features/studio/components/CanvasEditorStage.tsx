@@ -18,13 +18,20 @@ import {
 import { getDisplayRatio } from '@/features/studio/constants/aspectRatios';
 import {
   elementToSnapPeer,
-  getFrameGuideLines,
-  snapBoxEdges,
-  snapDragPosition,
+  guidesEqual,
   type CanvasGuideLine,
   type SnapPeer,
 } from '@/features/studio/lib/canvasSnap';
+import {
+  applyKonvaResizeSnap,
+  createSnapSession,
+  mergeFrameAndSnapGuides,
+  snapPreviewDrag,
+  type SnapSession,
+} from '@/features/studio/lib/previewSnapBridge';
+import { usePreviewViewportContext } from '@/features/studio/context/PreviewViewportContext';
 import { loadStudioFont } from '@/features/studio/lib/fontLoader';
+import { resolveStudioFontStack } from '@/features/studio/fonts/fontStack';
 import { getEffectProps } from '@/features/studio/constants/textEffects';
 import { sampleElementAtTime } from '@/features/studio/lib/keyframeUtils';
 import { findVideoClipForPreview, listVideoTrackIds } from '@/features/studio/lib/mediaClips';
@@ -42,10 +49,9 @@ import {
   type CanvasContextTarget,
 } from '@/features/studio/components/CanvasContextMenu';
 import { CanvasSelectionToolbar } from '@/features/studio/components/CanvasSelectionToolbar';
+import { CanvasCropOverlay } from '@/features/studio/components/CanvasCropOverlay';
 import { CanvasRotationHandle } from '@/features/studio/components/CanvasRotationHandle';
-import { CanvasSelectionFrame } from '@/features/studio/components/CanvasSelectionFrame';
 import { StudioCanvasTransformer } from '@/features/studio/components/StudioCanvasTransformer';
-import { CANVAS_FRAME } from '@/features/studio/lib/canvasFrameTokens';
 import {
   normalizeRotationDegrees,
   type CanvasOrientedBox,
@@ -54,6 +60,12 @@ import { resolveCanvasContextHit } from '@/features/studio/lib/canvasContextHit'
 import type { CanvasElement } from '@/types/canvas';
 import type { MediaClip } from '@/features/studio/lib/timelineTypes';
 import { studioEdit } from '@/features/studio/services/studioEdit';
+import {
+  FULL_CROP,
+  combineCrop,
+  isFullCrop,
+  type NormalizedCropRect,
+} from '@vokop/shared/types/crop';
 
 interface CanvasEditorStageProps {
   wrapRef: React.RefObject<HTMLDivElement | null>;
@@ -68,6 +80,49 @@ interface CanvasEditorStageProps {
 }
 
 const PAD = 4;
+
+function isShiftHeld(evt: Event): boolean {
+  return 'shiftKey' in evt && Boolean((evt as PointerEvent).shiftKey);
+}
+
+function bakeKonvaScaleBox(
+  node: Konva.Group,
+  minSize: { width: number; height: number },
+): { x: number; y: number; width: number; height: number } {
+  const scaleX = Math.abs(node.scaleX());
+  const scaleY = Math.abs(node.scaleY());
+  const baseWidth = node.width();
+  const baseHeight = node.height();
+  node.scaleX(1);
+  node.scaleY(1);
+  return {
+    x: node.x(),
+    y: node.y(),
+    width: Math.max(minSize.width, baseWidth * scaleX),
+    height: Math.max(minSize.height, baseHeight * scaleY),
+  };
+}
+
+function runDragSnap(
+  node: Konva.Group,
+  size: { width: number; height: number },
+  excludeId: string,
+  session: SnapSession,
+  peers: readonly SnapPeer[],
+  frameSnap: boolean,
+  attachSnap: boolean,
+): { x: number; y: number; guides: CanvasGuideLine[] } {
+  return snapPreviewDrag({
+    pos: { x: node.x(), y: node.y() },
+    size,
+    rotationDeg: node.rotation(),
+    session,
+    peers,
+    excludeId,
+    frameSnap,
+    attachSnap,
+  });
+}
 
 function useCanvasImage(src?: string) {
   const [image, setImage] = useState<HTMLImageElement | undefined>();
@@ -114,7 +169,7 @@ function CanvasGuideLines({
   guides,
   stageSize,
 }: {
-  guides: CanvasGuideLine[];
+  guides: readonly CanvasGuideLine[];
   stageSize: { width: number; height: number };
 }) {
   if (guides.length === 0) return null;
@@ -157,6 +212,7 @@ function CanvasElementNode({
   snapPeers,
   canvasPreviewAxis,
   canvasAttachSnap,
+  snapSession,
   onSelect,
   onEdit,
   onChange,
@@ -171,6 +227,7 @@ function CanvasElementNode({
   snapPeers: SnapPeer[];
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
+  snapSession: SnapSession;
   onSelect: () => void;
   onEdit: () => void;
   onChange: (patch: Partial<CanvasElement>) => void;
@@ -182,6 +239,7 @@ function CanvasElementNode({
   const [dragging, setDragging] = useState(false);
   const [transforming, setTransforming] = useState(false);
   const currentTime = useAppStore((s) => s.currentTime);
+  const cropSession = useAppStore((s) => s.cropSession);
   const isText = element.type === 'text' || element.type === 'overlay';
   const isImage = element.type === 'logo' || element.type === 'image';
   const { image, failed } = useCanvasImage(isImage ? element.src : undefined);
@@ -225,18 +283,31 @@ function CanvasElementNode({
     : style?.shadowColor
       ? 0
       : 2;
-  const resolvedFontFamily = element.fontFamily
-    ? `${element.fontFamily}, system-ui, sans-serif`
-    : 'var(--font-display, system-ui, sans-serif)';
+  const resolvedFontFamily = resolveStudioFontStack(element.fontFamily, 'var(--font-display, system-ui, sans-serif)');
 
   useEffect(() => {
     if (element.fontFamily) {
-      void loadStudioFont(element.fontFamily);
+      void loadStudioFont(element.fontFamily, {
+        fontWeight: element.textStyle?.fontWeight,
+        fontStyle: element.textStyle?.fontStyle,
+      });
     }
-  }, [element.fontFamily]);
+  }, [element.fontFamily, element.textStyle?.fontWeight, element.textStyle?.fontStyle]);
 
   const elementSize = { width: display.width, height: boxHeight };
   const live = dragging || transforming;
+  const transformUniform = isText || isImage;
+  const effectiveCrop: NormalizedCropRect | undefined = useMemo(() => {
+    if (!isImage) return element.crop;
+    if (cropSession?.kind === 'element' && cropSession.targetId === element.id) {
+      return combineCrop(element.crop ?? FULL_CROP, cropSession.rect);
+    }
+    return element.crop;
+  }, [isImage, element.crop, element.id, cropSession]);
+  const cropActive =
+    cropSession?.kind === 'element' && cropSession.targetId === element.id;
+  const cropRect =
+    effectiveCrop && !isFullCrop(effectiveCrop) ? effectiveCrop : null;
 
   const emitLiveLayout = () => {
     const node = groupRef.current;
@@ -268,15 +339,14 @@ function CanvasElementNode({
       onDragGuideChange(null);
       return;
     }
-
-    const snapped = snapDragPosition(
-      { x: node.x(), y: node.y() },
+    const snapped = runDragSnap(
+      node,
       elementSize,
-      contentRect,
-      snapPeers,
       element.id,
-      canvasAttachSnap,
+      snapSession,
+      snapPeers,
       canvasPreviewAxis,
+      canvasAttachSnap,
     );
     node.x(snapped.x);
     node.y(snapped.y);
@@ -291,8 +361,8 @@ function CanvasElementNode({
       width={display.width}
       height={boxHeight}
       opacity={display.opacity}
-      draggable={interactive}
-      listening={interactive}
+      draggable={interactive && !cropActive}
+      listening={interactive && !cropActive}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         onSelect();
@@ -320,17 +390,18 @@ function CanvasElementNode({
       onDragStart={() => {
         setDragging(true);
         onSelect();
-        if (canvasPreviewAxis) {
+        if (canvasPreviewAxis || canvasAttachSnap) {
           onDragGuideChange(
-            snapDragPosition(
-              { x: display.x, y: display.y },
-              elementSize,
-              contentRect,
-              snapPeers,
-              element.id,
-              false,
-              true,
-            ).guides,
+            snapPreviewDrag({
+              pos: { x: display.x, y: display.y },
+              size: elementSize,
+              rotationDeg: display.rotation ?? 0,
+              session: snapSession,
+              peers: snapPeers,
+              excludeId: element.id,
+              frameSnap: canvasPreviewAxis,
+              attachSnap: false,
+            }).guides,
           );
         }
       }}
@@ -351,29 +422,43 @@ function CanvasElementNode({
       onTransformStart={() => {
         setTransforming(true);
         onSelect();
+        if (canvasPreviewAxis) {
+          onDragGuideChange([...snapSession.frameGuides]);
+        }
       }}
-      onTransform={() => {
+      onTransform={(e) => {
         emitLiveLayout();
+        if (!canvasPreviewAxis) return;
+        const node = groupRef.current;
+        if (!node) return;
+        const snapGuides = applyKonvaResizeSnap({
+          node,
+          baseWidth: display.width,
+          baseHeight: boxHeight,
+          session: snapSession,
+          uniform: transformUniform,
+          skipSnap: isShiftHeld(e.evt),
+          frameSnap: canvasPreviewAxis,
+        });
+        onDragGuideChange(mergeFrameAndSnapGuides(snapSession, snapGuides));
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
         if (!node) return;
-        const scaleX = node.scaleX();
-        const scaleY = node.scaleY();
-        node.scaleX(1);
-        node.scaleY(1);
+        let box = bakeKonvaScaleBox(node, {
+          width: isImage ? 40 : 80,
+          height: isImage ? 24 : 24,
+        });
 
         if (isText) {
-          const scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
+          const scale = box.width / Math.max(1, display.width);
           const nextFontSizePx = Math.max(10, Math.round(fontSizePx * scale));
-          const nextWidth = Math.max(60, display.width * scale);
-          const nextHeight = nextFontSizePx * 1.6;
-          const box = clampBoxToContentRect(
-            { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
-            contentRect,
-            PAD,
-            { width: 60, height: 24 },
-          );
+          box = {
+            ...box,
+            width: Math.max(60, box.width),
+            height: nextFontSizePx * 1.6,
+          };
+          box = clampBoxToContentRect(box, contentRect, PAD, { width: 60, height: 24 });
           node.x(box.x);
           node.y(box.y);
           onChange({
@@ -382,15 +467,7 @@ function CanvasElementNode({
             rotation: normalizeRotationDegrees(node.rotation()),
           });
         } else if (isImage) {
-          const scale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2;
-          const nextWidth = Math.max(40, display.width * scale);
-          const nextHeight = Math.max(24, display.height * scale);
-          const box = clampBoxToContentRect(
-            { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
-            contentRect,
-            PAD,
-            { width: 40, height: 24 },
-          );
+          box = clampBoxToContentRect(box, contentRect, PAD, { width: 40, height: 24 });
           node.x(box.x);
           node.y(box.y);
           onChange({
@@ -398,14 +475,10 @@ function CanvasElementNode({
             rotation: normalizeRotationDegrees(node.rotation()),
           });
         } else {
-          const nextWidth = Math.max(isImage ? 40 : 80, display.width * scaleX);
-          const nextHeight = Math.max(isImage ? 24 : boxHeight, boxHeight * scaleY);
-          const box = clampBoxToContentRect(
-            { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight },
-            contentRect,
-            PAD,
-            { width: isImage ? 40 : 80, height: isImage ? 24 : 24 },
-          );
+          box = clampBoxToContentRect(box, contentRect, PAD, {
+            width: isImage ? 40 : 80,
+            height: isImage ? 24 : 24,
+          });
           node.x(box.x);
           node.y(box.y);
           onChange({
@@ -415,6 +488,7 @@ function CanvasElementNode({
         }
         onLiveLayoutChange?.(null);
         setTransforming(false);
+        onDragGuideChange(null);
       }}
     >
       <Group
@@ -426,12 +500,27 @@ function CanvasElementNode({
       {isImage ? (
         <>
           {!hidePixelContent && image ? (
-            <KonvaImage
-              image={image}
-              width={display.width}
-              height={display.height}
-              listening
-            />
+            <Group
+              clip={
+                cropRect
+                  ? {
+                      x: cropRect.x * display.width,
+                      y: cropRect.y * boxHeight,
+                      width: cropRect.width * display.width,
+                      height: cropRect.height * boxHeight,
+                    }
+                  : undefined
+              }
+            >
+              <KonvaImage
+                image={image}
+                x={cropRect ? (-cropRect.x / cropRect.width) * display.width : 0}
+                y={cropRect ? (-cropRect.y / cropRect.height) * display.height : 0}
+                width={cropRect ? display.width / cropRect.width : display.width}
+                height={cropRect ? display.height / cropRect.height : display.height}
+                listening
+              />
+            </Group>
           ) : (
             <Rect
               width={display.width}
@@ -531,10 +620,12 @@ function VideoClipProxyNode({
   snapPeers,
   canvasPreviewAxis,
   canvasAttachSnap,
+  snapSession,
   onSelect,
   onChange,
   onDragGuideChange,
   onLiveLayoutChange,
+  cropLocked = false,
 }: {
   clip: MediaClip;
   contentRect: CanvasRect;
@@ -543,10 +634,12 @@ function VideoClipProxyNode({
   snapPeers: SnapPeer[];
   canvasPreviewAxis: boolean;
   canvasAttachSnap: boolean;
+  snapSession: SnapSession;
   onSelect: () => void;
   onChange: (patch: Partial<MediaClip>) => void;
   onDragGuideChange: (guides: CanvasGuideLine[] | null) => void;
   onLiveLayoutChange?: (layout: VideoClipLayout | null) => void;
+  cropLocked?: boolean;
 }) {
   const groupRef = useRef<Konva.Group>(null);
   const [dragging, setDragging] = useState(false);
@@ -554,7 +647,6 @@ function VideoClipProxyNode({
   const layout = resolveVideoClipLayout(clip, contentRect);
   const proxyId = videoProxyId(clip.id);
   const live = selected || dragging || transforming;
-  const axisMode = canvasPreviewAxis ? 'frame' : 'none';
 
   const emitLiveLayout = (node: Konva.Group) => {
     onLiveLayoutChange?.(layoutFromKonvaVideoNode(node, layout));
@@ -583,14 +675,14 @@ function VideoClipProxyNode({
       onDragGuideChange(null);
       return;
     }
-    const snapped = snapDragPosition(
-      { x: node.x(), y: node.y() },
+    const snapped = runDragSnap(
+      node,
       { width: layout.width, height: layout.height },
-      contentRect,
-      snapPeers,
       proxyId,
+      snapSession,
+      snapPeers,
+      canvasPreviewAxis,
       canvasAttachSnap,
-      axisMode,
     );
     node.x(snapped.x);
     node.y(snapped.y);
@@ -605,8 +697,8 @@ function VideoClipProxyNode({
       width={layout.width}
       height={layout.height}
       opacity={1}
-      draggable={interactive}
-      listening={interactive}
+      draggable={interactive && !cropLocked}
+      listening={interactive && !cropLocked}
       onMouseDown={(e) => {
         e.cancelBubble = true;
         onSelect();
@@ -627,7 +719,7 @@ function VideoClipProxyNode({
         setDragging(true);
         onSelect();
         if (canvasPreviewAxis) {
-          onDragGuideChange(getFrameGuideLines(contentRect));
+          onDragGuideChange([...snapSession.frameGuides]);
         }
       }}
       onDragMove={(e) => {
@@ -653,55 +745,31 @@ function VideoClipProxyNode({
         setTransforming(true);
         onSelect();
         if (canvasPreviewAxis) {
-          onDragGuideChange(getFrameGuideLines(contentRect));
+          onDragGuideChange([...snapSession.frameGuides]);
         }
       }}
-      onTransform={() => {
+      onTransform={(e) => {
         const node = groupRef.current;
         if (!node) return;
         emitLiveLayout(node);
-        if (!canvasPreviewAxis && !canvasAttachSnap) return;
-        const width = Math.max(48, layout.width * node.scaleX());
-        const height = Math.max(48, layout.height * node.scaleY());
-        const { guides } = snapBoxEdges(
-          { x: node.x(), y: node.y(), width, height },
-          contentRect,
-          snapPeers,
-          proxyId,
-          canvasAttachSnap,
-          axisMode,
-        );
-        onDragGuideChange(guides);
+        // Video resize: show frame guides only — Konva anchor resize + snap mutation caused minimize bugs.
+        if (canvasPreviewAxis) {
+          onDragGuideChange([...snapSession.frameGuides]);
+        }
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
         if (!node) return;
-        const scaleX = node.scaleX();
-        const scaleY = node.scaleY();
-        node.scaleX(1);
-        node.scaleY(1);
-        let box = {
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(48, layout.width * scaleX),
-          height: Math.max(48, layout.height * scaleY),
-        };
-        if (canvasAttachSnap || canvasPreviewAxis) {
-          const snapped = snapBoxEdges(
-            box,
-            contentRect,
-            snapPeers,
-            proxyId,
-            canvasAttachSnap,
-            axisMode,
-          );
-          box = snapped.box;
-        }
+        let box = bakeKonvaScaleBox(node, { width: 48, height: 48 });
         box = clampBoxToContentRect(box, contentRect, PAD, { width: 48, height: 48 });
         node.x(box.x);
         node.y(box.y);
+        // Report px box — parent converts to fractions once via toFractionBox.
         onChange({
-          ...toFractionBox(box, contentRect),
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
           rotation: normalizeRotationDegrees(node.rotation()),
         });
         onDragGuideChange(null);
@@ -746,8 +814,14 @@ export function CanvasEditorStage({
   const aspectRatio = useAppStore((s) => s.aspectRatio);
   const compositionSpace = useAppStore((s) => s.compositionSpace);
   const migrateCompositionSpaceToFraction = useAppStore((s) => s.migrateCompositionSpaceToFraction);
+  const cropSession = useAppStore((s) => s.cropSession);
+  const setCropSessionRect = useAppStore((s) => s.setCropSessionRect);
+  const applyCropSession = useAppStore((s) => s.applyCropSession);
+  const cancelCropSession = useAppStore((s) => s.cancelCropSession);
   const focusCanvasElement = (id: string) => studioEdit.focusCanvasElement(id);
   const focusVideoClip = (clipId: string) => studioEdit.focusVideoClip(clipId);
+  const previewCtx = usePreviewViewportContext();
+  const viewportZoom = previewCtx?.viewport.zoom ?? 1;
 
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [dragGuides, setDragGuides] = useState<CanvasGuideLine[] | null>(null);
@@ -763,6 +837,16 @@ export function CanvasEditorStage({
     () => getVideoContentRect(size, { width: videoWidth, height: videoHeight }, frameRatio),
     [size, videoWidth, videoHeight, frameRatio],
   );
+  const snapSession = useMemo(
+    () => createSnapSession(contentRect, viewportZoom),
+    [contentRect, viewportZoom],
+  );
+  const lastGuidesRef = useRef<CanvasGuideLine[] | null>(null);
+  const setDragGuidesIfChanged = useCallback((guides: CanvasGuideLine[] | null) => {
+    if (guidesEqual(lastGuidesRef.current, guides)) return;
+    lastGuidesRef.current = guides;
+    setDragGuides(guides);
+  }, []);
 
   // Reference frame for default caption placement — the content rect, since
   // canvas element x/y/width/height/fontSize are fractions of it.
@@ -890,6 +974,7 @@ export function CanvasEditorStage({
   }, [transformTargetId, videoSelected, videoClipAtPlayhead, selectedElement]);
 
   const orientedToolbarBox = useMemo((): CanvasOrientedBox | null => {
+    if (cropSession) return null;
     if (liveToolbarBox) return liveToolbarBox;
     if (videoSelected && videoClipAtPlayhead) {
       return resolveVideoClipLayout(videoClipAtPlayhead, contentRect);
@@ -909,14 +994,33 @@ export function CanvasEditorStage({
       };
     }
     return null;
-  }, [liveToolbarBox, videoSelected, videoClipAtPlayhead, contentRect, selectedElement]);
+  }, [cropSession, liveToolbarBox, videoSelected, videoClipAtPlayhead, contentRect, selectedElement]);
+
+  const cropTargetBox = useMemo((): CanvasOrientedBox | null => {
+    if (!cropSession) return null;
+    if (cropSession.kind === 'video') {
+      const clip = videoClips.find((c) => c.id === cropSession.targetId);
+      if (!clip) return null;
+      return resolveVideoClipLayout(clip, contentRect);
+    }
+    const element = canvasElements.find((el) => el.id === cropSession.targetId);
+    if (!element || (element.type !== 'logo' && element.type !== 'image')) return null;
+    const px = toPxBox(element, contentRect);
+    return {
+      x: px.x,
+      y: px.y,
+      width: px.width,
+      height: px.height,
+      rotation: element.rotation ?? 0,
+    };
+  }, [cropSession, videoClips, canvasElements, contentRect]);
 
   useEffect(() => {
     const tr = transformerRef.current;
     const layer = layerRef.current;
     if (!tr || !layer) return;
 
-    if (previewMode || !transformTargetId || editingElementId) {
+    if (previewMode || !transformTargetId || editingElementId || cropSession) {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -941,6 +1045,7 @@ export function CanvasEditorStage({
     previewMode,
     editingElementId,
     videoSelected,
+    cropSession,
   ]);
 
   useEffect(() => {
@@ -1017,7 +1122,6 @@ export function CanvasEditorStage({
 
   const editingElement = canvasElements.find((el) => el.id === editingElementId) ?? null;
   const interactive = !previewMode;
-  const transformAccent = videoSelected ? CANVAS_FRAME.videoAccent : CANVAS_FRAME.elementAccent;
   const transformKeepRatio = Boolean(
     selectedElement &&
       (selectedElement.type === 'text' ||
@@ -1029,7 +1133,7 @@ export function CanvasEditorStage({
   // Frame guide lines while the video clip is focused (even before drag).
   const selectionGuides =
     interactive && videoSelected && canvasPreviewAxis && !dragGuides
-      ? getFrameGuideLines(contentRect)
+      ? snapSession.frameGuides
       : null;
   const activeGuides = dragGuides ?? selectionGuides;
 
@@ -1057,7 +1161,7 @@ export function CanvasEditorStage({
           if (e.target === e.target.getStage()) {
             studioEdit.clearFocus();
             setEditingElementId(null);
-            setDragGuides(null);
+            setDragGuidesIfChanged(null);
             if (canvasTool === 'pan' && interactive) onBackgroundClick?.();
           }
         }}
@@ -1090,10 +1194,10 @@ export function CanvasEditorStage({
               snapPeers={videoSnapPeers}
               canvasPreviewAxis={canvasPreviewAxis}
               canvasAttachSnap={canvasAttachSnap}
+              snapSession={snapSession}
               onSelect={() => focusVideoClip(videoClipAtPlayhead.id)}
               onChange={(patch) => {
-                // VideoClipProxyNode always reports a full live on-screen px box;
-                // store fields are fractions of contentRect.
+                // VideoClipProxyNode reports on-screen px; store uses fractions of contentRect.
                 const box = {
                   x: patch.x ?? 0,
                   y: patch.y ?? 0,
@@ -1106,7 +1210,7 @@ export function CanvasEditorStage({
                   { history: true },
                 );
               }}
-              onDragGuideChange={setDragGuides}
+              onDragGuideChange={setDragGuidesIfChanged}
               onLiveLayoutChange={(layout) => {
                 onVideoLiveLayoutChange?.(layout);
                 setLiveToolbarBox(
@@ -1121,6 +1225,10 @@ export function CanvasEditorStage({
                     : null,
                 );
               }}
+              cropLocked={
+                cropSession?.kind === 'video' &&
+                cropSession.targetId === videoClipAtPlayhead.id
+              }
             />
           )}
 
@@ -1138,13 +1246,14 @@ export function CanvasEditorStage({
               snapPeers={overlayPeersWithVideo}
               canvasPreviewAxis={canvasPreviewAxis}
               canvasAttachSnap={canvasAttachSnap}
+              snapSession={snapSession}
               onSelect={() => focusCanvasElement(element.id)}
               onEdit={() => {
                 focusCanvasElement(element.id);
                 setEditingElementId(element.id);
               }}
               onChange={(patch) => studioEdit.updateCanvasElement(element.id, patch)}
-              onDragGuideChange={setDragGuides}
+              onDragGuideChange={setDragGuidesIfChanged}
               onLiveLayoutChange={
                 selectedCanvasElementId === element.id ? setLiveToolbarBox : undefined
               }
@@ -1152,10 +1261,9 @@ export function CanvasEditorStage({
             />
           ))}
 
-          {interactive && transformTargetId && !editingElementId && (
+          {interactive && transformTargetId && !editingElementId && !cropSession && (
             <StudioCanvasTransformer
               transformerRef={transformerRef}
-              accent={transformAccent}
               keepRatio={transformKeepRatio}
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 40 || newBox.height < 24) return oldBox;
@@ -1167,12 +1275,10 @@ export function CanvasEditorStage({
         </Layer>
       </Stage>
 
-      {interactive && !editingElementId && orientedToolbarBox && transformTargetId && (
+      {interactive && !editingElementId && orientedToolbarBox && transformTargetId && !cropSession && (
         <div className="canvas-transform-chrome">
-          <CanvasSelectionFrame box={orientedToolbarBox} accent={transformAccent} />
           <CanvasRotationHandle
             box={orientedToolbarBox}
-            accent={transformAccent}
             toStagePoint={toStagePoint}
             onRotate={applyCanvasRotation}
             onRotateEnd={commitCanvasRotation}
@@ -1199,6 +1305,19 @@ export function CanvasEditorStage({
           }}
           onCancel={() => setEditingElementId(null)}
         />
+      )}
+
+      {interactive && cropSession && cropTargetBox && (
+        <div className="canvas-crop-overlay-layer">
+          <CanvasCropOverlay
+            box={cropTargetBox}
+            cropRect={cropSession.rect}
+            toStagePoint={toStagePoint}
+            onCropRectChange={setCropSessionRect}
+            onApply={applyCropSession}
+            onCancel={cancelCropSession}
+          />
+        </div>
       )}
 
       {interactive && (

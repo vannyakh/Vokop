@@ -1,5 +1,6 @@
 import { parseSegments } from '@/lib/utils/transcript';
 import { getSegmentEnd } from '@/features/studio/lib/timelineClipUtils';
+import { captionSegmentsToLegacySegments, type CaptionTracks } from '@vokop/shared';
 import type { CanvasElement } from '@/types/canvas';
 import type { Segment } from '@/types';
 
@@ -64,10 +65,16 @@ export function mergeSegmentsIntoCanvasElements(
   duration: number,
   existing: CanvasElement[],
   canvasSize = { width: 640, height: 360 },
+  captionTracks?: CaptionTracks,
 ): CanvasElement[] {
   const existingMap = new Map(existing.map((el) => [el.id, el]));
-  const translationSegments = parseSegments(translatedText);
-  const transcriptSegments = parseSegments(transcript);
+  // Structured captions keep fractional-second timing; legacy strings floor to seconds.
+  const translationSegments = captionTracks?.translation.length
+    ? captionSegmentsToLegacySegments(captionTracks.translation)
+    : parseSegments(translatedText);
+  const transcriptSegments = captionTracks?.transcript.length
+    ? captionSegmentsToLegacySegments(captionTracks.transcript)
+    : parseSegments(transcript);
   const safeDuration = duration || 1;
 
   const translationElements = segmentsToElements(

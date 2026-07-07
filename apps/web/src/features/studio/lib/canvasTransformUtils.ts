@@ -1,3 +1,5 @@
+import { snapRotation } from '@/features/studio/lib/previewSnap';
+
 export interface CanvasOrientedBox {
   x: number;
   y: number;
@@ -14,14 +16,18 @@ export function normalizeRotationDegrees(rotation: number): number {
   return r;
 }
 
-/** Snap rotation when Shift is held (or always when `force` is true). */
+/** Snap rotation: 90° auto-snap (OpenCut) or 15° when Shift is held. */
 export function snapRotationDegrees(
   rotation: number,
   options?: { shiftKey?: boolean; step?: number },
 ): number {
-  const step = options?.step ?? 15;
-  if (!options?.shiftKey && step !== 1) return normalizeRotationDegrees(rotation);
-  return normalizeRotationDegrees(Math.round(rotation / step) * step);
+  const normalized = normalizeRotationDegrees(rotation);
+  if (options?.shiftKey) {
+    const step = options?.step ?? 15;
+    return normalizeRotationDegrees(Math.round(normalized / step) * step);
+  }
+  const { snappedRotation } = snapRotation({ proposedRotation: normalized });
+  return normalizeRotationDegrees(snappedRotation);
 }
 
 /** Top-center point of a rotated rectangle in stage px (for floating toolbars). */

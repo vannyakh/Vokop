@@ -1,3 +1,4 @@
+import { drawCssBackgroundInRect } from '@vokop/editor';
 import type { CompositionBackground } from '@vokop/shared';
 import {
   DEFAULT_COMPOSITION_BACKGROUND,
@@ -86,45 +87,22 @@ export function backgroundSummary(background: CompositionBackground): string {
   }
 }
 
-/** Parse `linear-gradient(135deg, #667eea 0%, #764ba2 100%)` into canvas fill stops. */
-export function parseLinearGradientStops(gradient: string): { angle: number; stops: string[] } | null {
-  const match = gradient.match(/linear-gradient\((\d+)deg,\s*(.+)\)/i);
-  if (!match) return null;
-  const angle = Number(match[1]);
-  const stops = match[2]!
-    .split(',')
-    .map((part) => part.trim().replace(/\s+\d+%$/, ''))
-    .filter(Boolean);
-  if (stops.length < 2) return null;
-  return { angle, stops };
-}
-
+/**
+ * Draw a CSS gradient/color background into a canvas rect. Uses the full CSS
+ * gradient parser from `@vokop/editor` (linear/radial, angles, `to right`,
+ * positioned stops); falls back to black when the CSS can't be painted.
+ */
 export function drawGradientBackground(
   ctx: CanvasRenderingContext2D,
   rect: { x: number; y: number; width: number; height: number },
   gradientCss: string,
 ): void {
-  const parsed = parseLinearGradientStops(gradientCss);
-  if (!parsed) {
+  try {
+    drawCssBackgroundInRect(ctx, rect, gradientCss);
+  } catch {
     ctx.fillStyle = '#000000';
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-    return;
   }
-
-  const radians = ((parsed.angle - 90) * Math.PI) / 180;
-  const cx = rect.x + rect.width / 2;
-  const cy = rect.y + rect.height / 2;
-  const length = Math.sqrt(rect.width ** 2 + rect.height ** 2) / 2;
-  const x0 = cx - Math.cos(radians) * length;
-  const y0 = cy - Math.sin(radians) * length;
-  const x1 = cx + Math.cos(radians) * length;
-  const y1 = cy + Math.sin(radians) * length;
-  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-  parsed.stops.forEach((color, index) => {
-    gradient.addColorStop(index / (parsed.stops.length - 1), color);
-  });
-  ctx.fillStyle = gradient;
-  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
 }
 
 export function collectBackgroundImageUrls(

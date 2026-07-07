@@ -5,6 +5,7 @@ import { useAppStore } from '@/features/project';
 import { ASPECT_RATIOS, getAspectRatioOption } from '@/features/studio/constants/aspectRatios';
 import { StudioHeaderCanvasTools } from '@/features/studio/components/StudioHeaderCanvasTools';
 import { StudioHeaderHistoryTools } from '@/features/studio/components/StudioHeaderHistoryTools';
+import { StudioHeaderPreviewZoom } from '@/features/studio/components/StudioHeaderPreviewZoom';
 
 export function StudioHeaderCenter() {
   const projectName = useAppStore((s) => s.projectName);
@@ -54,6 +55,10 @@ export function StudioHeaderCenter() {
 
         <div className="studio-header-tool-group">
           <StudioHeaderHistoryTools />
+        </div>
+
+        <div className="studio-header-tool-group">
+          <StudioHeaderPreviewZoom />
         </div>
 
         <div className="studio-header-center-group">

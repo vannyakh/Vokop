@@ -3,7 +3,7 @@
  * Loaded via `assets/fonts/studio-fonts.css` — no network request.
  */
 
-export type LocalFontCategory = 'sans-serif' | 'display' | 'emoji';
+export type LocalFontCategory = 'sans-serif' | 'display' | 'emoji' | 'khmer';
 
 export interface LocalFont {
   family: string;
@@ -15,6 +15,7 @@ export interface LocalFont {
 
 export const LOCAL_FONTS: LocalFont[] = [
   { family: 'Poppins', category: 'sans-serif', source: 'local' },
+  { family: 'Kantumruy Pro', category: 'sans-serif', label: 'Kantumruy Pro', source: 'local' },
   { family: 'Nippo', category: 'display', source: 'local' },
   { family: 'Noto Emoji', category: 'emoji', label: 'Noto Emoji', source: 'local' },
 ];

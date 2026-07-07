@@ -1,4 +1,5 @@
 import { getEffectProps } from '@/features/studio/constants/textEffects';
+import { resolveStudioFontStack } from '@/features/studio/fonts/fontStack';
 import { toPxBox, toPxFontSize, type CanvasRect } from '@/features/studio/lib/canvasCoords';
 import { sampleElementAtTime } from '@/features/studio/lib/keyframeUtils';
 import {
@@ -46,9 +47,7 @@ function measureTextBoxHeight(
   const effectProps = getEffectProps(element.textEffect);
   const displayText =
     style?.textTransform === 'uppercase' ? element.text.toUpperCase() : element.text;
-  const resolvedFontFamily = element.fontFamily
-    ? `${element.fontFamily}, "Noto Sans", "Inter", sans-serif`
-    : '"Khmer OS Battambang", "Noto Sans", "Inter", sans-serif';
+  const resolvedFontFamily = resolveStudioFontStack(element.fontFamily);
   const fontWeight = style?.fontWeight === 'bold' ? 'bold' : 'normal';
   const fontStyle = style?.fontStyle === 'italic' ? 'italic' : 'normal';
   ctx.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${resolvedFontFamily}`;
@@ -158,9 +157,7 @@ export function drawCanvasElementUntransformed(
   const displayText =
     style?.textTransform === 'uppercase' ? element.text.toUpperCase() : element.text;
   const resolvedFill = effectProps.fill ?? style?.fill ?? '#ffffff';
-  const resolvedFontFamily = element.fontFamily
-    ? `${element.fontFamily}, "Noto Sans", "Inter", sans-serif`
-    : '"Khmer OS Battambang", "Noto Sans", "Inter", sans-serif';
+  const resolvedFontFamily = resolveStudioFontStack(element.fontFamily);
   const fontWeight = style?.fontWeight === 'bold' ? 'bold' : 'normal';
   const fontStyle = style?.fontStyle === 'italic' ? 'italic' : 'normal';
   ctx.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${resolvedFontFamily}`;

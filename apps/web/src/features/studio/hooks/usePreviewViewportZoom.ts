@@ -11,7 +11,7 @@ import {
 /** OpenCut-style preview zoom bounds (multiplier over "fit"). */
 export const PREVIEW_ZOOM = {
   min: 0.25,
-  max: 8,
+  max: 16,
   step: 1.25,
 } as const;
 

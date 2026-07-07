@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useAppStore } from '@/features/project';
 import { clampClip } from '@/features/studio/lib/timelineClipUtils';
 import { resolveTimelineClipSnap, snapClipTimingToFrame } from '@/features/studio/lib/timelineSnap';
+import { computeRippleTrimDelta } from '@/features/studio/lib/timelineRipple';
 import { timeToPx } from '@/features/studio/lib/timelineUtils';
 import { roundSecondsToFrame } from '@vokop/editor';
 import type {
@@ -53,6 +54,7 @@ export function useTimelineClipDrag(
   tracksContainerRef: React.RefObject<HTMLDivElement | null>,
   playheadSec: number,
   snappingEnabled: boolean,
+  rippleEditEnabled: boolean,
 ) {
   const dragRef = useRef<DragState | null>(null);
   const pendingPreviewRef = useRef<TimelineClipDragPreview | null>(null);
@@ -66,6 +68,7 @@ export function useTimelineClipDrag(
   const updateSegmentDuration = useAppStore((s) => s.updateSegmentDuration);
   const moveTimelineClipToTrack = useAppStore((s) => s.moveTimelineClipToTrack);
   const resolveTimelineClipOverlap = useAppStore((s) => s.resolveTimelineClipOverlap);
+  const rippleShiftTimelineClips = useAppStore((s) => s.rippleShiftTimelineClips);
 
   const getDragClientX = useCallback(() => lastPointerClientXRef.current, []);
 
@@ -102,8 +105,14 @@ export function useTimelineClipDrag(
   );
 
   const commitPreview = useCallback(
-    (preview: TimelineClipDragPreview, mode: DragMode) => {
-      let { clip, fromTrackId, trackId, start, duration: clipDuration, sourceStart } = preview;
+    (
+      preview: TimelineClipDragPreview,
+      mode: DragMode,
+      origStart: number,
+      origDuration: number,
+      trackId: TimelineTrackId,
+    ) => {
+      let { clip, fromTrackId, start, duration: clipDuration, sourceStart } = preview;
       const timelineDuration =
         duration > 0 ? duration : Math.max(start + clipDuration + 60, 60);
 
@@ -156,14 +165,28 @@ export function useTimelineClipDrag(
       if (mode === 'move' && (clip.canvasKind || clip.mediaKind)) {
         resolveTimelineClipOverlap(clip.id, String(trackId));
       }
+
+      if (rippleEditEnabled && (mode === 'left' || mode === 'right')) {
+        const ripple = computeRippleTrimDelta(origStart, origDuration, start, clipDuration);
+        if (ripple) {
+          rippleShiftTimelineClips({
+            trackId: String(trackId),
+            pivotSec: ripple.pivotSec,
+            deltaSec: ripple.deltaSec,
+            excludeClipId: clip.id,
+          });
+        }
+      }
     },
     [
       duration,
       snappingEnabled,
+      rippleEditEnabled,
       moveTimelineClipToTrack,
       updateSegmentTime,
       updateSegmentDuration,
       resolveTimelineClipOverlap,
+      rippleShiftTimelineClips,
     ],
   );
 
@@ -250,7 +273,7 @@ export function useTimelineClipDrag(
     const d = dragRef.current;
     const preview = pendingPreviewRef.current;
     if (d && preview) {
-      commitPreview(preview, d.mode);
+      commitPreview(preview, d.mode, d.origStart, d.origDuration, preview.trackId);
     }
     dragRef.current = null;
     pendingPreviewRef.current = null;

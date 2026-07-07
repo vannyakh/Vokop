@@ -1,12 +1,20 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { useAppStore } from '@/features/project';
 import { Label } from '@vokop/ui';
+import { ColorPickerContent, Popover, PopoverTrigger } from '@vokop/ui/shadcn';
 import { StudioPanel } from '@/features/studio/components/StudioPanel';
-import { InspectorDock, InspectorSection } from '@/features/studio/components/InspectorSection';
-import { InspectorBarSlider } from '@/features/studio/components/InspectorBarSlider';
+import { InspectorSection } from '@/features/studio/components/InspectorSection';
+import { InspectorField, InspectorFields } from '@/features/studio/components/InspectorField';
+import { InspectorNumberField } from '@/features/studio/components/InspectorNumberField';
+import {
+  InspectorPropertiesShell,
+  type InspectorTabDef,
+} from '@/features/studio/components/InspectorPropertiesShell';
 import { PropertyRow, PropertyRowPair } from '@/features/studio/components/PropertyRow';
 import { NumberStepper } from '@/features/studio/components/NumberStepper';
 import { CanvasFontPicker } from '@/features/studio/components/CanvasFontPicker';
+import { RightPanelEmpty } from '@/features/studio/components/RightPanelEmpty';
+import { useInspectorTabState } from '@/features/studio/hooks/useInspectorTabState';
 import { useStudioEdit } from '@/features/studio/hooks/useStudioEdit';
 import { frameReferenceSize } from '@/features/studio/lib/canvasCoords';
 import { getTextEffectSeed } from '@vokop/shared';
@@ -40,12 +48,20 @@ import {
   Zap,
   CaseSensitive,
   Clapperboard,
+  Droplets,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useVideoProcessing } from '@/features/translation';
 import { TEXT_EFFECTS, TEXT_EFFECT_IDS } from '@/features/studio/constants/textEffects';
 import { TextEffectPreviewCard } from '@/features/studio/components/TextEffectPreviewCard';
 import type { CanvasElement, CanvasTextEffectId } from '@/types/canvas';
+
+const TEXT_TAB_IDS = ['text', 'fill', 'border', 'effects', 'animation', 'transform'] as const;
+const IMAGE_TAB_IDS = ['media', 'blending', 'transform'] as const;
+
+type TextTabId = (typeof TEXT_TAB_IDS)[number];
+type ImageTabId = (typeof IMAGE_TAB_IDS)[number];
 
 function elementTitle(element: CanvasElement) {
   if (element.templateId) return 'Text template';
@@ -126,16 +142,18 @@ function ColorSwatch({
   onChange: (value: string) => void;
   title?: string;
 }) {
+  const hexValue = value.startsWith('#') ? value.slice(1) : value;
   return (
     <div className="canvas-color-pick" title={title}>
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="canvas-color-input"
-        title={title}
-      />
-      <span className="canvas-color-swatch" style={{ background: value }} />
+      <Popover>
+        <PopoverTrigger aria-label={title ?? 'Pick color'} className="canvas-color-input" />
+        <span className="canvas-color-swatch" style={{ background: value }} />
+        <ColorPickerContent
+          value={hexValue}
+          onChange={(hex) => onChange(`#${hex}`)}
+          side="left"
+        />
+      </Popover>
     </div>
   );
 }
@@ -169,19 +187,35 @@ export function CanvasElementPanel() {
   const replaceInputRef = useRef<HTMLInputElement>(null);
 
   const element = canvasElements.find((el) => el.id === selectedId);
+  const isImage = element?.type === 'logo' || element?.type === 'image';
+
+  const textTabs = useMemo<InspectorTabDef[]>(
+    () => [
+      { id: 'text', label: 'Text', icon: <Type size={16} /> },
+      { id: 'fill', label: 'Fill', icon: <Droplet size={16} /> },
+      { id: 'border', label: 'Border', icon: <Square size={16} /> },
+      { id: 'effects', label: 'Effects', icon: <Sparkles size={16} /> },
+      { id: 'animation', label: 'Animation', icon: <Clapperboard size={16} /> },
+      { id: 'transform', label: 'Transform', icon: <SlidersHorizontal size={16} /> },
+    ],
+    [],
+  );
+
+  const imageTabs = useMemo<InspectorTabDef[]>(
+    () => [
+      { id: 'media', label: 'Media', icon: <ImageIcon size={16} /> },
+      { id: 'blending', label: 'Blending', icon: <Droplets size={16} /> },
+      { id: 'transform', label: 'Transform', icon: <SlidersHorizontal size={16} /> },
+    ],
+    [],
+  );
+
+  const [textTab, setTextTab] = useInspectorTabState('canvas-text', 'text', TEXT_TAB_IDS);
+  const [imageTab, setImageTab] = useInspectorTabState('canvas-image', 'media', IMAGE_TAB_IDS);
 
   if (!element) {
-    return (
-      <InspectorDock title="Canvas selection" icon={<Type size={12} className="text-accent" />}>
-        <p className="inspector-dock-empty">
-          Click any text, sticker, or image on the preview to select it. Drag to move, use handles to
-          resize, or double-click text to edit inline.
-        </p>
-      </InspectorDock>
-    );
+    return <RightPanelEmpty />;
   }
-
-  const isImage = element.type === 'logo' || element.type === 'image';
   // element.x/y/width/height/fontSize are fractions of the content rect; convert
   // to a stable "nominal px" number (relative to the project's video resolution)
   // for display/editing in this panel.
@@ -272,79 +306,237 @@ export function CanvasElementPanel() {
         element.textEffect)
       : 'None';
 
-  return (
-    <InspectorDock title={elementTitle(element)} icon={panelIcon}>
-      {isImage && (
-        <InspectorSection
-          id="canvas-media"
-          title="Media"
-          icon={<ImageIcon size={12} />}
-          summary={element.text}
-          defaultOpen
+  const transformSection = (
+    <InspectorSection
+      id="canvas-transform"
+      title="Transform"
+      summary={`${Math.round(xPx)}, ${Math.round(yPx)}`}
+      defaultOpen
+    >
+      <InspectorFields>
+        <InspectorField label="X">
+          <InspectorNumberField
+            icon="X"
+            value={xPx}
+            min={-refSize.width}
+            max={Math.max(refSize.width, canvasW) * 1.5}
+            step={1}
+            scrubPixelsPerUnit={2}
+            format={(v) => `${Math.round(v)}px`}
+            isDefault={element.x === 0}
+            onChange={(v) => updateCanvasElement(element.id, { x: v / refSize.width })}
+            onReset={() => updateCanvasElement(element.id, { x: 0 })}
+          />
+        </InspectorField>
+        <InspectorField label="Y">
+          <InspectorNumberField
+            icon="Y"
+            value={yPx}
+            min={-refSize.height}
+            max={Math.max(refSize.height, canvasH) * 1.5}
+            step={1}
+            scrubPixelsPerUnit={2}
+            format={(v) => `${Math.round(v)}px`}
+            isDefault={element.y === 0}
+            onChange={(v) => updateCanvasElement(element.id, { y: v / refSize.height })}
+            onReset={() => updateCanvasElement(element.id, { y: 0 })}
+          />
+        </InspectorField>
+        <InspectorField label="Width">
+          <InspectorNumberField
+            icon="W"
+            value={widthPx}
+            min={isImage ? 40 : 60}
+            max={refSize.width * 2}
+            step={1}
+            scrubPixelsPerUnit={2}
+            format={(v) => `${Math.round(v)}px`}
+            isDefault={false}
+            onChange={(v) => updateCanvasElement(element.id, { width: v / refSize.width })}
+          />
+        </InspectorField>
+        {isImage && (
+          <InspectorField label="Height">
+            <InspectorNumberField
+              icon="H"
+              value={heightPx}
+              min={24}
+              max={refSize.height * 2}
+              step={1}
+              scrubPixelsPerUnit={2}
+              format={(v) => `${Math.round(v)}px`}
+              isDefault={false}
+              onChange={(v) => updateCanvasElement(element.id, { height: v / refSize.height })}
+            />
+          </InspectorField>
+        )}
+        {!isImage && (
+          <InspectorField label="Rotation">
+            <InspectorNumberField
+              icon="°"
+              value={element.rotation}
+              min={-180}
+              max={180}
+              step={1}
+              format={(v) => `${Math.round(v)}°`}
+              isDefault={element.rotation === 0}
+              onChange={(v) => updateCanvasElement(element.id, { rotation: v })}
+              onReset={() => updateCanvasElement(element.id, { rotation: 0 })}
+            />
+          </InspectorField>
+        )}
+      </InspectorFields>
+    </InspectorSection>
+  );
+
+  const actionsFooter = (
+    <InspectorSection id="canvas-actions" title="Actions" defaultOpen={false}>
+      {!isImage && element.segmentType === 'translation' && element.segmentIndex != null && (
+        <button
+          type="button"
+          disabled={status !== 'idle'}
+          onClick={() => retranslateActiveSegment(element.segmentIndex!)}
+          className="studio-tools-action-btn w-full"
         >
-          {element.src && (
-            <div className="studio-canvas-image-preview">
-              <img src={element.src} alt={element.text} />
-            </div>
+          {status === 'translating' ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Sparkles size={14} />
           )}
-          <input
-            ref={replaceInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) replaceCanvasElementImage(element.id, file);
-              e.target.value = '';
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => replaceInputRef.current?.click()}
-            className="studio-tools-action-btn w-full"
+          AI retranslate line
+        </button>
+      )}
+      <button type="button" onClick={resetLayout} className="studio-tools-action-btn w-full">
+        <RotateCcw size={14} />
+        Reset transform
+      </button>
+      <button
+        type="button"
+        onClick={() => duplicateCanvasElement(element.id)}
+        className="studio-tools-action-btn w-full"
+      >
+        <Copy size={14} />
+        Duplicate
+      </button>
+      {(element.templateId || isImage) && (
+        <button
+          type="button"
+          onClick={() => removeCanvasElement(element.id)}
+          className="studio-tools-action-btn w-full text-[#e8746a]"
+        >
+          <Trash2 size={14} />
+          {isImage ? 'Remove from frame' : 'Remove template'}
+        </button>
+      )}
+      <button type="button" onClick={() => clearFocus()} className="studio-tools-action-btn w-full">
+        Deselect
+      </button>
+    </InspectorSection>
+  );
+
+  if (isImage) {
+    const tab = imageTab as ImageTabId;
+    return (
+      <InspectorPropertiesShell
+        title={elementTitle(element)}
+        icon={panelIcon}
+        tabs={imageTabs}
+        activeTabId={tab}
+        onTabChange={setImageTab}
+        footer={actionsFooter}
+      >
+        {tab === 'media' && (
+          <InspectorSection
+            id="canvas-media"
+            title="Media"
+            icon={<ImageIcon size={12} />}
+            summary={element.text}
+            defaultOpen
           >
-            <ImageIcon size={14} />
-            Replace image
-          </button>
-          <InspectorBarSlider
-            label="Opacity"
-            value={element.opacity}
-            min={0.1}
-            max={1}
-            step={0.01}
-            defaultValue={1}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(v) => updateCanvasElement(element.id, { opacity: v })}
-            resetTitle="Reset opacity"
-          />
-        </InspectorSection>
-      )}
+            {element.src && (
+              <div className="studio-canvas-image-preview">
+                <img src={element.src} alt={element.text} />
+              </div>
+            )}
+            <input
+              ref={replaceInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) replaceCanvasElementImage(element.id, file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => replaceInputRef.current?.click()}
+              className="studio-tools-action-btn w-full"
+            >
+              <ImageIcon size={14} />
+              Replace image
+            </button>
+          </InspectorSection>
+        )}
+        {tab === 'blending' && (
+          <InspectorSection id="canvas-blending" title="Blending" defaultOpen>
+            <InspectorFields>
+              <InspectorField label="Opacity">
+                <InspectorNumberField
+                  icon={<Droplets size={12} />}
+                  value={element.opacity}
+                  min={0.1}
+                  max={1}
+                  step={0.01}
+                  scrubPixelsPerUnit={120}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                  isDefault={element.opacity === 1}
+                  onChange={(v) => updateCanvasElement(element.id, { opacity: v })}
+                  onReset={() => updateCanvasElement(element.id, { opacity: 1 })}
+                />
+              </InspectorField>
+            </InspectorFields>
+          </InspectorSection>
+        )}
+        {tab === 'transform' && transformSection}
+      </InspectorPropertiesShell>
+    );
+  }
 
-      {!isImage && (
-        <InspectorSection
-          id="canvas-content"
-          title="Content"
-          icon={<Type size={12} />}
-          summary={element.text.slice(0, 24)}
-          defaultOpen
-        >
-          <textarea
-            value={element.text}
-            onChange={(e) => updateCanvasElement(element.id, { text: e.target.value })}
-            rows={3}
-            className="studio-canvas-textarea"
-          />
-        </InspectorSection>
-      )}
-
-      {!isImage && (
-        <InspectorSection
-          id="canvas-text-style"
-          title="Text Style"
-          icon={<Bold size={12} />}
-          summary={`${element.fontFamily ?? 'Default'} · ${Math.round(fontSizePx)}px`}
-          defaultOpen
-        >
+  const tab = textTab as TextTabId;
+  return (
+    <InspectorPropertiesShell
+      title={elementTitle(element)}
+      icon={panelIcon}
+      tabs={textTabs}
+      activeTabId={tab}
+      onTabChange={setTextTab}
+      footer={actionsFooter}
+    >
+      {tab === 'text' && (
+        <>
+          <InspectorSection
+            id="canvas-content"
+            title="Content"
+            icon={<Type size={12} />}
+            summary={element.text.slice(0, 24)}
+            defaultOpen
+          >
+            <textarea
+              value={element.text}
+              onChange={(e) => updateCanvasElement(element.id, { text: e.target.value })}
+              rows={3}
+              className="studio-canvas-textarea"
+            />
+          </InspectorSection>
+          <InspectorSection
+            id="canvas-text-style"
+            title="Text style"
+            icon={<Bold size={12} />}
+            summary={`${element.fontFamily ?? 'Default'} · ${Math.round(fontSizePx)}px`}
+            defaultOpen
+          >
           <div className="space-y-1.5">
             <Label>Font</Label>
             <CanvasFontPicker
@@ -471,9 +663,10 @@ export function CanvasElementPanel() {
             </button>
           </div>
         </InspectorSection>
+        </>
       )}
 
-      {!isImage && (
+      {tab === 'fill' && (
         <InspectorSection
           id="canvas-fill"
           title="Fill"
@@ -600,7 +793,7 @@ export function CanvasElementPanel() {
         </InspectorSection>
       )}
 
-      {!isImage && (
+      {tab === 'border' && (
         <InspectorSection
           id="canvas-border"
           title="Border"
@@ -647,7 +840,7 @@ export function CanvasElementPanel() {
         </InspectorSection>
       )}
 
-      {!isImage && (
+      {tab === 'effects' && (
         <InspectorSection
           id="canvas-effect"
           title="Effects"
@@ -756,6 +949,7 @@ export function CanvasElementPanel() {
         </InspectorSection>
       )}
 
+      {tab === 'animation' && (
       <InspectorSection
         id="canvas-animation"
         title="Animation"
@@ -825,122 +1019,10 @@ export function CanvasElementPanel() {
           ))}
         </div>
       </InspectorSection>
+      )}
 
-      <InspectorSection
-        id="canvas-transform"
-        title="Transform"
-        icon={<RotateCcw size={12} />}
-        summary={`${Math.round(xPx)}, ${Math.round(yPx)}`}
-        defaultOpen={false}
-      >
-        <InspectorBarSlider
-          label="X"
-          value={xPx}
-          min={-refSize.width}
-          max={Math.max(refSize.width, canvasW) * 1.5}
-          step={1}
-          defaultValue={0}
-          format={(v) => `${Math.round(v)}px`}
-          onChange={(v) => updateCanvasElement(element.id, { x: v / refSize.width })}
-          resetTitle="Reset X"
-        />
-        <InspectorBarSlider
-          label="Y"
-          value={yPx}
-          min={-refSize.height}
-          max={Math.max(refSize.height, canvasH) * 1.5}
-          step={1}
-          defaultValue={0}
-          format={(v) => `${Math.round(v)}px`}
-          onChange={(v) => updateCanvasElement(element.id, { y: v / refSize.height })}
-          resetTitle="Reset Y"
-        />
-        <InspectorBarSlider
-          label="Width"
-          value={widthPx}
-          min={isImage ? 40 : 60}
-          max={refSize.width * 2}
-          step={1}
-          defaultValue={isImage ? (element.type === 'logo' ? 120 : 200) : 280}
-          format={(v) => `${Math.round(v)}px`}
-          onChange={(v) => updateCanvasElement(element.id, { width: v / refSize.width })}
-          resetTitle="Reset width"
-        />
-        {isImage && (
-          <InspectorBarSlider
-            label="Height"
-            value={heightPx}
-            min={24}
-            max={refSize.height * 2}
-            step={1}
-            defaultValue={element.type === 'logo' ? 48 : 120}
-            format={(v) => `${Math.round(v)}px`}
-            onChange={(v) => updateCanvasElement(element.id, { height: v / refSize.height })}
-            resetTitle="Reset height"
-          />
-        )}
-        {!isImage && (
-          <InspectorBarSlider
-            label="Rotation"
-            value={element.rotation}
-            min={-180}
-            max={180}
-            step={1}
-            defaultValue={0}
-            format={(v) => `${Math.round(v)}\u00b0`}
-            onChange={(v) => updateCanvasElement(element.id, { rotation: v })}
-            resetTitle="Reset rotation"
-          />
-        )}
-      </InspectorSection>
-
-      <InspectorSection id="canvas-actions" title="Actions" defaultOpen={false}>
-        {!isImage && element.segmentType === 'translation' && element.segmentIndex != null && (
-          <button
-            type="button"
-            disabled={status !== 'idle'}
-            onClick={() => retranslateActiveSegment(element.segmentIndex!)}
-            className="studio-tools-action-btn w-full"
-          >
-            {status === 'translating' ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Sparkles size={14} />
-            )}
-            AI retranslate line
-          </button>
-        )}
-        <button type="button" onClick={resetLayout} className="studio-tools-action-btn w-full">
-          <RotateCcw size={14} />
-          Reset transform
-        </button>
-        <button
-          type="button"
-          onClick={() => duplicateCanvasElement(element.id)}
-          className="studio-tools-action-btn w-full"
-        >
-          <Copy size={14} />
-          Duplicate
-        </button>
-        {(element.templateId || isImage) && (
-          <button
-            type="button"
-            onClick={() => removeCanvasElement(element.id)}
-            className="studio-tools-action-btn w-full text-[#e8746a]"
-          >
-            <Trash2 size={14} />
-            {isImage ? 'Remove from frame' : 'Remove template'}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => clearFocus()}
-          className="studio-tools-action-btn w-full"
-        >
-          Deselect
-        </button>
-      </InspectorSection>
-    </InspectorDock>
+      {tab === 'transform' && transformSection}
+    </InspectorPropertiesShell>
   );
 }
 

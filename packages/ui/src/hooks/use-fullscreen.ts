@@ -1,0 +1,31 @@
+import { useCallback, useEffect, useState } from "react"
+
+/** Native fullscreen state + toggle for a container element. */
+export function useFullscreen({
+  containerRef,
+}: {
+  containerRef: React.RefObject<HTMLElement | null>
+}) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const handleChange = () => {
+      setIsFullscreen(document.fullscreenElement !== null)
+    }
+    document.addEventListener("fullscreenchange", handleChange)
+    return () => {
+      document.removeEventListener("fullscreenchange", handleChange)
+    }
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      void containerRef.current.requestFullscreen()
+    }
+  }, [containerRef])
+
+  return { isFullscreen, toggleFullscreen }
+}

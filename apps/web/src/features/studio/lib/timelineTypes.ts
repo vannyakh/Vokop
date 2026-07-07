@@ -1,4 +1,5 @@
 import type { CompositionBackground } from '@vokop/shared';
+import type { NormalizedCropRect } from '@vokop/shared/types/crop';
 import type { ClipEq } from '@/features/studio/lib/clipEq';
 
 export type TimelineTrackId =
@@ -130,6 +131,8 @@ export interface MediaClip {
   flipX?: boolean;
   /** Mirror vertically in the composition preview. */
   flipY?: boolean;
+  /** Non-destructive crop (normalized 0..1 within source media). */
+  crop?: NormalizedCropRect;
   /**
    * Audio clip plays from the main video media (extract / detach).
    * Points at the source video clip id when created.

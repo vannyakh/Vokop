@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import { Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { human } from '@vokop/editor';
 import { cn } from '@/lib/cn';
 import { useAppStore } from '@/features/project';
@@ -148,6 +148,8 @@ export function MediaLibraryPanel() {
   const removeMediaAsset = useAppStore((s) => s.removeMediaAsset);
   const addMediaAssetToTimeline = useAppStore((s) => s.addMediaAssetToTimeline);
   const setPrimaryVideoAsset = useAppStore((s) => s.setPrimaryVideoAsset);
+  const mediaStorageWarning = useAppStore((s) => s.mediaStorageWarning);
+  const dismissMediaStorageWarning = useAppStore((s) => s.dismissMediaStorageWarning);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -218,6 +220,21 @@ export function MediaLibraryPanel() {
             : `${mediaAssets.length} file${mediaAssets.length === 1 ? '' : 's'}`}
         </p>
       </header>
+
+      {mediaStorageWarning && (
+        <div className="media-lib-storage-warning" role="alert">
+          <AlertTriangle size={13} aria-hidden />
+          <span className="media-lib-storage-warning-text">{mediaStorageWarning}</span>
+          <button
+            type="button"
+            className="media-lib-storage-warning-dismiss"
+            aria-label="Dismiss storage warning"
+            onClick={dismissMediaStorageWarning}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {empty ? (
         <button

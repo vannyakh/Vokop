@@ -1,3 +1,5 @@
+import type { NormalizedCropRect } from './crop.js';
+
 export type CanvasTool = 'select' | 'pan';
 
 export type CanvasElementType = 'text' | 'overlay' | 'logo' | 'image';
@@ -144,6 +146,8 @@ export interface CanvasElement {
   flipX?: boolean;
   /** Mirror vertically in the composition preview. */
   flipY?: boolean;
+  /** Non-destructive crop (normalized 0..1 within media bounds). */
+  crop?: NormalizedCropRect;
 }
 
 export type { CanvasTool as CanvasToolMode };

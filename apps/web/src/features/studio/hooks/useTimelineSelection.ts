@@ -44,6 +44,7 @@ export function useTimelineSelection() {
   const videoClips = useAppStore((s) => s.videoClips);
   const audioClips = useAppStore((s) => s.audioClips);
   const canvasElements = useAppStore((s) => s.canvasElements);
+  const captionTracks = useAppStore((s) => s.captionTracks);
   const splitTimelineAtPlayhead = useAppStore((s) => s.splitTimelineAtPlayhead);
 
   const items = useMemo(
@@ -117,6 +118,7 @@ export function useTimelineSelection() {
         videoClips,
         audioClips,
         canvasElements,
+        captionTracks,
         selectedTimelineClip: primary,
       }),
     [
@@ -128,6 +130,7 @@ export function useTimelineSelection() {
       videoClips,
       audioClips,
       canvasElements,
+      captionTracks,
       primary,
     ],
   );

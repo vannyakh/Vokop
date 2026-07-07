@@ -3,12 +3,16 @@ import type { Segment } from '@/types';
 export function parseSegments(text: string): Segment[] {
   const lines = text.split('\n').filter((l) => l.trim());
   return lines.map((line) => {
-    const match = line.match(/\[(\d{2}):(\d{2})\]\s+([^:]+):\s+(.*)/);
+    // `[MM:SS] Speaker: text` or ranged `[MM:SS-MM:SS] Speaker: text`.
+    const match = line.match(/\[(\d{2}):(\d{2})(?:-(\d{2}):(\d{2}))?\]\s+([^:]+):\s+(.*)/);
     if (match) {
+      const time = parseInt(match[1]) * 60 + parseInt(match[2]);
+      const endTime = match[3] ? parseInt(match[3]) * 60 + parseInt(match[4]) : undefined;
       return {
-        time: parseInt(match[1]) * 60 + parseInt(match[2]),
-        speaker: match[3],
-        text: match[4],
+        time,
+        ...(endTime != null && endTime > time ? { endTime } : {}),
+        speaker: match[5],
+        text: match[6],
         raw: line,
       };
     }
@@ -17,7 +21,7 @@ export function parseSegments(text: string): Segment[] {
 }
 
 export function extractSpeakers(text: string): string[] {
-  const speakerRegex = /\[\d{2}:\d{2}\]\s+([^:]+):/g;
+  const speakerRegex = /\[\d{2}:\d{2}(?:-\d{2}:\d{2})?\]\s+([^:]+):/g;
   const speakers = new Set<string>();
   let match;
   while ((match = speakerRegex.exec(text)) !== null) {
@@ -34,7 +38,13 @@ export function formatSegmentTime(seconds: number): string {
 
 export function rebuildTranscript(segments: Segment[]): string {
   return segments
-    .map((s) => `[${formatSegmentTime(s.time)}] ${s.speaker}: ${s.text}`)
+    .map((s) => {
+      const range =
+        s.endTime != null && s.endTime > s.time
+          ? `[${formatSegmentTime(s.time)}-${formatSegmentTime(s.endTime)}]`
+          : `[${formatSegmentTime(s.time)}]`;
+      return `${range} ${s.speaker}: ${s.text}`;
+    })
     .join('\n');
 }
 
@@ -55,8 +65,16 @@ export function updateSegmentTime(
   maxTime = Infinity,
 ): string {
   const updated = [...segments];
+  const current = updated[index];
   const clamped = Math.min(Math.max(0, newTime), maxTime);
-  updated[index] = { ...updated[index], time: clamped };
+  const delta = clamped - current.time;
+  updated[index] = {
+    ...current,
+    time: clamped,
+    ...(current.endTime != null
+      ? { endTime: Math.min(maxTime, current.endTime + delta) }
+      : {}),
+  };
   updated.sort((a, b) => a.time - b.time);
   return rebuildTranscript(updated);
 }
@@ -71,6 +89,11 @@ export function updateSegmentDuration(
   const updated = [...segments];
   const start = updated[index].time;
   const end = Math.min(totalDuration, start + Math.max(minDuration, newDuration));
+
+  if (updated[index].endTime != null) {
+    updated[index] = { ...updated[index], endTime: Math.max(end, start + minDuration) };
+    return rebuildTranscript(updated);
+  }
 
   if (index < segments.length - 1) {
     updated[index + 1] = { ...updated[index + 1], time: Math.max(end, start + minDuration) };

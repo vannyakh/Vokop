@@ -281,6 +281,27 @@
   flex-shrink: 0;
 }
 
+.studio-header-preview-zoom {
+  display: flex;
+  align-items: center;
+  padding: 0.05rem 0.15rem;
+}
+
+.studio-header-preview-zoom-trigger {
+  min-width: 3rem;
+  height: 1.55rem;
+  padding: 0 0.4rem;
+  border: none;
+  border-radius: 0.3rem;
+  background: transparent;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+}
+
+.studio-header-preview-zoom-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .studio-header-canvas-tool-btn {
   width: 1.65rem;
   height: 1.65rem;

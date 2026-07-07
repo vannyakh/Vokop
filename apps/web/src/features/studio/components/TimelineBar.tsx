@@ -45,9 +45,17 @@ export function TimelineBar({
   const toggleCanvasAttachSnap = useAppStore((s) => s.toggleCanvasAttachSnap);
   const timelineSnappingEnabled = useTimelineUiStore((s) => s.snappingEnabled);
   const toggleTimelineSnapping = useTimelineUiStore((s) => s.toggleSnapping);
+  const timelineRippleEditEnabled = useTimelineUiStore((s) => s.rippleEditEnabled);
+  const toggleRippleEdit = useTimelineUiStore((s) => s.toggleRippleEdit);
   const isTimelinePlaying = useAppStore((s) => s.isTimelinePlaying);
   const toggleTimelinePlaying = useAppStore((s) => s.toggleTimelinePlaying);
   const seekTimeline = useAppStore((s) => s.seekTimeline);
+  const splitTimelineRemoveSide = useAppStore((s) => s.splitTimelineRemoveSide);
+  const detachAudioFromVideoClip = useAppStore((s) => s.detachAudioFromVideoClip);
+  const timelineBookmarks = useAppStore((s) => s.timelineBookmarks);
+  const toggleTimelineBookmarkAtPlayhead = useAppStore(
+    (s) => s.toggleTimelineBookmarkAtPlayhead,
+  );
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setEditorOpen = useAppStore((s) => s.setEditorOpen);
   const {
@@ -82,6 +90,14 @@ export function TimelineBar({
     setEditorOpen(true);
   };
 
+  const isVideoClipSelected = Boolean(
+    selectedTimelineClip &&
+      String(selectedTimelineClip.trackId).startsWith('video'),
+  );
+  const isBookmarkedAtPlayhead = timelineBookmarks.some(
+    (b) => Math.abs(b - currentTime) < 0.1,
+  );
+
   if (!videoUrl && !projectId) return null;
 
   return (
@@ -102,14 +118,18 @@ export function TimelineBar({
           canSplit={canSplit}
           canDelete={canDelete}
           canDuplicate={hasSelection}
+          canSeparateAudio={isVideoClipSelected}
+          isBookmarked={isBookmarkedAtPlayhead}
           onSplit={splitAtPlayhead}
+          onSplitRemoveLeft={() => splitTimelineRemoveSide('left')}
+          onSplitRemoveRight={() => splitTimelineRemoveSide('right')}
+          onSeparateAudio={() => detachAudioFromVideoClip()}
           onDelete={deleteSelection}
           onDuplicate={duplicateSelection}
+          onToggleBookmark={toggleTimelineBookmarkAtPlayhead}
         />
 
         <TimelinePlaybackControls
-          videoRef={videoRef}
-          connectVideoAudioGraph={connectVideoAudioGraph}
           isPaused={isPaused}
           currentTime={currentTime}
           duration={duration}
@@ -123,12 +143,14 @@ export function TimelineBar({
           canvasPreviewAxis={canvasPreviewAxis}
           canvasAttachSnap={canvasAttachSnap}
           timelineSnappingEnabled={timelineSnappingEnabled}
+          timelineRippleEditEnabled={timelineRippleEditEnabled}
           timelineZoom={displayZoom}
           previewFullscreenOpen={previewFullscreenOpen}
           onToggleSyncPlayback={onToggleSyncPlayback}
           onTogglePreviewAxis={toggleCanvasPreviewAxis}
           onToggleAttachSnap={toggleCanvasAttachSnap}
           onToggleTimelineSnap={toggleTimelineSnapping}
+          onToggleRippleEdit={toggleRippleEdit}
           onZoomChange={setZoom}
           zoomSliderProps={zoomSliderProps}
           onToggleFullscreen={togglePreviewFullscreen}

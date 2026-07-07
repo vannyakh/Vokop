@@ -24,6 +24,11 @@ import { resolveVideoClipLayout, type VideoClipLayout } from '@/features/studio/
 import { WasmCompositorLayer } from '@/features/studio/components/WasmCompositorLayer';
 import { isWasmCompositorEnabled } from '@/features/studio/lib/compositorWasm';
 import { cn } from '@/lib/cn';
+import {
+  FULL_CROP,
+  combineCrop,
+} from '@vokop/shared/types/crop';
+import { cropMediaInnerStyle } from '@/features/studio/lib/canvasCrop';
 
 interface VideoPreviewFrameProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -80,6 +85,7 @@ export function VideoPreviewFrame({
   const mediaAssets = useAppStore((s) => s.mediaAssets);
   const canvasElements = useAppStore((s) => s.canvasElements);
   const isTimelinePlaying = useAppStore((s) => s.isTimelinePlaying);
+  const cropSession = useAppStore((s) => s.cropSession);
   const videoCssFilter = useAppStore((s) => s.getVideoCssFilter());
   const wasmCompositorPreview = isWasmCompositorEnabled();
   const videoTrackIds = useMemo(
@@ -163,7 +169,7 @@ export function VideoPreviewFrame({
     contentRect.height,
   ]);
 
-  const composedStyle: CSSProperties | undefined =
+  const composedContainerStyle: CSSProperties | undefined =
     hasActiveVideoClip && frameSize.width > 0
       ? (() => {
           const transforms: string[] = [];
@@ -173,6 +179,8 @@ export function VideoPreviewFrame({
           const usesCenter =
             transforms.length > 0 || videoLayout.rotation !== 0;
           return {
+            position: 'absolute',
+            overflow: 'hidden',
             left: usesCenter ? videoLayout.x + videoLayout.width / 2 : videoLayout.x,
             top: usesCenter ? videoLayout.y + videoLayout.height / 2 : videoLayout.y,
             width: videoLayout.width,
@@ -187,6 +195,26 @@ export function VideoPreviewFrame({
         })()
       : videoCssFilter !== 'none'
         ? { filter: videoCssFilter }
+        : undefined;
+
+  const effectiveVideoCrop = useMemo(() => {
+    if (!activeVideoClip) return undefined;
+    if (cropSession?.kind === 'video' && cropSession.targetId === activeVideoClip.id) {
+      return combineCrop(activeVideoClip.crop ?? FULL_CROP, cropSession.rect);
+    }
+    return activeVideoClip.crop;
+  }, [activeVideoClip, cropSession]);
+
+  const composedVideoStyle: CSSProperties | undefined =
+    hasActiveVideoClip && frameSize.width > 0
+      ? {
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          ...cropMediaInnerStyle(effectiveVideoCrop),
+        }
+      : composedContainerStyle?.filter
+        ? { filter: composedContainerStyle.filter }
         : undefined;
 
   const togglePlay = () => {
@@ -226,29 +254,55 @@ export function VideoPreviewFrame({
           />
         )}
 
-        <video
-          ref={videoRef}
-          key={videoUrl ?? undefined}
-          className={cn(
-            'studio-video-player',
-            hasActiveVideoClip && frameSize.width > 0 && 'studio-video-player--composed',
-            liveVideoLayout && 'studio-video-player--live-transform',
-            !hasActiveVideoClip && videoUrl && 'studio-video-player--gap',
-            wasmCompositorPreview && hasActiveVideoClip && 'studio-video-player--wasm-source',
-          )}
-          style={composedStyle}
-          playsInline
-          preload="auto"
-          onLoadedMetadata={(e) => {
-            setMediaDuration(e.currentTarget.duration);
-            setVideoDimensions(e.currentTarget.videoWidth, e.currentTarget.videoHeight);
-          }}
-          onClick={() => {
-            if (cinema || canvasTool === 'pan') togglePlay();
-          }}
-        >
-          {videoUrl && <source src={videoUrl} type={videoFile?.type} />}
-        </video>
+        {hasActiveVideoClip && frameSize.width > 0 && composedContainerStyle ? (
+          <div
+            className={cn(
+              'studio-video-crop-wrap',
+              liveVideoLayout && 'studio-video-player--live-transform',
+              wasmCompositorPreview && 'studio-video-player--wasm-source',
+            )}
+            style={composedContainerStyle}
+          >
+            <video
+              ref={videoRef}
+              key={videoUrl ?? undefined}
+              className={cn('studio-video-player', 'studio-video-player--composed')}
+              style={composedVideoStyle}
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(e) => {
+                setMediaDuration(e.currentTarget.duration);
+                setVideoDimensions(e.currentTarget.videoWidth, e.currentTarget.videoHeight);
+              }}
+              onClick={() => {
+                if (cinema || canvasTool === 'pan') togglePlay();
+              }}
+            >
+              {videoUrl && <source src={videoUrl} type={videoFile?.type} />}
+            </video>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            key={videoUrl ?? undefined}
+            className={cn(
+              'studio-video-player',
+              !hasActiveVideoClip && videoUrl && 'studio-video-player--gap',
+            )}
+            style={composedVideoStyle}
+            playsInline
+            preload="auto"
+            onLoadedMetadata={(e) => {
+              setMediaDuration(e.currentTarget.duration);
+              setVideoDimensions(e.currentTarget.videoWidth, e.currentTarget.videoHeight);
+            }}
+            onClick={() => {
+              if (cinema || canvasTool === 'pan') togglePlay();
+            }}
+          >
+            {videoUrl && <source src={videoUrl} type={videoFile?.type} />}
+          </video>
+        )}
 
         {wasmCompositorPreview && (
           <WasmCompositorLayer

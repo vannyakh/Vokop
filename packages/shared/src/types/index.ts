@@ -7,5 +7,6 @@ export * from './auth.js';
 export * from './studioTemplate.js';
 export * from './captions.js';
 export * from './beatAnalysis.js';
+export * from './crop.js';
 
 export type { AspectRatioId } from '../constants/aspect-ratios.js';

@@ -12,6 +12,10 @@ interface TimelineClipBlockProps {
   selected: boolean;
   filmstripThumbs?: string[];
   thumbWidth?: number;
+  /** Filmstrip frames are still generating for this clip's source. */
+  filmstripLoading?: boolean;
+  /** 0–100 progress while generating filmstrip preview. */
+  filmstripProgress?: number;
   /** When set, caps filmstrip frame band height (master-track density on overlay tracks). */
   filmstripBandHeight?: number;
   /** Static image/sticker preview strip (repeated thumbnail tiles). */
@@ -57,6 +61,8 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
   selected,
   filmstripThumbs,
   thumbWidth,
+  filmstripLoading = false,
+  filmstripProgress = 0,
   filmstripBandHeight,
   imagePreview = false,
   children,
@@ -84,6 +90,7 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
   const isAudio = track.type === 'audio' || track.type === 'sound';
   const showFilmstrip =
     Boolean(filmstripThumbs?.length) && (isFootage || imagePreview);
+  const showFilmstripLoader = isFootage && filmstripLoading && !showFilmstrip;
   const variant = getClipVariant(clip, track.type);
 
   const displayLabel = useMemo(() => {
@@ -127,9 +134,12 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
       }}
     >
       {/* Filmstrip for video / tiled previews for image & sticker clips */}
-      {showFilmstrip && (
+      {(showFilmstrip || showFilmstripLoader) && (
         <div
-          className="studio-timeline-clip-filmstrip"
+          className={cn(
+            'studio-timeline-clip-filmstrip',
+            showFilmstripLoader && 'is-loading',
+          )}
           style={
             isFootage && filmstripBandHeight != null
               ? {
@@ -142,15 +152,35 @@ export const TimelineClipBlock = memo(function TimelineClipBlock({
                 : undefined
           }
         >
-          {filmstripThumbs!.map((src, i) => (
-            <img
-              key={i}
-              src={src}
-              alt=""
-              className="studio-timeline-filmstrip-thumb"
-              draggable={false}
-            />
-          ))}
+          {showFilmstrip &&
+            filmstripThumbs!.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt=""
+                className="studio-timeline-filmstrip-thumb"
+                draggable={false}
+              />
+            ))}
+          {showFilmstripLoader && (
+            <>
+              <div className="studio-timeline-clip-filmstrip-skeleton" aria-hidden>
+                {Array.from({ length: Math.max(3, Math.ceil(width / (thumbWidth ?? 72))) }, (_, i) => (
+                  <span
+                    key={i}
+                    className="studio-timeline-clip-filmstrip-skeleton-cell"
+                    style={{ animationDelay: `${(i % 6) * 0.07}s` }}
+                  />
+                ))}
+              </div>
+              <div className="studio-timeline-clip-filmstrip-progress-track" aria-hidden>
+                <div
+                  className="studio-timeline-clip-filmstrip-progress-fill"
+                  style={{ width: `${Math.max(filmstripProgress, 8)}%` }}
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
 
